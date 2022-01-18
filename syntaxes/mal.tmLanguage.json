@@ -1,0 +1,222 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "MAL",
+
+  "patterns": [
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#tags"
+    },
+    {
+      "include": "#defines"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#components"
+    },
+    {
+      "include": "#numbers"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.mal",
+          "match": "#.*"
+        }
+      ]
+    },
+    "numbers": {
+      "match": "[0-9]+",
+      "name": "constant.numeric.mal"
+    },
+    "operators": {
+      "patterns": [
+        {
+          "match": "((!\\=)|(\\=)|(!)|(&)|(->)|(<->)|(>)|(<)|(\\|)|(\\.\\.)|({)|(})|\\]|\\[)",
+          "captures": {
+            "2": { "name": "keyword.operator.not_equals.mal" },
+            "3": { "name": "keyword.operator.equals.mal" },
+            "4": { "name": "keyword.operator.false.mal" },
+            "5": { "name": "keyword.operator.and.mal" },
+            "6": { "name": "keyword.operator.implies.mal" },
+            "7": { "name": "keyword.operator.equivalent.mal" },
+            "8": { "name": "keyword.operator.greater.mal" },
+            "9": { "name": "keyword.operator.less.mal" },
+            "10": { "name": "keyword.operator.or.mal" },
+            "11": { "name": "keyword.operator.range.mal" },
+            "12": { "name": "keyword.operator.open_braces.mal" },
+            "13": { "name": "keyword.operator.close_braces.mal" },
+            "14": { "name": "keyword.operator.close_bracket.mal" },
+            "15": { "name": "keyword.operator.open_bracket.mal" }
+          }
+        }
+      ]
+    },
+    "tags": {
+      "begin": "\\[",
+      "beginCaptures": { "0": { "name": "keyword.operator.open_bracket.mal" } },
+      "end": "\\]",
+      "endCaptures": { "0": { "name": "keyword.operator.close_bracket.mal" } },
+      "patterns": [
+        {
+          "name": "constant.language.vis.mal",
+          "match": "\\s*vis\\s*"
+        }
+      ]
+    },
+    "defines": {
+      "begin": "defines",
+      "beginCaptures": { "0": { "name": "storage.defines.mal" } },
+      "end": "(?=\\b((types)|(interactor))\\b)",
+      "patterns": [
+        { "include": "$self" },
+        {
+          "name": "keyword.control.mal",
+          "match": "^\\s*[A-Za-z]+[A-Za-z\\_0-9]*(?=\\s*\\=)"
+        },
+        {
+          "name": "variable.language.next_state.mal",
+          "match": "(?<!^\\s*)[A-Za-z]+[A-Za-z\\_0-9]*'"
+        },
+        {
+          "name": "variable.parameter.mal",
+          "match": "(?<!^\\s*)[A-Za-z]+[A-Za-z\\_0-9]*"
+        }
+      ]
+    },
+    "types": {
+      "begin": "types",
+      "beginCaptures": { "0": { "name": "storage.types.mal" } },
+      "end": "(?=\\b((defines)|(interactor))\\b)",
+      "patterns": [
+        { "include": "$self" },
+        {
+          "name": "entity.name.type.custom.mal",
+          "match": "^\\s*[A-Za-z]+[A-Za-z\\_0-9]*\\s*(?=\\=)"
+        },
+        {
+          "name": "variable.parameter.mal",
+          "match": "(?<!^\\s*)[A-Za-z]+[A-Za-z\\_0-9]*"
+        }
+      ]
+    },
+    "components": {
+      "begin": "interactor",
+      "beginCaptures": { "0": { "name": "storage.interactor.mal" } },
+      "end": "interactor",
+      "patterns": [
+        { "include": "$self" },
+        {
+          "begin": "attributes",
+          "beginCaptures": {
+            "0": { "name": "entity.name.tag.attributes.mal" }
+          },
+          "end": "(?=\\b((actions)|(axioms)|(test))\\b)",
+          "patterns": [
+            { "include": "$self" },
+            {
+              "name": "variable.parameter.mal",
+              "match": "(?<=(\\s*\\[\\s*vis\\s*\\]\\s*)?)(?<=([a-zA-Z0-9\\_]+\\s*,\\s*|(?<=(\\]|^)\\s+)))[a-zA-Z]+[a-zA-Z0-9\\_]*(?=(\\s+|,|:))"
+            },
+            {
+              "name": "entity.name.type",
+              "match": "(?<=:\\s*)[a-zA-Z]+[a-zA-Z0-9\\_]*(?=(\\s+|$))"
+            }
+          ]
+        },
+        {
+          "begin": "actions",
+          "beginCaptures": { "0": { "name": "entity.name.tag.actions.mal" } },
+          "end": "(?=\\b((attributes)|(axioms)|(test))\\b)",
+          "patterns": [
+            { "include": "$self" },
+            {
+              "name": "entity.name.function.mal",
+              "match": "(?<=^\\s*(\\s*\\[\\s*vis\\s*\\]\\s*)?)[a-zA-Z]+[a-zA-Z0-9\\_]*(?=(\\s+|$))"
+            }
+          ]
+        },
+        {
+          "begin": "axioms",
+          "beginCaptures": { "0": { "name": "entity.name.tag.axioms.mal" } },
+          "end": "(?=\\b((attributes)|(actions)|(test))\\b)",
+          "patterns": [
+            {
+              "begin": "\\[",
+              "beginCaptures": {
+                "0": { "name": "keyword.operator.open_bracket.mal" }
+              },
+              "end": "\\]",
+              "endCaptures": {
+                "0": { "name": "keyword.operator.close_bracket.mal" }
+              },
+              "patterns": [
+                {
+                  "name": "entity.name.variable.mal",
+                  "match": "[A-Za-z]+[A-Za-z\\_0-9]*"
+                }
+              ]
+            },
+            {
+              "match": "keep",
+              "name": "keyword.control.keep.mal"
+            },
+            {
+              "match": "per",
+              "name":"keyword.control.per.mal"
+            },
+            {
+              "name": "variable.language.next_state.mal",
+              "match": "[A-Za-z]+[A-Za-z\\_0-9]*'"
+            },
+            {
+              "name": "variable.language.mal",
+              "match": "[A-Za-z]+[A-Za-z\\_0-9]*"
+            },
+            { "include": "$self" }
+          ]
+        },
+        {
+          "name": "entity.name.tag.actions.mal",
+          "match": "actions"
+        },
+        {
+          "name": "entity.name.tag.axioms.mal",
+          "match": "axioms"
+        },
+        {
+          "name": "entity.name.tag.test.mal",
+          "match": "test"
+        }
+      ]
+    },
+
+    "strings": {
+      "name": "string.quoted.double.mal",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.mal",
+          "match": "\\\\."
+        }
+      ]
+    }
+  },
+  "scopeName": "source.i"
+}
