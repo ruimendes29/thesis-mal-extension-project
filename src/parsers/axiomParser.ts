@@ -45,7 +45,7 @@ const addDiagnosticToRelation = (
 };
 
 const parseConditions = (line: string, lineNumber: number) => {
-  const toFindTokens = /^.*(?=\s*\<?\-\>)/;
+  const toFindTokens = /^.*(?=\s*?\<\-\>)/;
   const toSeparateTokens = /(\&|\||\)|\()/;
   const previousTokens = "";
   let indexOfOp = 0;
@@ -57,7 +57,7 @@ const parseConditions = (line: string, lineNumber: number) => {
   const findValueType = (value: string): string | undefined => {
     if (value === "true" || value === "false") {
       return "boolean";
-    } else if (!isNaN(+value)) {
+    } else if (!isNaN(+value) && value!=="") {
       // check if value is a number
       return "number";
     } else if (attributes.has(value)) {
@@ -86,7 +86,7 @@ const parseConditions = (line: string, lineNumber: number) => {
   const separateTokens = (
     el: string
   ): { offset: number; value: string; tokenType: string }[]|undefined => {
-    if ((indexOfOp = el.search(/(\<\s*\=|\>\s*\=|\=|\>|\<)/)) > 0) {
+    if ((indexOfOp = el.search(/(\<\s*\=|\>\s*\=|\=|\>|\<(?!\s*-))/)) > 0) {
       const att = el.slice(0, indexOfOp).trim();
       const val = el.slice(indexOfOp + 1).trim();
       console.log(att + " x " + val);
@@ -151,7 +151,7 @@ const parseConditions = (line: string, lineNumber: number) => {
 };
 
 const parseTriggerAction = (line: string, lineNumber: number) => {
-  const toFindTokens = /(\s*\-\>\s*)?\[[^\[]+\]/;
+  const toFindTokens = /(\<?\s*\-\>\s*)?\[[^\[]+\]/;
   const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\])/;
   const previousTokens = "";
   const parseTriggerActions: ParseSection = new ParseSection(

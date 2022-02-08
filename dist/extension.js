@@ -226,7 +226,7 @@ const addDiagnosticToRelation = (type, line, lineNumber, fullCondition, attribut
     ];
 };
 const parseConditions = (line, lineNumber) => {
-    const toFindTokens = /^.*(?=\s*\<?\-\>)/;
+    const toFindTokens = /^.*(?=\s*?\<\-\>)/;
     const toSeparateTokens = /(\&|\||\)|\()/;
     const previousTokens = "";
     let indexOfOp = 0;
@@ -237,7 +237,7 @@ const parseConditions = (line, lineNumber) => {
         if (value === "true" || value === "false") {
             return "boolean";
         }
-        else if (!isNaN(+value)) {
+        else if (!isNaN(+value) && value !== "") {
             // check if value is a number
             return "number";
         }
@@ -262,7 +262,7 @@ const parseConditions = (line, lineNumber) => {
         }
     };
     const separateTokens = (el) => {
-        if ((indexOfOp = el.search(/(\<\s*\=|\>\s*\=|\=|\>|\<)/)) > 0) {
+        if ((indexOfOp = el.search(/(\<\s*\=|\>\s*\=|\=|\>|\<(?!\s*-))/)) > 0) {
             const att = el.slice(0, indexOfOp).trim();
             const val = el.slice(indexOfOp + 1).trim();
             console.log(att + " x " + val);
@@ -288,7 +288,7 @@ const parseConditions = (line, lineNumber) => {
     return parseConditionsSection.getTokens(line, lineNumber, 0, true, separateTokens);
 };
 const parseTriggerAction = (line, lineNumber) => {
-    const toFindTokens = /(\s*\-\>\s*)?\[[^\[]+\]/;
+    const toFindTokens = /(\<?\s*\-\>\s*)?\[[^\[]+\]/;
     const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\])/;
     const previousTokens = "";
     const parseTriggerActions = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
@@ -497,13 +497,15 @@ class ParseSection {
                             const sepTokens = separateTokens(trimmedEl);
                             if (sepTokens !== undefined) {
                                 for (let t of sepTokens) {
-                                    tokens.push({
-                                        line: lineNumber,
-                                        startCharacter: nextIndexLine + offset + t.offset,
-                                        length: t.value.length,
-                                        tokenType: t.tokenType,
-                                        tokenModifiers: [""]
-                                    });
+                                    if (t.trim() !== "") {
+                                        tokens.push({
+                                            line: lineNumber,
+                                            startCharacter: nextIndexLine + offset + t.offset,
+                                            length: t.value.length,
+                                            tokenType: t.tokenType,
+                                            tokenModifiers: [""],
+                                        });
+                                    }
                                 }
                             }
                         }
