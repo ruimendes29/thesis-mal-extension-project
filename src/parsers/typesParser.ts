@@ -1,36 +1,47 @@
 import { addDiagnostic } from "../diagnostics/diagnostics";
-import { defines, IParsedToken } from "./globalParserInfo";
+import {  enums, IParsedToken } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 
-const parseDefinesBeforeValue = (line: string, lineNumber: number) => {
-  const toFindTokens = /^\s*[a-zA-Z][a-zA-Z0-9\_]*\s*\=/;
-  const toSeparateTokens = /\=/;
+const parseEnumTypes = (line: string, lineNumber: number) => {
+  const toFindTokens = /^\s*[a-zA-Z][a-zA-Z0-9\_]*\s*\=\s*\{.*\}/;
+  const toSeparateTokens = /(\=|\,|\{|\})/;
   const previousTokens = "";
+  let elementIndex = 0;
+  let typeName = "";
   const parseDefines: ParseSection = new ParseSection(
     toFindTokens,
     toSeparateTokens,
     previousTokens,
     (el, sc) => {
-      if (defines.has(el)) {
-        addDiagnostic(
-          lineNumber,
-          sc,
-          lineNumber,
-          sc + el.length,
-          el + " is already declared",
-          "warning"
-        );
-        return "function";
-      } else {
-        defines.set(el, { used: false, type: undefined });
-        return "keyword";
-      }
+        if (elementIndex === 0) {
+            elementIndex++;
+            if (enums.has(el)) {
+                addDiagnostic(
+                  lineNumber,
+                  sc,
+                  lineNumber,
+                  sc + el.length,
+                  el + " is already declared",
+                  "warning"
+                );
+                return "function";
+              } else {
+                  typeName = el;
+                enums.set(el,{used:false,type:"enum",values:[]} );
+                return "enum";
+              }
+        }
+        else {
+            elementIndex++;
+            enums.get(typeName)?.values.push(el);
+            return "macro";
+        }   
     }
   );
   return parseDefines.getTokens(line, lineNumber, 0);
 };
 
-export const _parseDefines = (
+export const _parseTypes = (
   line: string,
   lineNumber: number
 ): { tokens: IParsedToken[]; size: number } | undefined => {
@@ -41,7 +52,7 @@ export const _parseDefines = (
     line: string,
     lineNumber: number
   ) => { tokens: IParsedToken[]; size: number } | undefined)[] = [
-    parseDefinesBeforeValue,
+    parseEnumTypes,
   ];
 
   const lineWithoutComments =

@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { actions, defines } from "../parsers/globalParserInfo";
+import { actions, defines, enums } from "../parsers/globalParserInfo";
 
 const mapForDiag: Map<vscode.Uri, vscode.Diagnostic[]> = new Map<
   vscode.Uri,
@@ -10,9 +10,9 @@ const diagnosticCollection: vscode.DiagnosticCollection =
   vscode.languages.createDiagnosticCollection();
 
 export const clearDiagnosticCollection = () => {
-  diagnosticCollection.delete(vscode.window.activeTextEditor!.document.uri);
   actions.clear();
   defines.clear();
+  enums.clear();
   mapForDiag.clear();
 };
 
@@ -58,6 +58,5 @@ export const addDiagnostic = (
   ) {
     mapForDiag.get(currentUri)!.push(diagnostic);
   }
-  diagnosticCollection.clear();
   diagnosticCollection.set(currentUri, mapForDiag.get(currentUri));
 };

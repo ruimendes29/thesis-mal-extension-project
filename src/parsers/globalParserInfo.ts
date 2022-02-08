@@ -8,6 +8,10 @@ export const defines = new Map<
   string,
   { used: boolean; type: string | undefined }
 >();
+export const enums = new Map<
+  string,
+  {used: boolean; type: string; values: string []}
+>();
 
 sections.set("attributes", false);
 sections.set("types", false);

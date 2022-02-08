@@ -11,6 +11,32 @@ import {
   updateSection,
 } from "./globalParserInfo";
 import { clearDiagnosticCollection } from "../diagnostics/diagnostics";
+import { _parseTypes } from "./typesParser";
+
+//ToDo: need to find a way to suit the code in this function in order to reduce duplicated code
+/*const parseSection = (
+  section: string,
+  parser: Function,
+  line: string,
+  currentOffset: number,
+  lineNumber: number,
+  tokensArray: IParsedToken[]
+): boolean => {
+  if (sections.get(section)) {
+    const parsedSection = parser(line.slice(currentOffset), lineNumber);
+    if (parsedSection !== undefined) {
+      parsedSection.tokens.forEach((el: IParsedToken) => {
+        tokensArray.push(el);
+      });
+      currentOffset += parsedSection.size;
+      return true;
+    } else {
+      return false;
+    }
+  } else {
+    return false;
+  }
+};*/
 
 export function _parseText(text: string): IParsedToken[] {
   const r: IParsedToken[] = [];
@@ -33,6 +59,16 @@ export function _parseText(text: string): IParsedToken[] {
         const isNewSection = updateSection(line);
         if (isNewSection) {
           break;
+        } else if (sections.get("types")) {
+          const parsedTypes = _parseTypes(line.slice(currentOffset), i);
+          if (parsedTypes !== undefined) {
+            parsedTypes.tokens.forEach((el) => {
+              r.push(el);
+            });
+            currentOffset += parsedTypes.size;
+          } else {
+            break;
+          }
         } else if (sections.get("defines")) {
           const parsedDefines = _parseDefines(line.slice(currentOffset), i);
           if (parsedDefines !== undefined) {
@@ -69,7 +105,5 @@ export function _parseText(text: string): IParsedToken[] {
       }
     } while (true);
   }
-  console.log(attributes);
-  console.log(actions);
   return r;
 }

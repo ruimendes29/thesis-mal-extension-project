@@ -13,11 +13,12 @@ module.exports = require("vscode");
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.clearStoredValues = exports.isInsideInteractor = exports.isSubSection = exports.updateSection = exports.defines = exports.actions = exports.attributes = exports.sections = void 0;
+exports.clearStoredValues = exports.isInsideInteractor = exports.isSubSection = exports.updateSection = exports.enums = exports.defines = exports.actions = exports.attributes = exports.sections = void 0;
 exports.sections = new Map();
 exports.attributes = new Map();
 exports.actions = new Map();
 exports.defines = new Map();
+exports.enums = new Map();
 exports.sections.set("attributes", false);
 exports.sections.set("types", false);
 exports.sections.set("defines", false);
@@ -82,6 +83,31 @@ const actionAndAttribParser_1 = __webpack_require__(7);
 const definesParser_1 = __webpack_require__(8);
 const globalParserInfo_1 = __webpack_require__(2);
 const diagnostics_1 = __webpack_require__(5);
+const typesParser_1 = __webpack_require__(9);
+//ToDo: need to find a way to suit the code in this function in order to reduce duplicated code
+/*const parseSection = (
+  section: string,
+  parser: Function,
+  line: string,
+  currentOffset: number,
+  lineNumber: number,
+  tokensArray: IParsedToken[]
+): boolean => {
+  if (sections.get(section)) {
+    const parsedSection = parser(line.slice(currentOffset), lineNumber);
+    if (parsedSection !== undefined) {
+      parsedSection.tokens.forEach((el: IParsedToken) => {
+        tokensArray.push(el);
+      });
+      currentOffset += parsedSection.size;
+      return true;
+    } else {
+      return false;
+    }
+  } else {
+    return false;
+  }
+};*/
 function _parseText(text) {
     const r = [];
     (0, diagnostics_1.clearDiagnosticCollection)();
@@ -104,6 +130,18 @@ function _parseText(text) {
                 const isNewSection = (0, globalParserInfo_1.updateSection)(line);
                 if (isNewSection) {
                     break;
+                }
+                else if (globalParserInfo_1.sections.get("types")) {
+                    const parsedTypes = (0, typesParser_1._parseTypes)(line.slice(currentOffset), i);
+                    if (parsedTypes !== undefined) {
+                        parsedTypes.tokens.forEach((el) => {
+                            r.push(el);
+                        });
+                        currentOffset += parsedTypes.size;
+                    }
+                    else {
+                        break;
+                    }
                 }
                 else if (globalParserInfo_1.sections.get("defines")) {
                     const parsedDefines = (0, definesParser_1._parseDefines)(line.slice(currentOffset), i);
@@ -146,8 +184,6 @@ function _parseText(text) {
             }
         } while (true);
     }
-    console.log(globalParserInfo_1.attributes);
-    console.log(globalParserInfo_1.actions);
     return r;
 }
 exports._parseText = _parseText;
@@ -163,20 +199,97 @@ exports._parseAxioms = void 0;
 const diagnostics_1 = __webpack_require__(5);
 const globalParserInfo_1 = __webpack_require__(2);
 const ParseSection_1 = __webpack_require__(6);
+/* function responsible for adding diagnostics to the attributes when they are in the conditions
+  if any given axiom */
+const addDiagnosticToRelation = (type, line, lineNumber, fullCondition, attribute, value, message, severity) => {
+    let stringToCompare = "";
+    if (type === "att") {
+        stringToCompare = attribute;
+    }
+    else if (type === "val") {
+        stringToCompare = value;
+    }
+    (0, diagnostics_1.addDiagnostic)(lineNumber, line.indexOf(fullCondition) + fullCondition.indexOf(stringToCompare), lineNumber, line.indexOf(fullCondition) +
+        fullCondition.indexOf(stringToCompare) +
+        stringToCompare.length, message, severity);
+    return [
+        {
+            offset: fullCondition.indexOf(attribute),
+            value: attribute,
+            tokenType: stringToCompare === attribute ? "regexp" : "variable",
+        },
+        {
+            offset: fullCondition.indexOf(value),
+            value: value,
+            tokenType: stringToCompare === value ? "regexp" : "macro",
+        },
+    ];
+};
 const parseConditions = (line, lineNumber) => {
-    const toFindTokens = /^\s*(!?\s*[a-zA-Z]+[a-zA-Z\_0-9]*|\(((\s*!)?\s*[a-zA-Z]+[a-zA-Z\_0-9]*\s*(\&|\||[\>\<\=]{1,2})\s*)*\s*(!?\s*[a-zA-Z]+[a-zA-Z\_0-9]*)\))(?=\s*\<?\-\>)/;
-    const toSeparateTokens = /(\(|\)|\&|\||\!|\=|\>|\<)/;
-    const previousTokens = "(?<=((\\(|\\)|\\&|\\||\\!|\\=|\\>|\\<|\\s+)))";
+    const toFindTokens = /^.*(?=\s*\<?\-\>)/;
+    const toSeparateTokens = /(\&|\||\)|\()/;
+    const previousTokens = "";
+    let indexOfOp = 0;
+    const attributeExists = (attribute) => {
+        return globalParserInfo_1.attributes.has(attribute);
+    };
+    const findValueType = (value) => {
+        if (value === "true" || value === "false") {
+            return "boolean";
+        }
+        else if (!isNaN(+value)) {
+            // check if value is a number
+            return "number";
+        }
+        else if (globalParserInfo_1.attributes.has(value)) {
+            return "attribute";
+        }
+        else {
+            for (var [k, v] of globalParserInfo_1.enums) {
+                if (v.values.includes(value)) {
+                    return k;
+                }
+            }
+        }
+        return undefined;
+    };
+    const isAttributeSameAsValue = (attribute, value) => {
+        if (globalParserInfo_1.attributes.get(attribute).type === findValueType(value)) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    };
+    const separateTokens = (el) => {
+        if ((indexOfOp = el.search(/(\<\s*\=|\>\s*\=|\=|\>|\<)/)) > 0) {
+            const att = el.slice(0, indexOfOp).trim();
+            const val = el.slice(indexOfOp + 1).trim();
+            console.log(att + " x " + val);
+            if (!attributeExists(att)) {
+                return addDiagnosticToRelation("att", line, lineNumber, el, att, val, att + " is not defined", "error");
+            }
+            if (findValueType(val) === undefined) {
+                return addDiagnosticToRelation("val", line, lineNumber, el, att, val, val + " is not a valid value", "error");
+            }
+            if (!isAttributeSameAsValue(att, val)) {
+                return addDiagnosticToRelation("att", line, lineNumber, el, att, val, att + " is not of type " + findValueType(val), "warning");
+            }
+            return [
+                { offset: el.indexOf(att), value: att, tokenType: "variable" },
+                { offset: el.indexOf(val), value: val, tokenType: "macro" },
+            ];
+        }
+        return undefined;
+    };
     const parseConditionsSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
-        return globalParserInfo_1.attributes.has(el) && globalParserInfo_1.attributes.get(el).type === "boolean"
-            ? "variable"
-            : "label";
+        return "cantprint";
     });
-    return parseConditionsSection.getTokens(line, lineNumber, 0);
+    return parseConditionsSection.getTokens(line, lineNumber, 0, true, separateTokens);
 };
 const parseTriggerAction = (line, lineNumber) => {
-    const toFindTokens = /\[[^\[]+\]/;
-    const toSeparateTokens = /(\(|\)|\&|\||\!|\[|\])/;
+    const toFindTokens = /(\s*\-\>\s*)?\[[^\[]+\]/;
+    const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\])/;
     const previousTokens = "";
     const parseTriggerActions = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
         if (globalParserInfo_1.actions.has(el)) {
@@ -241,8 +354,8 @@ const _parseAxioms = (line, lineNumber) => {
     const sectionsToParseParsers = [
         parseConditions,
         parseTriggerAction,
-        parseNextState,
         parsePer,
+        parseNextState,
     ];
     const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
     while (currentOffset < lineWithoutComments.length) {
@@ -282,9 +395,9 @@ const globalParserInfo_1 = __webpack_require__(2);
 const mapForDiag = new Map();
 const diagnosticCollection = vscode.languages.createDiagnosticCollection();
 const clearDiagnosticCollection = () => {
-    diagnosticCollection.delete(vscode.window.activeTextEditor.document.uri);
     globalParserInfo_1.actions.clear();
     globalParserInfo_1.defines.clear();
+    globalParserInfo_1.enums.clear();
     mapForDiag.clear();
 };
 exports.clearDiagnosticCollection = clearDiagnosticCollection;
@@ -314,7 +427,6 @@ const addDiagnostic = (initialLineNumber, initialCharacter, finalLineNumber, fin
     }).length) {
         mapForDiag.get(currentUri).push(diagnostic);
     }
-    diagnosticCollection.clear();
     diagnosticCollection.set(currentUri, mapForDiag.get(currentUri));
 };
 exports.addDiagnostic = addDiagnostic;
@@ -340,7 +452,7 @@ class ParseSection {
             .split(new RegExp(this.previousSymbols + subString + this.followingSymbols), index)
             .join(subString).length;
     }
-    getTokens(line, lineNumber, offset) {
+    getTokens(line, lineNumber, offset, aggregatedTokens, separateTokens) {
         let x;
         // regular expression to check if there are conditions in the axiom
         // checking if there is only one or more variables surrounded by parentheses
@@ -371,19 +483,35 @@ class ParseSection {
                         }
                         // find the next index to be considered while parsing the elements from the line
                         let nextIndexLine = this.getPosition(line, tokenForMap, mapTokens.get(tokenForMap));
-                        tokens.push({
-                            line: lineNumber,
-                            startCharacter: nextIndexLine + offset,
-                            length: trimmedEl.length,
-                            // to had the token type we check if the element is in the attributes and is a boolean
-                            tokenType: this.tokenTypeCondition(trimmedEl, nextIndexLine + offset),
-                            tokenModifiers: [""],
-                        });
+                        if (!aggregatedTokens) {
+                            tokens.push({
+                                line: lineNumber,
+                                startCharacter: nextIndexLine + offset,
+                                length: trimmedEl.length,
+                                // to had the token type we check if the element is in the attributes and is a boolean
+                                tokenType: this.tokenTypeCondition(trimmedEl, nextIndexLine + offset),
+                                tokenModifiers: [""],
+                            });
+                        }
+                        else {
+                            const sepTokens = separateTokens(trimmedEl);
+                            if (sepTokens !== undefined) {
+                                for (let t of sepTokens) {
+                                    tokens.push({
+                                        line: lineNumber,
+                                        startCharacter: nextIndexLine + offset + t.offset,
+                                        length: t.value.length,
+                                        tokenType: t.tokenType,
+                                        tokenModifiers: [""]
+                                    });
+                                }
+                            }
+                        }
                         // update the index in the mapTokens
                         mapTokens.set(tokenForMap, mapTokens.get(tokenForMap) + 1);
                     }
                 });
-                return { tokens: tokens, size: x[0].trim().length };
+                return { tokens: tokens, size: x[0].length };
             }
             else {
                 return undefined;
@@ -514,12 +642,10 @@ const parseDefinesBeforeValue = (line, lineNumber) => {
     const previousTokens = "";
     const parseDefines = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
         if (globalParserInfo_1.defines.has(el)) {
-            console.log(el + " passed twice");
             (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is already declared", "warning");
             return "function";
         }
         else {
-            console.log("new defines " + el);
             globalParserInfo_1.defines.set(el, { used: false, type: undefined });
             return "keyword";
         }
@@ -557,6 +683,76 @@ const _parseDefines = (line, lineNumber) => {
     }
 };
 exports._parseDefines = _parseDefines;
+
+
+/***/ }),
+/* 9 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports._parseTypes = void 0;
+const diagnostics_1 = __webpack_require__(5);
+const globalParserInfo_1 = __webpack_require__(2);
+const ParseSection_1 = __webpack_require__(6);
+const parseEnumTypes = (line, lineNumber) => {
+    const toFindTokens = /^\s*[a-zA-Z][a-zA-Z0-9\_]*\s*\=\s*\{.*\}/;
+    const toSeparateTokens = /(\=|\,|\{|\})/;
+    const previousTokens = "";
+    let elementIndex = 0;
+    let typeName = "";
+    const parseDefines = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
+        if (elementIndex === 0) {
+            elementIndex++;
+            if (globalParserInfo_1.enums.has(el)) {
+                (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is already declared", "warning");
+                return "function";
+            }
+            else {
+                typeName = el;
+                globalParserInfo_1.enums.set(el, { used: false, type: "enum", values: [] });
+                return "enum";
+            }
+        }
+        else {
+            elementIndex++;
+            globalParserInfo_1.enums.get(typeName)?.values.push(el);
+            return "macro";
+        }
+    });
+    return parseDefines.getTokens(line, lineNumber, 0);
+};
+const _parseTypes = (line, lineNumber) => {
+    let currentOffset = 0;
+    let toRetTokens = [];
+    let size = 0;
+    const sectionsToParseParsers = [
+        parseEnumTypes,
+    ];
+    const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
+    while (currentOffset < lineWithoutComments.length) {
+        let foundMatch = false;
+        for (const parser of sectionsToParseParsers) {
+            const matchedPiece = parser(lineWithoutComments.slice(currentOffset), lineNumber);
+            if (matchedPiece && matchedPiece.size > 0) {
+                foundMatch = true;
+                toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
+                size += matchedPiece.size;
+                currentOffset += matchedPiece.size;
+            }
+        }
+        if (!foundMatch) {
+            break;
+        }
+    }
+    if (size === 0) {
+        return undefined;
+    }
+    else {
+        return { tokens: toRetTokens, size: size };
+    }
+};
+exports._parseTypes = _parseTypes;
 
 
 /***/ })

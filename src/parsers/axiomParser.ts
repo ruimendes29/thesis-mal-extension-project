@@ -1,30 +1,158 @@
 import { addDiagnostic } from "../diagnostics/diagnostics";
-import { actions, attributes, IParsedToken } from "./globalParserInfo";
+import { actions, attributes, enums, IParsedToken } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 
-
+/* function responsible for adding diagnostics to the attributes when they are in the conditions
+  if any given axiom */
+const addDiagnosticToRelation = (
+  type: string,
+  line: string,
+  lineNumber: number,
+  fullCondition: string,
+  attribute: string,
+  value: string,
+  message: string,
+  severity: string
+) => {
+  let stringToCompare = "";
+  if (type === "att") {
+    stringToCompare = attribute;
+  } else if (type === "val") {
+    stringToCompare = value;
+  }
+  addDiagnostic(
+    lineNumber,
+    line.indexOf(fullCondition) + fullCondition.indexOf(stringToCompare),
+    lineNumber,
+    line.indexOf(fullCondition) +
+      fullCondition.indexOf(stringToCompare) +
+      stringToCompare.length,
+    message,
+    severity
+  );
+  return [
+    {
+      offset: fullCondition.indexOf(attribute),
+      value: attribute,
+      tokenType: stringToCompare === attribute ? "regexp" : "variable",
+    },
+    {
+      offset: fullCondition.indexOf(value),
+      value: value,
+      tokenType: stringToCompare === value ? "regexp" : "macro",
+    },
+  ];
+};
 
 const parseConditions = (line: string, lineNumber: number) => {
-  const toFindTokens =
-    /^\s*(!?\s*[a-zA-Z]+[a-zA-Z\_0-9]*|\(((\s*!)?\s*[a-zA-Z]+[a-zA-Z\_0-9]*\s*(\&|\||[\>\<\=]{1,2})\s*)*\s*(!?\s*[a-zA-Z]+[a-zA-Z\_0-9]*)\))(?=\s*\<?\-\>)/;
-  const toSeparateTokens = /(\(|\)|\&|\||\!|\=|\>|\<)/;
-  const previousTokens = "(?<=((\\(|\\)|\\&|\\||\\!|\\=|\\>|\\<|\\s+)))";
+  const toFindTokens = /^.*(?=\s*\<?\-\>)/;
+  const toSeparateTokens = /(\&|\||\)|\()/;
+  const previousTokens = "";
+  let indexOfOp = 0;
+
+  const attributeExists = (attribute: string): boolean => {
+    return attributes.has(attribute);
+  };
+
+  const findValueType = (value: string): string | undefined => {
+    if (value === "true" || value === "false") {
+      return "boolean";
+    } else if (!isNaN(+value)) {
+      // check if value is a number
+      return "number";
+    } else if (attributes.has(value)) {
+      return "attribute";
+    } else {
+      for (var [k, v] of enums) {
+        if (v.values.includes(value)) {
+          return k;
+        }
+      }
+    }
+    return undefined;
+  };
+
+  const isAttributeSameAsValue = (
+    attribute: string,
+    value: string
+  ): boolean => {
+    if (attributes.get(attribute)!.type === findValueType(value)) {
+      return true;
+    } else {
+      return false;
+    }
+  };
+
+  const separateTokens = (
+    el: string
+  ): { offset: number; value: string; tokenType: string }[]|undefined => {
+    if ((indexOfOp = el.search(/(\<\s*\=|\>\s*\=|\=|\>|\<)/)) > 0) {
+      const att = el.slice(0, indexOfOp).trim();
+      const val = el.slice(indexOfOp + 1).trim();
+      console.log(att + " x " + val);
+      if (!attributeExists(att)) {
+        return addDiagnosticToRelation(
+          "att",
+          line,
+          lineNumber,
+          el,
+          att,
+          val,
+          att + " is not defined",
+          "error"
+        );
+      }
+      if (findValueType(val) === undefined) {
+        return addDiagnosticToRelation(
+          "val",
+          line,
+          lineNumber,
+          el,
+          att,
+          val,
+          val + " is not a valid value",
+          "error"
+        );
+      }
+      if (!isAttributeSameAsValue(att, val)) {
+        return addDiagnosticToRelation(
+          "att",
+          line,
+          lineNumber,
+          el,
+          att,
+          val,
+          att + " is not of type " + findValueType(val),
+          "warning"
+        );
+      }
+      return [
+        { offset: el.indexOf(att), value: att, tokenType: "variable" },
+        { offset: el.indexOf(val), value: val, tokenType: "macro" },
+      ];
+    }
+    return undefined;
+  };
   const parseConditionsSection: ParseSection = new ParseSection(
     toFindTokens,
     toSeparateTokens,
     previousTokens,
     (el, sc) => {
-      return attributes.has(el) && attributes.get(el)!.type === "boolean"
-        ? "variable"
-        : "label";
+      return "cantprint";
     }
   );
-  return parseConditionsSection.getTokens(line, lineNumber, 0);
+  return parseConditionsSection.getTokens(
+    line,
+    lineNumber,
+    0,
+    true,
+    separateTokens
+  );
 };
 
 const parseTriggerAction = (line: string, lineNumber: number) => {
-  const toFindTokens = /\[[^\[]+\]/;
-  const toSeparateTokens = /(\(|\)|\&|\||\!|\[|\])/;
+  const toFindTokens = /(\s*\-\>\s*)?\[[^\[]+\]/;
+  const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\])/;
   const previousTokens = "";
   const parseTriggerActions: ParseSection = new ParseSection(
     toFindTokens,
@@ -94,8 +222,7 @@ const parseNextState = (line: string, lineNumber: number) => {
         ) {
           return "struct";
         } else {
-          if (isNaN(+el.trim()))
-          {
+          if (isNaN(+el.trim())) {
             addDiagnostic(
               lineNumber,
               sc,
@@ -106,7 +233,6 @@ const parseNextState = (line: string, lineNumber: number) => {
             );
           }
           return "label";
-         
         }
       } else {
         return "keyword";
@@ -138,8 +264,8 @@ export const _parseAxioms = (
   ) => { tokens: IParsedToken[]; size: number } | undefined)[] = [
     parseConditions,
     parseTriggerAction,
-    parseNextState,
     parsePer,
+    parseNextState,
   ];
 
   const lineWithoutComments =

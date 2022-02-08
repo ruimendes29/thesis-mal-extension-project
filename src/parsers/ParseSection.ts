@@ -30,7 +30,7 @@ export class ParseSection {
         .join(subString).length;
     }
   
-    public getTokens(line: string, lineNumber: number, offset: number) {
+    public getTokens(line: string, lineNumber: number, offset: number, aggregatedTokens?:boolean, separateTokens?:Function) {
       let x: RegExpExecArray | null;
       // regular expression to check if there are conditions in the axiom
       // checking if there is only one or more variables surrounded by parentheses
@@ -66,23 +66,43 @@ export class ParseSection {
                 tokenForMap,
                 mapTokens.get(tokenForMap)!
               );
+              if (!aggregatedTokens)
+              { 
+                tokens.push({
+                  line: lineNumber,
+                  startCharacter: nextIndexLine + offset,
+                  length: trimmedEl.length,
+                  // to had the token type we check if the element is in the attributes and is a boolean
+                  tokenType: this.tokenTypeCondition(
+                    trimmedEl,
+                    nextIndexLine + offset
+                  ),
+                  tokenModifiers: [""],
+                });
+              }
+              else {
+                const sepTokens = separateTokens!(trimmedEl);
+                if (sepTokens!== undefined)
+                {
+                  for (let t of sepTokens) {
+                    tokens.push({
+                      line:lineNumber,
+                      startCharacter: nextIndexLine + offset + t.offset,
+                      length: t.value.length,
+                      tokenType: t.tokenType,
+                      tokenModifiers:[""]
+                    });
+                  }
+                }
+
+              }
   
-              tokens.push({
-                line: lineNumber,
-                startCharacter: nextIndexLine + offset,
-                length: trimmedEl.length,
-                // to had the token type we check if the element is in the attributes and is a boolean
-                tokenType: this.tokenTypeCondition(
-                  trimmedEl,
-                  nextIndexLine + offset
-                ),
-                tokenModifiers: [""],
-              });
+             
               // update the index in the mapTokens
               mapTokens.set(tokenForMap, mapTokens.get(tokenForMap)! + 1);
             }
           });
-          return { tokens: tokens, size: x[0].trim().length };
+          return { tokens: tokens, size: x[0].length };
         } else {
           return undefined;
         }

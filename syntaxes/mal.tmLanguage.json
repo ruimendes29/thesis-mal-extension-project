@@ -192,16 +192,26 @@
           ]
         },
         {
+          "begin": "test",
+          "beginCaptures": { "0": { "name": "entity.name.tag.test.mal" } },
+          "end": "test",
+          "patterns": [
+            {
+              "name": "entity.name.function.mal",
+              "match": "(A|E)(G|F|X|U)"
+            },
+            { "include": "$self" }
+
+
+          ]
+        },
+        {
           "name": "entity.name.tag.actions.mal",
           "match": "actions"
         },
         {
           "name": "entity.name.tag.axioms.mal",
           "match": "axioms"
-        },
-        {
-          "name": "entity.name.tag.test.mal",
-          "match": "test"
         }
       ]
     },
