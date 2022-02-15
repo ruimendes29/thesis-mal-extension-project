@@ -226,7 +226,7 @@ const addDiagnosticToRelation = (type, line, lineNumber, fullCondition, attribut
     ];
 };
 const parseConditions = (line, lineNumber) => {
-    const toFindTokens = /^.*(?=\s*?\<\-\>)/;
+    const toFindTokens = /^.*(?=\s*\<?\-\>)/;
     const toSeparateTokens = /(\&|\||\)|\()/;
     const previousTokens = "";
     let indexOfOp = 0;
@@ -265,7 +265,6 @@ const parseConditions = (line, lineNumber) => {
         if ((indexOfOp = el.search(/(\<\s*\=|\>\s*\=|\=|\>|\<(?!\s*-))/)) > 0) {
             const att = el.slice(0, indexOfOp).trim();
             const val = el.slice(indexOfOp + 1).trim();
-            console.log(att + " x " + val);
             if (!attributeExists(att)) {
                 return addDiagnosticToRelation("att", line, lineNumber, el, att, val, att + " is not defined", "error");
             }
@@ -497,15 +496,13 @@ class ParseSection {
                             const sepTokens = separateTokens(trimmedEl);
                             if (sepTokens !== undefined) {
                                 for (let t of sepTokens) {
-                                    if (t.trim() !== "") {
-                                        tokens.push({
-                                            line: lineNumber,
-                                            startCharacter: nextIndexLine + offset + t.offset,
-                                            length: t.value.length,
-                                            tokenType: t.tokenType,
-                                            tokenModifiers: [""],
-                                        });
-                                    }
+                                    tokens.push({
+                                        line: lineNumber,
+                                        startCharacter: nextIndexLine + offset + t.offset,
+                                        length: t.value.length,
+                                        tokenType: t.tokenType,
+                                        tokenModifiers: [""],
+                                    });
                                 }
                             }
                         }

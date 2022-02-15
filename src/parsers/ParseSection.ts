@@ -36,6 +36,7 @@ export class ParseSection {
     aggregatedTokens?: boolean,
     separateTokens?: Function
   ) {
+    
     let x: RegExpExecArray | null;
     // regular expression to check if there are conditions in the axiom
     // checking if there is only one or more variables surrounded by parentheses
@@ -87,7 +88,6 @@ export class ParseSection {
               const sepTokens = separateTokens!(trimmedEl);
               if (sepTokens !== undefined) {
                 for (let t of sepTokens) {
-                  if (t.trim() !== "") {
                     tokens.push({
                       line: lineNumber,
                       startCharacter: nextIndexLine + offset + t.offset,
@@ -95,7 +95,6 @@ export class ParseSection {
                       tokenType: t.tokenType,
                       tokenModifiers: [""],
                     });
-                  }
                 }
               }
             }

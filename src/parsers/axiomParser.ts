@@ -45,7 +45,7 @@ const addDiagnosticToRelation = (
 };
 
 const parseConditions = (line: string, lineNumber: number) => {
-  const toFindTokens = /^.*(?=\s*?\<\-\>)/;
+  const toFindTokens = /^.*(?=\s*\<?\-\>)/;
   const toSeparateTokens = /(\&|\||\)|\()/;
   const previousTokens = "";
   let indexOfOp = 0;
@@ -89,7 +89,6 @@ const parseConditions = (line: string, lineNumber: number) => {
     if ((indexOfOp = el.search(/(\<\s*\=|\>\s*\=|\=|\>|\<(?!\s*-))/)) > 0) {
       const att = el.slice(0, indexOfOp).trim();
       const val = el.slice(indexOfOp + 1).trim();
-      console.log(att + " x " + val);
       if (!attributeExists(att)) {
         return addDiagnosticToRelation(
           "att",
@@ -133,6 +132,7 @@ const parseConditions = (line: string, lineNumber: number) => {
     }
     return undefined;
   };
+
   const parseConditionsSection: ParseSection = new ParseSection(
     toFindTokens,
     toSeparateTokens,
@@ -141,6 +141,7 @@ const parseConditions = (line: string, lineNumber: number) => {
       return "cantprint";
     }
   );
+
   return parseConditionsSection.getTokens(
     line,
     lineNumber,
