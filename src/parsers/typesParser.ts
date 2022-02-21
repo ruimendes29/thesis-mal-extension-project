@@ -1,6 +1,25 @@
 import { addDiagnostic } from "../diagnostics/diagnostics";
-import {  enums, IParsedToken } from "./globalParserInfo";
+import {  defines, enums, IParsedToken, ranges } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
+import { separateRangeTokens } from "./relationParser";
+
+
+
+const parseRangeTypes = (line:string,lineNumber:number) => {
+  const toFindTokens = /^\s*[a-zA-Z][a-zA-Z0-9\_]*\s*\=\s*([a-zA-Z][a-zA-Z0-9\_]*|[0-9]+)\s*\.\.\s*([a-zA-Z][a-zA-Z0-9\_]*|[0-9]+)/;
+  const toSeparateTokens = /(\,|\{|\})/;
+  const previousTokens = "";
+  const parseRanges: ParseSection = new ParseSection(
+    toFindTokens,
+    toSeparateTokens,
+    previousTokens,
+    (el, sc) => {
+      return "cantprint";
+    }
+  );
+  const toReturnRanges = parseRanges.getTokens(line, lineNumber, 0,true,separateRangeTokens);
+  return toReturnRanges;
+};
 
 const parseEnumTypes = (line: string, lineNumber: number) => {
   const toFindTokens = /^\s*[a-zA-Z][a-zA-Z0-9\_]*\s*\=\s*\{.*\}/;
@@ -8,14 +27,14 @@ const parseEnumTypes = (line: string, lineNumber: number) => {
   const previousTokens = "";
   let elementIndex = 0;
   let typeName = "";
-  const parseDefines: ParseSection = new ParseSection(
+  const parseEnums: ParseSection = new ParseSection(
     toFindTokens,
     toSeparateTokens,
     previousTokens,
     (el, sc) => {
         if (elementIndex === 0) {
             elementIndex++;
-            if (enums.has(el)) {
+            if (enums.has(el) || ranges.has(el)) {
                 addDiagnostic(
                   lineNumber,
                   sc,
@@ -26,8 +45,8 @@ const parseEnumTypes = (line: string, lineNumber: number) => {
                 );
                 return "function";
               } else {
-                  typeName = el;
-                enums.set(el,{used:false,type:"enum",values:[]} );
+                typeName = el;
+                enums.set(el,{used:false,values:[]} );
                 return "enum";
               }
         }
@@ -38,7 +57,7 @@ const parseEnumTypes = (line: string, lineNumber: number) => {
         }   
     }
   );
-  return parseDefines.getTokens(line, lineNumber, 0);
+  return parseEnums.getTokens(line, lineNumber, 0);
 };
 
 export const _parseTypes = (
@@ -53,6 +72,7 @@ export const _parseTypes = (
     lineNumber: number
   ) => { tokens: IParsedToken[]; size: number } | undefined)[] = [
     parseEnumTypes,
+    parseRangeTypes
   ];
 
   const lineWithoutComments =

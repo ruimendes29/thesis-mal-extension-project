@@ -28,15 +28,16 @@ export class ParseSection {
       )
       .join(subString).length;
   }
+  
 
   public getTokens(
     line: string,
     lineNumber: number,
     offset: number,
     aggregatedTokens?: boolean,
-    separateTokens?: Function
+    separateTokens?: Function,
+    areTokensExpressions?:boolean,
   ) {
-    
     let x: RegExpExecArray | null;
     // regular expression to check if there are conditions in the axiom
     // checking if there is only one or more variables surrounded by parentheses
@@ -67,11 +68,11 @@ export class ParseSection {
               mapTokens.set(tokenForMap, 1);
             }
             // find the next index to be considered while parsing the elements from the line
-            let nextIndexLine = this.getPosition(
+            let nextIndexLine = !areTokensExpressions ? this.getPosition(
               line,
               tokenForMap,
               mapTokens.get(tokenForMap)!
-            );
+            ) : line.indexOf(trimmedEl);
             if (!aggregatedTokens) {
               tokens.push({
                 line: lineNumber,
@@ -85,16 +86,16 @@ export class ParseSection {
                 tokenModifiers: [""],
               });
             } else {
-              const sepTokens = separateTokens!(trimmedEl);
+              const sepTokens = separateTokens!(trimmedEl,line,lineNumber,offset);
               if (sepTokens !== undefined) {
                 for (let t of sepTokens) {
-                    tokens.push({
-                      line: lineNumber,
-                      startCharacter: nextIndexLine + offset + t.offset,
-                      length: t.value.length,
-                      tokenType: t.tokenType,
-                      tokenModifiers: [""],
-                    });
+                  tokens.push({
+                    line: lineNumber,
+                    startCharacter: nextIndexLine + offset + t.offset,
+                    length: t.value.length,
+                    tokenType: t.tokenType,
+                    tokenModifiers: [""],
+                  });
                 }
               }
             }

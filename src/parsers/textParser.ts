@@ -7,43 +7,37 @@ import {
   IParsedToken,
   isInsideInteractor,
   isSubSection,
+  previousSection,
+  ranges,
   sections,
   updateSection,
 } from "./globalParserInfo";
 import { clearDiagnosticCollection } from "../diagnostics/diagnostics";
 import { _parseTypes } from "./typesParser";
 
-//ToDo: need to find a way to suit the code in this function in order to reduce duplicated code
-/*const parseSection = (
-  section: string,
-  parser: Function,
-  line: string,
-  currentOffset: number,
-  lineNumber: number,
-  tokensArray: IParsedToken[]
-): boolean => {
-  if (sections.get(section)) {
-    const parsedSection = parser(line.slice(currentOffset), lineNumber);
-    if (parsedSection !== undefined) {
-      parsedSection.tokens.forEach((el: IParsedToken) => {
-        tokensArray.push(el);
-      });
-      currentOffset += parsedSection.size;
-      return true;
-    } else {
-      return false;
-    }
-  } else {
-    return false;
+const isNotAnExpression = (line: string) => {
+  const afterEquals = line
+    .slice(line.indexOf("=") + 1)
+    .split("#")[0]
+    .trim();
+  if (
+    !isNaN(+afterEquals) ||
+    afterEquals === "true" ||
+    afterEquals === "false"
+  ) {
+    return true;
   }
-};*/
+  return false;
+};
 
 export function _parseText(text: string): IParsedToken[] {
   const r: IParsedToken[] = [];
+  const lineHolder = new Map<string, { line: string; lineNumber: number }[]>();
   clearDiagnosticCollection();
   const lines = text.split(/\r\n|\r|\n/);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    console.log(line);
     let currentOffset = 0;
     do {
       if (isSubSection(line.trim()) && !isInsideInteractor()) {
@@ -58,6 +52,28 @@ export function _parseText(text: string): IParsedToken[] {
       } else {
         const isNewSection = updateSection(line);
         if (isNewSection) {
+          if (previousSection === "attributes") {
+            const definesLinesHeld = lineHolder.get("defines");
+            if (definesLinesHeld !== undefined) {
+              for (let x = 0; x < definesLinesHeld.length; x++) {
+                currentOffset = 0;
+                const parsedDefines = _parseDefines(
+                  definesLinesHeld[x].line.slice(currentOffset),
+                  definesLinesHeld[x].lineNumber
+                );
+                if (parsedDefines !== undefined) {
+                  parsedDefines.tokens.forEach((el) => {
+                    r.push(el);
+                  });
+                  currentOffset += parsedDefines.size;
+                } else {
+                  break;
+                }
+              }
+              lineHolder.set("defines", []);
+              currentOffset = 0;
+            }
+          }
           break;
         } else if (sections.get("types")) {
           const parsedTypes = _parseTypes(line.slice(currentOffset), i);
@@ -70,13 +86,23 @@ export function _parseText(text: string): IParsedToken[] {
             break;
           }
         } else if (sections.get("defines")) {
-          const parsedDefines = _parseDefines(line.slice(currentOffset), i);
-          if (parsedDefines !== undefined) {
-            parsedDefines.tokens.forEach((el) => {
-              r.push(el);
-            });
-            currentOffset += parsedDefines.size;
+          /* The lines need to be stored in order to process them later
+          (after the attributes were defined)*/
+          if (isNotAnExpression(line)) {
+            const parsedDefines = _parseDefines(line.slice(currentOffset), i);
+            if (parsedDefines !== undefined) {
+              parsedDefines.tokens.forEach((el) => {
+                r.push(el);
+              });
+              currentOffset += parsedDefines.size;
+            } else {
+              break;
+            }
           } else {
+            if (!lineHolder.has("defines")) {
+              lineHolder.set("defines", []);
+            }
+            lineHolder.get("defines")!.push({ line: line, lineNumber: i });
             break;
           }
         } else if (sections.get("attributes") || sections.get("actions")) {
@@ -105,5 +131,6 @@ export function _parseText(text: string): IParsedToken[] {
       }
     } while (true);
   }
+  console.log(ranges);
   return r;
 }

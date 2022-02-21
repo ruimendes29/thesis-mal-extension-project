@@ -60,3 +60,46 @@ export const addDiagnostic = (
   }
   diagnosticCollection.set(currentUri, mapForDiag.get(currentUri));
 };
+
+/* function responsible for adding diagnostics to the attributes when they are in the conditions
+  if any given axiom */
+ export const addDiagnosticToRelation = (
+    type: string,
+    line: string,
+    lineNumber: number,
+    fullCondition: string,
+    attribute: string,
+    value: string,
+    message: string,
+    severity: string,
+    offset: number
+  ) => {
+    let stringToCompare = "";
+    if (type === "att") {
+      stringToCompare = attribute;
+    } else if (type === "val") {
+      stringToCompare = value;
+    }
+    addDiagnostic(
+      lineNumber,
+      line.indexOf(fullCondition) + fullCondition.indexOf(stringToCompare) + offset,
+      lineNumber,
+      line.indexOf(fullCondition) +
+        fullCondition.indexOf(stringToCompare) +
+        stringToCompare.length + offset,
+      message,
+      severity
+    );
+    return [
+      {
+        offset: fullCondition.indexOf(attribute),
+        value: attribute,
+        tokenType: stringToCompare === attribute ? "regexp" : "variable",
+      },
+      {
+        offset: fullCondition.indexOf(value),
+        value: value,
+        tokenType: stringToCompare === value ? "regexp" : "macro",
+      },
+    ];
+  };

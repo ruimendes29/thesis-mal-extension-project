@@ -1,33 +1,83 @@
-import { addDiagnostic } from "../diagnostics/diagnostics";
+import {
+  addDiagnostic,
+  addDiagnosticToRelation,
+} from "../diagnostics/diagnostics";
 import { defines, IParsedToken } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
+import { compareRelationTokens } from "./relationParser";
+
+const parseTokensForITokens = (
+  toParseTokens: { value: string; tokenType: string }[],
+  lineNumber: number,
+  line: string
+) => {
+  const tokens = [];
+  if (toParseTokens !== undefined) {
+    for (let t of toParseTokens) {
+      tokens.push({
+        line: lineNumber,
+        startCharacter: line.indexOf(t.value),
+        length: t.value.length,
+        tokenType: t.tokenType,
+        tokenModifiers: [""],
+      });
+    }
+  }
+  return { tokens: tokens, size: line.length };
+};
 
 const parseDefinesBeforeValue = (line: string, lineNumber: number) => {
-  const toFindTokens = /^\s*[a-zA-Z][a-zA-Z0-9\_]*\s*\=/;
-  const toSeparateTokens = /\=/;
-  const previousTokens = "";
-  const parseDefines: ParseSection = new ParseSection(
-    toFindTokens,
-    toSeparateTokens,
-    previousTokens,
-    (el, sc) => {
-      if (defines.has(el)) {
-        addDiagnostic(
-          lineNumber,
-          sc,
-          lineNumber,
-          sc + el.length,
-          el + " is already declared",
-          "warning"
-        );
-        return "function";
-      } else {
-        defines.set(el, { used: false, type: undefined });
-        return "keyword";
+  const beforeEquals = line.slice(0, line.indexOf("="));
+  const afterEquals = line.slice(line.indexOf("=") + 1, line.length);
+  if (defines.has(beforeEquals.trim())) {
+    const retFromDiag = addDiagnosticToRelation(
+      "att",
+      line,
+      lineNumber,
+      line,
+      beforeEquals.trim(),
+      afterEquals.trim(),
+      beforeEquals.trim() + " is already defined!",
+      "warning",0
+    );
+    return parseTokensForITokens(retFromDiag, lineNumber, line);
+  } else {
+    let arrayToTokenize: { value: string; tokenType: string }[] = [];
+    if (beforeEquals.trim() !== "") {
+      if (!isNaN(+afterEquals.trim())) {
+        defines.set(beforeEquals.trim(), {
+          used: false,
+          type: "number",
+          value: afterEquals.trim(),
+        });
+        arrayToTokenize = [
+          { value: beforeEquals.trim(), tokenType: "keyword" },
+          { value: afterEquals.trim(), tokenType: "number" },
+        ];
       }
+      else {
+        const toFindTokens = /^.*/;
+        const toSeparateTokens = /(\&|\||\(|\)|\-\>)/;
+        const previousTokens = "";
+        const parseExpressions: ParseSection = new ParseSection(
+          toFindTokens,
+          toSeparateTokens,
+          previousTokens,
+          (el, sc) => {
+            return "comment";
+          }
+        );
+        return parseExpressions.getTokens(afterEquals,lineNumber,line.indexOf(afterEquals),true,compareRelationTokens);
+        
+      }
+
+      return parseTokensForITokens(arrayToTokenize, lineNumber, line);
     }
-  );
-  return parseDefines.getTokens(line, lineNumber, 0);
+  }
+};
+
+export const postProcessDefines = () => {
+
 };
 
 export const _parseDefines = (
@@ -50,7 +100,10 @@ export const _parseDefines = (
   while (currentOffset < lineWithoutComments.length) {
     let foundMatch: boolean = false;
     for (const parser of sectionsToParseParsers) {
-      const matchedPiece = parser(lineWithoutComments.slice(currentOffset), lineNumber);
+      const matchedPiece = parser(
+        lineWithoutComments.slice(currentOffset),
+        lineNumber
+      );
       if (matchedPiece && matchedPiece.size > 0) {
         foundMatch = true;
         toRetTokens = [...toRetTokens, ...matchedPiece.tokens];

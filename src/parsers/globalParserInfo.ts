@@ -1,4 +1,5 @@
 export const sections = new Map<string, boolean>();
+export let previousSection = "";
 export const attributes = new Map<
   string,
   { used: boolean; type: string | undefined }
@@ -6,11 +7,12 @@ export const attributes = new Map<
 export const actions = new Map<string, boolean>();
 export const defines = new Map<
   string,
-  { used: boolean; type: string | undefined }
+  { used: boolean; type: string | undefined; value: string }
 >();
-export const enums = new Map<
+export const enums = new Map<string, { used: boolean; values: string[] }>();
+export const ranges = new Map<
   string,
-  {used: boolean; type: string; values: string []}
+  { used: boolean; minimum: number; maximum: number }
 >();
 
 sections.set("attributes", false);
@@ -34,7 +36,10 @@ export const updateSection = (line: string): boolean => {
   x = /^\s*interactor\s+[a-zA-Z]+[a-zA-Z\_0-9]*/.exec(line);
   const trimmed = x ? "interactor" : line.trim();
   if (sections.has(trimmed)) {
-    sections.forEach((_value, key) => {
+    sections.forEach((value, key) => {
+      if (value) {
+        previousSection = key;
+      }
       sections.set(key, false);
     });
     sections.set(trimmed, true);
