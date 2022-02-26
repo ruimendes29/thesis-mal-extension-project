@@ -67,7 +67,7 @@ const parseDefinesBeforeValue = (line: string, lineNumber: number) => {
             return "comment";
           }
         );
-        return parseExpressions.getTokens(afterEquals,lineNumber,line.indexOf(afterEquals),true,compareRelationTokens);
+        return parseExpressions.getTokens(line,lineNumber,line.indexOf(afterEquals),true,compareRelationTokens);
         
       }
 

@@ -37,7 +37,6 @@ export function _parseText(text: string): IParsedToken[] {
   const lines = text.split(/\r\n|\r|\n/);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    console.log(line);
     let currentOffset = 0;
     do {
       if (isSubSection(line.trim()) && !isInsideInteractor()) {
@@ -131,6 +130,5 @@ export function _parseText(text: string): IParsedToken[] {
       }
     } while (true);
   }
-  console.log(ranges);
   return r;
 }

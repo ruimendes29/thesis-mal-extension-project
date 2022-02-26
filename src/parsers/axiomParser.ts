@@ -3,8 +3,6 @@ import { actions, attributes, enums, IParsedToken } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 import { compareRelationTokens } from "./relationParser";
 
-
-
 const parseConditions = (line: string, lineNumber: number) => {
   const toFindTokens = /^.*(?=\s*\<?\-\>)/;
   const toSeparateTokens = /(\&|\||\)|\()/;
@@ -19,13 +17,7 @@ const parseConditions = (line: string, lineNumber: number) => {
     }
   );
 
-  return parseConditionsSection.getTokens(
-    line,
-    lineNumber,
-    0,
-    true,
-    compareRelationTokens
-  );
+  return parseConditionsSection.getTokens(line, lineNumber, 0, true, compareRelationTokens);
 };
 
 const parseTriggerAction = (line: string, lineNumber: number) => {
@@ -40,14 +32,7 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
       if (actions.has(el)) {
         return "function";
       } else {
-        addDiagnostic(
-          lineNumber,
-          sc,
-          lineNumber,
-          sc + el.length,
-          el + " is not declared as an action",
-          "error"
-        );
+        addDiagnostic(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error");
         return "variable";
       }
     }
@@ -59,26 +44,14 @@ const parsePer = (line: string, lineNumber: number) => {
   const toFindTokens = /(?<=^\s*per\s*\().+(?=\))/;
   const toSeparateTokens = /(\(|\)|\||\&|\!)/;
   const previousTokens = "";
-  const parsePers: ParseSection = new ParseSection(
-    toFindTokens,
-    toSeparateTokens,
-    previousTokens,
-    (el, sc) => {
-      if (actions.has(el)) {
-        return "function";
-      } else {
-        addDiagnostic(
-          lineNumber,
-          sc,
-          lineNumber,
-          sc + el.length,
-          el + " is not declared as an action",
-          "error"
-        );
-        return "variable";
-      }
+  const parsePers: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
+    if (actions.has(el)) {
+      return "function";
+    } else {
+      addDiagnostic(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error");
+      return "variable";
     }
-  );
+  });
   return parsePers.getTokens(line, lineNumber, 0);
 };
 
@@ -95,14 +68,10 @@ const parseNextState = (line: string, lineNumber: number) => {
       return "cantprint";
     }
   );
-
-  return parseConditionsSection.getTokens(
-    line,
-    lineNumber,
-    0,
-    true,
-    compareRelationTokens
-  );
+  const perRegex = /^\s*per\s*\(\s*\w*\s*\)\s*\-\s*\>/;
+  const correctOffset =
+    line.indexOf("]") > 0 ? line.indexOf("]") : line.match(perRegex) !== null ? line.match(perRegex)![0].length : 0;
+  return parseConditionsSection.getTokens(line, lineNumber, correctOffset, true, compareRelationTokens);
 };
 
 export const _parseAxioms = (
@@ -122,8 +91,7 @@ export const _parseAxioms = (
     parseNextState,
   ];
 
-  const lineWithoutComments =
-    line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
+  const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
 
   while (currentOffset < lineWithoutComments.length) {
     let foundMatch: boolean = false;

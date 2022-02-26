@@ -20,15 +20,22 @@ export class ParseSection {
     this.followingSymbols = fSymbols ? fSymbols : "";
   }
 
-  private getPosition(line: string, subString: string, index: number) {
-    return line
-      .split(
-        new RegExp(this.previousSymbols + subString + this.followingSymbols),
-        index
-      )
-      .join(subString).length;
+  public static getPosition(line: string, subString: string, index: number) {
+    const toEscape = /[ `!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/;
+
+    const escapedSub = subString
+      .split("")
+      .map((el) => {
+        if (toEscape.test(el)) {
+          return "\\" + el;
+        } else {
+          return el;
+        }
+      })
+      .join("");
+    const regex = !toEscape.test(escapedSub) ? "\\b" + subString + "\\b" : escapedSub;
+    return line.split(new RegExp(regex), index).join(subString).length;
   }
-  
 
   public getTokens(
     line: string,
@@ -36,14 +43,14 @@ export class ParseSection {
     offset: number,
     aggregatedTokens?: boolean,
     separateTokens?: Function,
-    areTokensExpressions?:boolean,
+    areTokensExpressions?: boolean
   ) {
     let x: RegExpExecArray | null;
     // regular expression to check if there are conditions in the axiom
     // checking if there is only one or more variables surrounded by parentheses
     // TODO: check for variables where there are no parentheses but operators exist like "aux = 3"
     const aux = this.findTokens;
-    if ((x = aux.exec(line))) {
+    if ((x = aux.exec(line.slice(offset)))) {
       if (x) {
         //list of operators
         let rx = this.separationSymbols;
@@ -55,6 +62,7 @@ export class ParseSection {
         // so that we can later tell the token where the attribute, even if is has multiple occurences
         let mapTokens: Map<string, number> = new Map();
         // loop through each element
+        let offsetForPosition = offset;
         separatedLine.forEach((el) => {
           // check if it not an operator or just spaces
           if (!rx.test(el.trim()) && el.trim() !== "") {
@@ -62,31 +70,28 @@ export class ParseSection {
             const tokenForMap =
               trimmedEl[trimmedEl.length - 1] === "'"
                 ? trimmedEl.slice(0, trimmedEl.length - 1)
+                : trimmedEl.indexOf("=") > 0
+                ? trimmedEl.slice(0, trimmedEl.indexOf("=") + 1)
                 : trimmedEl;
             // if the element is not already in the map, then we put it
             if (!mapTokens.has(tokenForMap)) {
               mapTokens.set(tokenForMap, 1);
             }
             // find the next index to be considered while parsing the elements from the line
-            let nextIndexLine = !areTokensExpressions ? this.getPosition(
-              line,
-              tokenForMap,
-              mapTokens.get(tokenForMap)!
-            ) : line.indexOf(trimmedEl);
+            let nextIndexLine = !areTokensExpressions
+              ? ParseSection.getPosition(line.slice(offset), tokenForMap, mapTokens.get(tokenForMap)!)
+              : line.indexOf(trimmedEl);
             if (!aggregatedTokens) {
               tokens.push({
                 line: lineNumber,
                 startCharacter: nextIndexLine + offset,
                 length: trimmedEl.length,
                 // to had the token type we check if the element is in the attributes and is a boolean
-                tokenType: this.tokenTypeCondition(
-                  trimmedEl,
-                  nextIndexLine + offset
-                ),
+                tokenType: this.tokenTypeCondition(trimmedEl, nextIndexLine + offset),
                 tokenModifiers: [""],
               });
             } else {
-              const sepTokens = separateTokens!(trimmedEl,line,lineNumber,offset);
+              const sepTokens = separateTokens!(trimmedEl, line, lineNumber, offset);
               if (sepTokens !== undefined) {
                 for (let t of sepTokens) {
                   tokens.push({
