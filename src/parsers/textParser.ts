@@ -49,7 +49,7 @@ export function _parseText(text: string): IParsedToken[] {
         });
         break;
       } else {
-        const isNewSection = updateSection(line);
+        const isNewSection = updateSection(line,i);
         if (isNewSection) {
           if (previousSection === "attributes") {
             const definesLinesHeld = lineHolder.get("defines");

@@ -1,4 +1,4 @@
-import { addDiagnostic, addDiagnosticToRelation, NOT_YET_IMPLEMENTED } from "../diagnostics/diagnostics";
+import { addDiagnostic, addDiagnosticToRelation, DECLARE_ACTION, NOT_YET_IMPLEMENTED } from "../diagnostics/diagnostics";
 import { actions, attributes, enums, IParsedToken } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 import { compareRelationTokens } from "./relationParser";
@@ -32,7 +32,7 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
       if (actions.has(el)) {
         return "function";
       } else {
-        addDiagnostic(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error", NOT_YET_IMPLEMENTED+":"+lineNumber);
+        addDiagnostic(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error", DECLARE_ACTION+":"+el);
         return "variable";
       }
     }

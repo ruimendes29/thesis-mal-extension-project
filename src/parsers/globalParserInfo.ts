@@ -1,19 +1,11 @@
 export const sections = new Map<string, boolean>();
 export let previousSection = "";
-export const attributes = new Map<
-  string,
-  { used: boolean; type: string | undefined;line: number }
->();
+export const actionsStartingLine = new Array<number>();
+export const attributes = new Map<string, { used: boolean; type: string | undefined; line: number }>();
 export const actions = new Map<string, boolean>();
-export const defines = new Map<
-  string,
-  { used: boolean; type: string | undefined; value: string }
->();
+export const defines = new Map<string, { used: boolean; type: string | undefined; value: string }>();
 export const enums = new Map<string, { used: boolean; values: string[] }>();
-export const ranges = new Map<
-  string,
-  { used: boolean; minimum: number; maximum: number }
->();
+export const ranges = new Map<string, { used: boolean; minimum: number; maximum: number }>();
 
 sections.set("attributes", false);
 sections.set("types", false);
@@ -31,7 +23,10 @@ export interface IParsedToken {
   tokenModifiers: string[];
 }
 
-export const updateSection = (line: string): boolean => {
+export const updateSection = (line: string, lineNumber: number): boolean => {
+  if (line.trim() === "actions") {
+    actionsStartingLine.push(lineNumber);
+  }
   let x: RegExpExecArray | null;
   x = /^\s*interactor\s+[a-zA-Z]+[a-zA-Z\_0-9]*/.exec(line);
   const trimmed = x ? "interactor" : line.trim();
@@ -50,12 +45,7 @@ export const updateSection = (line: string): boolean => {
 };
 
 export const isSubSection = (line: string): boolean => {
-  if (
-    line.trim() === "attributes" ||
-    line.trim() === "actions" ||
-    line.trim() === "axioms" ||
-    line.trim() === "test"
-  ) {
+  if (line.trim() === "attributes" || line.trim() === "actions" || line.trim() === "axioms" || line.trim() === "test") {
     return true;
   } else {
     return false;

@@ -103,6 +103,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Emojinfo = void 0;
 const vscode = __webpack_require__(1);
 const diagnostics_1 = __webpack_require__(3);
+const globalParserInfo_1 = __webpack_require__(4);
 const COMMAND = "mal.command";
 /**
  * Provides code actions corresponding to diagnostic problems.
@@ -111,10 +112,15 @@ class Emojinfo {
     provideCodeActions(document, range, context, token) {
         // for each diagnostic entry that has the matching `code`, create a code action command
         return context.diagnostics
-            .filter((diagnostic) => diagnostic.code?.toString().split(":")[0] === diagnostics_1.CHANGE_TYPE)
             .map((diagnostic) => {
-            console.log(diagnostic);
-            return this.changeToCorrectType(document, diagnostic.code?.toString().split(":")[1], +diagnostic.code?.toString().split(":")[2], diagnostic);
+            switch (diagnostic.code.toString().split(":")[0]) {
+                case diagnostics_1.DECLARE_ACTION:
+                    return this.declareAction(document, diagnostic.code.toString().split(":")[1], diagnostic);
+                case diagnostics_1.CHANGE_TYPE:
+                    return this.changeToCorrectType(document, diagnostic.code?.toString().split(":")[1], +diagnostic.code?.toString().split(":")[2], diagnostic);
+                default:
+                    return this.changeToCorrectType(document, diagnostic.code?.toString().split(":")[1], +diagnostic.code?.toString().split(":")[2], diagnostic);
+            }
         });
     }
     changeToCorrectType(document, newType, lineToFix, diagnostic) {
@@ -125,6 +131,13 @@ class Emojinfo {
         const characterOfType = line.indexOf(":") + 2;
         const oldTypeRange = new vscode.Range(new vscode.Position(lineToFix, characterOfType), new vscode.Position(lineToFix, line.indexOf("#") > 0 ? line.indexOf("#") : line.length));
         fix.edit.replace(document.uri, oldTypeRange, newType + " ");
+        return fix;
+    }
+    declareAction(document, newAction, diagnostic) {
+        const fix = new vscode.CodeAction(`Declare ${newAction} as an action`, vscode.CodeActionKind.QuickFix);
+        fix.diagnostics = [diagnostic];
+        fix.edit = new vscode.WorkspaceEdit();
+        fix.edit.insert(document.uri, new vscode.Position(globalParserInfo_1.actionsStartingLine[0] + 1, 0), "  " + newAction + "\n");
         return fix;
     }
 }
@@ -138,11 +151,12 @@ Emojinfo.providedCodeActionKinds = [vscode.CodeActionKind.QuickFix];
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.addDiagnosticToRelation = exports.addDiagnostic = exports.clearDiagnosticCollection = exports.NOT_YET_IMPLEMENTED = exports.CHANGE_TYPE = void 0;
+exports.addDiagnosticToRelation = exports.addDiagnostic = exports.clearDiagnosticCollection = exports.NOT_YET_IMPLEMENTED = exports.DECLARE_ACTION = exports.CHANGE_TYPE = void 0;
 const vscode = __webpack_require__(1);
 const extension_1 = __webpack_require__(0);
 const globalParserInfo_1 = __webpack_require__(4);
 exports.CHANGE_TYPE = "changeType";
+exports.DECLARE_ACTION = "declareAction";
 exports.NOT_YET_IMPLEMENTED = "notYetImplemented";
 const mapForDiag = new Map();
 const clearDiagnosticCollection = () => {
@@ -217,9 +231,10 @@ exports.addDiagnosticToRelation = addDiagnosticToRelation;
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.clearStoredValues = exports.isInsideInteractor = exports.isSubSection = exports.updateSection = exports.ranges = exports.enums = exports.defines = exports.actions = exports.attributes = exports.previousSection = exports.sections = void 0;
+exports.clearStoredValues = exports.isInsideInteractor = exports.isSubSection = exports.updateSection = exports.ranges = exports.enums = exports.defines = exports.actions = exports.attributes = exports.actionsStartingLine = exports.previousSection = exports.sections = void 0;
 exports.sections = new Map();
 exports.previousSection = "";
+exports.actionsStartingLine = new Array();
 exports.attributes = new Map();
 exports.actions = new Map();
 exports.defines = new Map();
@@ -232,7 +247,10 @@ exports.sections.set("interactor", false);
 exports.sections.set("actions", false);
 exports.sections.set("axioms", false);
 exports.sections.set("test", false);
-const updateSection = (line) => {
+const updateSection = (line, lineNumber) => {
+    if (line.trim() === "actions") {
+        exports.actionsStartingLine.push(lineNumber);
+    }
     let x;
     x = /^\s*interactor\s+[a-zA-Z]+[a-zA-Z\_0-9]*/.exec(line);
     const trimmed = x ? "interactor" : line.trim();
@@ -252,10 +270,7 @@ const updateSection = (line) => {
 };
 exports.updateSection = updateSection;
 const isSubSection = (line) => {
-    if (line.trim() === "attributes" ||
-        line.trim() === "actions" ||
-        line.trim() === "axioms" ||
-        line.trim() === "test") {
+    if (line.trim() === "attributes" || line.trim() === "actions" || line.trim() === "axioms" || line.trim() === "test") {
         return true;
     }
     else {
@@ -325,7 +340,7 @@ function _parseText(text) {
                 break;
             }
             else {
-                const isNewSection = (0, globalParserInfo_1.updateSection)(line);
+                const isNewSection = (0, globalParserInfo_1.updateSection)(line, i);
                 if (isNewSection) {
                     if (globalParserInfo_1.previousSection === "attributes") {
                         const definesLinesHeld = lineHolder.get("defines");
@@ -447,7 +462,7 @@ const parseTriggerAction = (line, lineNumber) => {
             return "function";
         }
         else {
-            (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + lineNumber);
+            (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error", diagnostics_1.DECLARE_ACTION + ":" + el);
             return "variable";
         }
     });

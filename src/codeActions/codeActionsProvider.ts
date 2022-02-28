@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
-import { CHANGE_TYPE } from "../diagnostics/diagnostics";
+import { CHANGE_TYPE, DECLARE_ACTION } from "../diagnostics/diagnostics";
+import { actionsStartingLine } from "../parsers/globalParserInfo";
 
 const COMMAND = "mal.command";
 
@@ -17,15 +18,25 @@ export class Emojinfo implements vscode.CodeActionProvider {
   ): vscode.CodeAction[] {
     // for each diagnostic entry that has the matching `code`, create a code action command
     return context.diagnostics
-      .filter((diagnostic) => diagnostic.code?.toString().split(":")[0] === CHANGE_TYPE)
       .map((diagnostic) => {
-        console.log(diagnostic);
-        return this.changeToCorrectType(
-          document,
-          diagnostic.code?.toString().split(":")[1]!,
-          +diagnostic.code?.toString().split(":")[2]!,
-          diagnostic
-        );
+        switch (diagnostic.code!.toString().split(":")[0]) {
+          case DECLARE_ACTION:
+            return this.declareAction(document, diagnostic.code!.toString().split(":")[1], diagnostic);
+          case CHANGE_TYPE:
+            return this.changeToCorrectType(
+              document,
+              diagnostic.code?.toString().split(":")[1]!,
+              +diagnostic.code?.toString().split(":")[2]!,
+              diagnostic
+            );
+          default:
+            return this.changeToCorrectType(
+              document,
+              diagnostic.code?.toString().split(":")[1]!,
+              +diagnostic.code?.toString().split(":")[2]!,
+              diagnostic
+            );
+        }
       });
   }
 
@@ -45,6 +56,18 @@ export class Emojinfo implements vscode.CodeActionProvider {
       new vscode.Position(lineToFix, line.indexOf("#") > 0 ? line.indexOf("#") : line.length)
     );
     fix.edit.replace(document.uri, oldTypeRange, newType + " ");
+    return fix;
+  }
+
+  private declareAction(
+    document: vscode.TextDocument,
+    newAction: string,
+    diagnostic: vscode.Diagnostic
+  ): vscode.CodeAction {
+    const fix = new vscode.CodeAction(`Declare ${newAction} as an action`, vscode.CodeActionKind.QuickFix);
+    fix.diagnostics = [diagnostic];
+    fix.edit = new vscode.WorkspaceEdit();
+    fix.edit.insert(document.uri, new vscode.Position(actionsStartingLine[0] + 1, 0), "  "+newAction+"\n");
     return fix;
   }
 }
