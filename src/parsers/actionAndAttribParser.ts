@@ -51,6 +51,7 @@ export const _parseVariables = (
             attributes.set(pv.variableName, {
               used: false,
               type: pv.attributeType,
+              line: i
             });
           } else {
             actions.set(pv.variableName, false);

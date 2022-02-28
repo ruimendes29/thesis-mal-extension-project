@@ -1,4 +1,4 @@
-import { addDiagnosticToRelation } from "../diagnostics/diagnostics";
+import { addDiagnosticToRelation, NOT_YET_IMPLEMENTED, CHANGE_TYPE } from "../diagnostics/diagnostics";
 import { attributes, defines, enums, ranges } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 
@@ -82,7 +82,7 @@ export const separateRangeTokens = (
         max,
         minimum.value + " is equal or greater than " + maximum.value,
         "warning",
-        offset
+        offset, NOT_YET_IMPLEMENTED+":"+lineNumber
       );
     }
     ranges.set(afterAndBefore[0].trim(), {
@@ -190,7 +190,7 @@ export const compareRelationTokens = (
 
     //check if the attribute existe in the already processed attributes
     if (!attributeExists(att)) {
-      return addDiagnosticToRelation("att", line, lineNumber, el, att, val, att + " is not defined", "error", 0);
+      return addDiagnosticToRelation("att", line, lineNumber, el, att, val, att + " is not defined", "error", 0, NOT_YET_IMPLEMENTED+":"+lineNumber);
     }
 
     // if the value is a boolean and starts with the negation symbol, that we can take that char off
@@ -207,7 +207,7 @@ export const compareRelationTokens = (
 
     // if the type of the value can not be found
     if (val.trim()!=="" && findValueType(val) === undefined) {
-      return addDiagnosticToRelation("val", line, lineNumber, el, att, val, val + " is not a valid value", "error", 0);
+      return addDiagnosticToRelation("val", line, lineNumber, el, att, val, val + " is not a valid value", "error", 0,NOT_YET_IMPLEMENTED+":"+lineNumber);
     }
 
     // the attribute and the value are not of the same type
@@ -221,12 +221,12 @@ export const compareRelationTokens = (
         val,
         att + " is not of type " + findValueType(val),
         "warning",
-        0
+        0,CHANGE_TYPE+":"+findValueType(val)+":"+attributes.get(att.trim())!.line
       );
     }
     return [
       { offset: ParseSection.getPosition(el, att, 1), value: att, tokenType: "variable" },
-      { offset: ParseSection.getPosition(el, val, 1), value: val, tokenType: "comment" },
+      { offset: ParseSection.getPosition(el, val, 1), value: val, tokenType: "macro" },
     ];
   } else {
     if (attributes.has(el.trim()) && attributes.get(el.trim())?.type === "boolean") {

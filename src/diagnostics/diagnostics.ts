@@ -1,13 +1,15 @@
 import * as vscode from "vscode";
+import { diagnosticCollection } from "../extension";
 import { actions, defines, enums } from "../parsers/globalParserInfo";
+
+export const CHANGE_TYPE = "changeType";
+export const NOT_YET_IMPLEMENTED = "notYetImplemented";
 
 const mapForDiag: Map<vscode.Uri, vscode.Diagnostic[]> = new Map<
   vscode.Uri,
   vscode.Diagnostic[]
 >();
 
-const diagnosticCollection: vscode.DiagnosticCollection =
-  vscode.languages.createDiagnosticCollection();
 
 export const clearDiagnosticCollection = () => {
   actions.clear();
@@ -22,7 +24,8 @@ export const addDiagnostic = (
   finalLineNumber: number,
   finalCharacter: number,
   diagnosticMessage: string,
-  severity: string
+  severity: string,
+  code:string
 ) => {
   let severityType;
   switch (severity) {
@@ -47,6 +50,7 @@ export const addDiagnostic = (
     diagnosticMessage,
     severityType
   );
+  diagnostic.code=code?code:"";
   const currentUri = vscode.window.activeTextEditor!.document.uri;
   if (!mapForDiag.has(currentUri)) {
     mapForDiag.set(currentUri, []);
@@ -72,7 +76,8 @@ export const addDiagnostic = (
     value: string,
     message: string,
     severity: string,
-    offset: number
+    offset: number,
+    code: string
   ) => {
     let stringToCompare = "";
     if (type === "att") {
@@ -80,16 +85,17 @@ export const addDiagnostic = (
     } else if (type === "val") {
       stringToCompare = value;
     }
-    addDiagnostic(
-      lineNumber,
-      line.indexOf(fullCondition) + fullCondition.indexOf(stringToCompare) + offset,
-      lineNumber,
-      line.indexOf(fullCondition) +
-        fullCondition.indexOf(stringToCompare) +
-        stringToCompare.length + offset,
-      message,
-      severity
-    );
+      addDiagnostic(
+        lineNumber,
+        line.indexOf(fullCondition) + fullCondition.indexOf(stringToCompare) + offset,
+        lineNumber,
+        line.indexOf(fullCondition) +
+          fullCondition.indexOf(stringToCompare) +
+          stringToCompare.length + offset,
+        message,
+        severity, code
+      );
+   
     return [
       {
         offset: fullCondition.indexOf(attribute),

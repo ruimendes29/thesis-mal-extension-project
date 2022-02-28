@@ -1,6 +1,7 @@
 import {
   addDiagnostic,
   addDiagnosticToRelation,
+  NOT_YET_IMPLEMENTED
 } from "../diagnostics/diagnostics";
 import { defines, IParsedToken } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
@@ -38,7 +39,7 @@ const parseDefinesBeforeValue = (line: string, lineNumber: number) => {
       beforeEquals.trim(),
       afterEquals.trim(),
       beforeEquals.trim() + " is already defined!",
-      "warning",0
+      "warning",0,NOT_YET_IMPLEMENTED+":"+lineNumber
     );
     return parseTokensForITokens(retFromDiag, lineNumber, line);
   } else {

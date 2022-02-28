@@ -1,4 +1,4 @@
-import { addDiagnostic } from "../diagnostics/diagnostics";
+import { addDiagnostic, NOT_YET_IMPLEMENTED } from "../diagnostics/diagnostics";
 import {  defines, enums, IParsedToken, ranges } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 import { separateRangeTokens } from "./relationParser";
@@ -41,7 +41,7 @@ const parseEnumTypes = (line: string, lineNumber: number) => {
                   lineNumber,
                   sc + el.length,
                   el + " is already declared",
-                  "warning"
+                  "warning",NOT_YET_IMPLEMENTED+":"+lineNumber
                 );
                 return "function";
               } else {

@@ -2,7 +2,7 @@ export const sections = new Map<string, boolean>();
 export let previousSection = "";
 export const attributes = new Map<
   string,
-  { used: boolean; type: string | undefined }
+  { used: boolean; type: string | undefined;line: number }
 >();
 export const actions = new Map<string, boolean>();
 export const defines = new Map<

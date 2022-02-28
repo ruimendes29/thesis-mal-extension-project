@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { Emojinfo } from "./codeActions/codeActionsProvider";
 import { addDiagnostic } from "./diagnostics/diagnostics";
 import { clearStoredValues } from "./parsers/globalParserInfo";
 import { _parseText } from "./parsers/textParser";
@@ -30,25 +31,29 @@ const legend = (function () {
     "property",
     "label",
   ];
-  tokenTypesLegend.forEach((tokenType, index) =>
-    tokenTypes.set(tokenType, index)
-  );
+  tokenTypesLegend.forEach((tokenType, index) => tokenTypes.set(tokenType, index));
 
   const tokenModifiersLegend: any[] | undefined = [];
-  tokenModifiersLegend.forEach((tokenModifier, index) =>
-    tokenModifiers.set(tokenModifier, index)
-  );
+  tokenModifiersLegend.forEach((tokenModifier, index) => tokenModifiers.set(tokenModifier, index));
 
-  return new vscode.SemanticTokensLegend(
-    tokenTypesLegend,
-    tokenModifiersLegend
-  );
+  return new vscode.SemanticTokensLegend(tokenTypesLegend, tokenModifiersLegend);
 })();
 
+export const diagnosticCollection: vscode.DiagnosticCollection = vscode.languages.createDiagnosticCollection();
+
 export function activate(context: vscode.ExtensionContext) {
+  context.subscriptions.push(diagnosticCollection);
+
   vscode.window.onDidChangeActiveTextEditor(() => {
     clearStoredValues();
   });
+
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider("mal", new Emojinfo(), {
+      providedCodeActionKinds: Emojinfo.providedCodeActionKinds,
+    })
+  );
+
   context.subscriptions.push(
     vscode.languages.registerDocumentSemanticTokensProvider(
       { language: "mal" },
@@ -58,9 +63,7 @@ export function activate(context: vscode.ExtensionContext) {
   );
 }
 
-class DocumentSemanticTokensProvider
-  implements vscode.DocumentSemanticTokensProvider
-{
+class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensProvider {
   async provideDocumentSemanticTokens(
     document: vscode.TextDocument,
     token: vscode.CancellationToken

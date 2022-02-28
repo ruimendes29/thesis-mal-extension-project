@@ -1,7 +1,94 @@
 /******/ (() => { // webpackBootstrap
 /******/ 	"use strict";
 /******/ 	var __webpack_modules__ = ([
-/* 0 */,
+/* 0 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.activate = exports.diagnosticCollection = void 0;
+const vscode = __webpack_require__(1);
+const codeActionsProvider_1 = __webpack_require__(2);
+const globalParserInfo_1 = __webpack_require__(4);
+const textParser_1 = __webpack_require__(5);
+const tokenTypes = new Map();
+const tokenModifiers = new Map();
+const legend = (function () {
+    const tokenTypesLegend = [
+        "comment",
+        "string",
+        "keyword",
+        "number",
+        "regexp",
+        "operator",
+        "namespace",
+        "type",
+        "struct",
+        "class",
+        "interface",
+        "enum",
+        "typeParameter",
+        "function",
+        "method",
+        "decorator",
+        "macro",
+        "variable",
+        "parameter",
+        "property",
+        "label",
+    ];
+    tokenTypesLegend.forEach((tokenType, index) => tokenTypes.set(tokenType, index));
+    const tokenModifiersLegend = [];
+    tokenModifiersLegend.forEach((tokenModifier, index) => tokenModifiers.set(tokenModifier, index));
+    return new vscode.SemanticTokensLegend(tokenTypesLegend, tokenModifiersLegend);
+})();
+exports.diagnosticCollection = vscode.languages.createDiagnosticCollection();
+function activate(context) {
+    context.subscriptions.push(exports.diagnosticCollection);
+    vscode.window.onDidChangeActiveTextEditor(() => {
+        (0, globalParserInfo_1.clearStoredValues)();
+    });
+    context.subscriptions.push(vscode.languages.registerCodeActionsProvider("mal", new codeActionsProvider_1.Emojinfo(), {
+        providedCodeActionKinds: codeActionsProvider_1.Emojinfo.providedCodeActionKinds,
+    }));
+    context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider({ language: "mal" }, new DocumentSemanticTokensProvider(), legend));
+}
+exports.activate = activate;
+class DocumentSemanticTokensProvider {
+    async provideDocumentSemanticTokens(document, token) {
+        const allTokens = (0, textParser_1._parseText)(document.getText());
+        const builder = new vscode.SemanticTokensBuilder();
+        allTokens.forEach((token) => {
+            builder.push(token.line, token.startCharacter, token.length, this._encodeTokenType(token.tokenType), this._encodeTokenModifiers(token.tokenModifiers));
+        });
+        return builder.build();
+    }
+    _encodeTokenType(tokenType) {
+        if (tokenTypes.has(tokenType)) {
+            return tokenTypes.get(tokenType);
+        }
+        else if (tokenType === "notInLegend") {
+            return tokenTypes.size + 2;
+        }
+        return 0;
+    }
+    _encodeTokenModifiers(strTokenModifiers) {
+        let result = 0;
+        for (let i = 0; i < strTokenModifiers.length; i++) {
+            const tokenModifier = strTokenModifiers[i];
+            if (tokenModifiers.has(tokenModifier)) {
+                result = result | (1 << tokenModifiers.get(tokenModifier));
+            }
+            else if (tokenModifier === "notInLegend") {
+                result = result | (1 << (tokenModifiers.size + 2));
+            }
+        }
+        return result;
+    }
+}
+
+
+/***/ }),
 /* 1 */
 /***/ ((module) => {
 
@@ -9,6 +96,123 @@ module.exports = require("vscode");
 
 /***/ }),
 /* 2 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Emojinfo = void 0;
+const vscode = __webpack_require__(1);
+const diagnostics_1 = __webpack_require__(3);
+const COMMAND = "mal.command";
+/**
+ * Provides code actions corresponding to diagnostic problems.
+ */
+class Emojinfo {
+    provideCodeActions(document, range, context, token) {
+        // for each diagnostic entry that has the matching `code`, create a code action command
+        return context.diagnostics
+            .filter((diagnostic) => diagnostic.code?.toString().split(":")[0] === diagnostics_1.CHANGE_TYPE)
+            .map((diagnostic) => {
+            console.log(diagnostic);
+            return this.changeToCorrectType(document, diagnostic.code?.toString().split(":")[1], +diagnostic.code?.toString().split(":")[2], diagnostic);
+        });
+    }
+    changeToCorrectType(document, newType, lineToFix, diagnostic) {
+        const fix = new vscode.CodeAction(`Convert to ${newType}`, vscode.CodeActionKind.QuickFix);
+        fix.diagnostics = [diagnostic];
+        fix.edit = new vscode.WorkspaceEdit();
+        const line = document.lineAt(lineToFix).text;
+        const characterOfType = line.indexOf(":") + 2;
+        const oldTypeRange = new vscode.Range(new vscode.Position(lineToFix, characterOfType), new vscode.Position(lineToFix, line.indexOf("#") > 0 ? line.indexOf("#") : line.length));
+        fix.edit.replace(document.uri, oldTypeRange, newType + " ");
+        return fix;
+    }
+}
+exports.Emojinfo = Emojinfo;
+Emojinfo.providedCodeActionKinds = [vscode.CodeActionKind.QuickFix];
+
+
+/***/ }),
+/* 3 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.addDiagnosticToRelation = exports.addDiagnostic = exports.clearDiagnosticCollection = exports.NOT_YET_IMPLEMENTED = exports.CHANGE_TYPE = void 0;
+const vscode = __webpack_require__(1);
+const extension_1 = __webpack_require__(0);
+const globalParserInfo_1 = __webpack_require__(4);
+exports.CHANGE_TYPE = "changeType";
+exports.NOT_YET_IMPLEMENTED = "notYetImplemented";
+const mapForDiag = new Map();
+const clearDiagnosticCollection = () => {
+    globalParserInfo_1.actions.clear();
+    globalParserInfo_1.defines.clear();
+    globalParserInfo_1.enums.clear();
+    mapForDiag.clear();
+};
+exports.clearDiagnosticCollection = clearDiagnosticCollection;
+const addDiagnostic = (initialLineNumber, initialCharacter, finalLineNumber, finalCharacter, diagnosticMessage, severity, code) => {
+    let severityType;
+    switch (severity) {
+        case "error":
+            severityType = vscode.DiagnosticSeverity.Error;
+            break;
+        case "warning":
+            severityType = vscode.DiagnosticSeverity.Warning;
+            break;
+        case "info":
+            severityType = vscode.DiagnosticSeverity.Information;
+            break;
+        case "hint":
+            severityType = vscode.DiagnosticSeverity.Hint;
+            break;
+    }
+    const diagnostic = new vscode.Diagnostic(new vscode.Range(new vscode.Position(initialLineNumber, initialCharacter), new vscode.Position(finalLineNumber, finalCharacter)), diagnosticMessage, severityType);
+    diagnostic.code = code ? code : "";
+    const currentUri = vscode.window.activeTextEditor.document.uri;
+    if (!mapForDiag.has(currentUri)) {
+        mapForDiag.set(currentUri, []);
+    }
+    if (!mapForDiag.get(currentUri)?.filter((diag) => {
+        return diag.range.isEqual(diagnostic.range);
+    }).length) {
+        mapForDiag.get(currentUri).push(diagnostic);
+    }
+    extension_1.diagnosticCollection.set(currentUri, mapForDiag.get(currentUri));
+};
+exports.addDiagnostic = addDiagnostic;
+/* function responsible for adding diagnostics to the attributes when they are in the conditions
+  if any given axiom */
+const addDiagnosticToRelation = (type, line, lineNumber, fullCondition, attribute, value, message, severity, offset, code) => {
+    let stringToCompare = "";
+    if (type === "att") {
+        stringToCompare = attribute;
+    }
+    else if (type === "val") {
+        stringToCompare = value;
+    }
+    (0, exports.addDiagnostic)(lineNumber, line.indexOf(fullCondition) + fullCondition.indexOf(stringToCompare) + offset, lineNumber, line.indexOf(fullCondition) +
+        fullCondition.indexOf(stringToCompare) +
+        stringToCompare.length + offset, message, severity, code);
+    return [
+        {
+            offset: fullCondition.indexOf(attribute),
+            value: attribute,
+            tokenType: stringToCompare === attribute ? "regexp" : "variable",
+        },
+        {
+            offset: fullCondition.indexOf(value),
+            value: value,
+            tokenType: stringToCompare === value ? "regexp" : "macro",
+        },
+    ];
+};
+exports.addDiagnosticToRelation = addDiagnosticToRelation;
+
+
+/***/ }),
+/* 4 */
 /***/ ((__unused_webpack_module, exports) => {
 
 
@@ -77,18 +281,18 @@ exports.clearStoredValues = clearStoredValues;
 
 
 /***/ }),
-/* 3 */
+/* 5 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports._parseText = void 0;
-const axiomParser_1 = __webpack_require__(4);
-const actionAndAttribParser_1 = __webpack_require__(8);
-const definesParser_1 = __webpack_require__(9);
-const globalParserInfo_1 = __webpack_require__(2);
-const diagnostics_1 = __webpack_require__(5);
-const typesParser_1 = __webpack_require__(10);
+const axiomParser_1 = __webpack_require__(6);
+const actionAndAttribParser_1 = __webpack_require__(9);
+const definesParser_1 = __webpack_require__(10);
+const globalParserInfo_1 = __webpack_require__(4);
+const diagnostics_1 = __webpack_require__(3);
+const typesParser_1 = __webpack_require__(11);
 const isNotAnExpression = (line) => {
     const afterEquals = line
         .slice(line.indexOf("=") + 1)
@@ -215,19 +419,19 @@ exports._parseText = _parseText;
 
 
 /***/ }),
-/* 4 */
+/* 6 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports._parseAxioms = void 0;
-const diagnostics_1 = __webpack_require__(5);
-const globalParserInfo_1 = __webpack_require__(2);
-const ParseSection_1 = __webpack_require__(6);
-const relationParser_1 = __webpack_require__(7);
+const diagnostics_1 = __webpack_require__(3);
+const globalParserInfo_1 = __webpack_require__(4);
+const ParseSection_1 = __webpack_require__(7);
+const relationParser_1 = __webpack_require__(8);
 const parseConditions = (line, lineNumber) => {
     const toFindTokens = /^.*(?=\s*\<?\-\>)/;
-    const toSeparateTokens = /(\&|\||\)|\()/;
+    const toSeparateTokens = /(\&|\||\)|\(|\!)/;
     const previousTokens = "";
     const parseConditionsSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
         return "cantprint";
@@ -243,7 +447,7 @@ const parseTriggerAction = (line, lineNumber) => {
             return "function";
         }
         else {
-            (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error");
+            (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + lineNumber);
             return "variable";
         }
     });
@@ -258,7 +462,7 @@ const parsePer = (line, lineNumber) => {
             return "function";
         }
         else {
-            (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error");
+            (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + lineNumber);
             return "variable";
         }
     });
@@ -266,7 +470,7 @@ const parsePer = (line, lineNumber) => {
 };
 const parseNextState = (line, lineNumber) => {
     const toFindTokens = /(?<=(\]|^per\s*\(.*\)\s*\<?\-\>)).*/;
-    const toSeparateTokens = /(\&|\||\)|\()/;
+    const toSeparateTokens = /(\&|\||\)|\(|\,)/;
     const previousTokens = "";
     const parseConditionsSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
         return "cantprint";
@@ -312,83 +516,7 @@ exports._parseAxioms = _parseAxioms;
 
 
 /***/ }),
-/* 5 */
-/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
-
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.addDiagnosticToRelation = exports.addDiagnostic = exports.clearDiagnosticCollection = void 0;
-const vscode = __webpack_require__(1);
-const globalParserInfo_1 = __webpack_require__(2);
-const mapForDiag = new Map();
-const diagnosticCollection = vscode.languages.createDiagnosticCollection();
-const clearDiagnosticCollection = () => {
-    globalParserInfo_1.actions.clear();
-    globalParserInfo_1.defines.clear();
-    globalParserInfo_1.enums.clear();
-    mapForDiag.clear();
-};
-exports.clearDiagnosticCollection = clearDiagnosticCollection;
-const addDiagnostic = (initialLineNumber, initialCharacter, finalLineNumber, finalCharacter, diagnosticMessage, severity) => {
-    let severityType;
-    switch (severity) {
-        case "error":
-            severityType = vscode.DiagnosticSeverity.Error;
-            break;
-        case "warning":
-            severityType = vscode.DiagnosticSeverity.Warning;
-            break;
-        case "info":
-            severityType = vscode.DiagnosticSeverity.Information;
-            break;
-        case "hint":
-            severityType = vscode.DiagnosticSeverity.Hint;
-            break;
-    }
-    const diagnostic = new vscode.Diagnostic(new vscode.Range(new vscode.Position(initialLineNumber, initialCharacter), new vscode.Position(finalLineNumber, finalCharacter)), diagnosticMessage, severityType);
-    const currentUri = vscode.window.activeTextEditor.document.uri;
-    if (!mapForDiag.has(currentUri)) {
-        mapForDiag.set(currentUri, []);
-    }
-    if (!mapForDiag.get(currentUri)?.filter((diag) => {
-        return diag.range.isEqual(diagnostic.range);
-    }).length) {
-        mapForDiag.get(currentUri).push(diagnostic);
-    }
-    diagnosticCollection.set(currentUri, mapForDiag.get(currentUri));
-};
-exports.addDiagnostic = addDiagnostic;
-/* function responsible for adding diagnostics to the attributes when they are in the conditions
-  if any given axiom */
-const addDiagnosticToRelation = (type, line, lineNumber, fullCondition, attribute, value, message, severity, offset) => {
-    let stringToCompare = "";
-    if (type === "att") {
-        stringToCompare = attribute;
-    }
-    else if (type === "val") {
-        stringToCompare = value;
-    }
-    (0, exports.addDiagnostic)(lineNumber, line.indexOf(fullCondition) + fullCondition.indexOf(stringToCompare) + offset, lineNumber, line.indexOf(fullCondition) +
-        fullCondition.indexOf(stringToCompare) +
-        stringToCompare.length + offset, message, severity);
-    return [
-        {
-            offset: fullCondition.indexOf(attribute),
-            value: attribute,
-            tokenType: stringToCompare === attribute ? "regexp" : "variable",
-        },
-        {
-            offset: fullCondition.indexOf(value),
-            value: value,
-            tokenType: stringToCompare === value ? "regexp" : "macro",
-        },
-    ];
-};
-exports.addDiagnosticToRelation = addDiagnosticToRelation;
-
-
-/***/ }),
-/* 6 */
+/* 7 */
 /***/ ((__unused_webpack_module, exports) => {
 
 
@@ -494,15 +622,15 @@ exports.ParseSection = ParseSection;
 
 
 /***/ }),
-/* 7 */
+/* 8 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.compareRelationTokens = exports.separateRangeTokens = void 0;
-const diagnostics_1 = __webpack_require__(5);
-const globalParserInfo_1 = __webpack_require__(2);
-const ParseSection_1 = __webpack_require__(6);
+const diagnostics_1 = __webpack_require__(3);
+const globalParserInfo_1 = __webpack_require__(4);
+const ParseSection_1 = __webpack_require__(7);
 const attributeExists = (attribute) => {
     return (globalParserInfo_1.attributes.has(attribute) ||
         (attribute.charAt(attribute.length - 1) === "'" && globalParserInfo_1.attributes.has(attribute.substring(0, attribute.length - 1))));
@@ -567,7 +695,7 @@ const separateRangeTokens = (el, line, lineNumber, offset) => {
         const minimum = parseRangeInput(min);
         const maximum = parseRangeInput(max);
         if (minimum.value >= maximum.value) {
-            return (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, afterAndBefore[1], min, max, minimum.value + " is equal or greater than " + maximum.value, "warning", offset);
+            return (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, afterAndBefore[1], min, max, minimum.value + " is equal or greater than " + maximum.value, "warning", offset, diagnostics_1.NOT_YET_IMPLEMENTED + ":" + lineNumber);
         }
         globalParserInfo_1.ranges.set(afterAndBefore[0].trim(), {
             used: false,
@@ -661,7 +789,7 @@ const compareRelationTokens = (el, line, lineNumber, offset) => {
         }
         //check if the attribute existe in the already processed attributes
         if (!attributeExists(att)) {
-            return (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, el, att, val, att + " is not defined", "error", 0);
+            return (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, el, att, val, att + " is not defined", "error", 0, diagnostics_1.NOT_YET_IMPLEMENTED + ":" + lineNumber);
         }
         // if the value is a boolean and starts with the negation symbol, that we can take that char off
         if (val.trim()[0] === "!" && findValueType(val.slice(val.indexOf("!") + 1).trim()) === "boolean") {
@@ -674,15 +802,15 @@ const compareRelationTokens = (el, line, lineNumber, offset) => {
         }
         // if the type of the value can not be found
         if (val.trim() !== "" && findValueType(val) === undefined) {
-            return (0, diagnostics_1.addDiagnosticToRelation)("val", line, lineNumber, el, att, val, val + " is not a valid value", "error", 0);
+            return (0, diagnostics_1.addDiagnosticToRelation)("val", line, lineNumber, el, att, val, val + " is not a valid value", "error", 0, diagnostics_1.NOT_YET_IMPLEMENTED + ":" + lineNumber);
         }
         // the attribute and the value are not of the same type
         if (val.trim() !== "" && att.trim() !== "" && !isAttributeSameAsValue(att, val)) {
-            return (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, el, att, val, att + " is not of type " + findValueType(val), "warning", 0);
+            return (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, el, att, val, att + " is not of type " + findValueType(val), "warning", 0, diagnostics_1.CHANGE_TYPE + ":" + findValueType(val) + ":" + globalParserInfo_1.attributes.get(att.trim()).line);
         }
         return [
             { offset: ParseSection_1.ParseSection.getPosition(el, att, 1), value: att, tokenType: "variable" },
-            { offset: ParseSection_1.ParseSection.getPosition(el, val, 1), value: val, tokenType: "comment" },
+            { offset: ParseSection_1.ParseSection.getPosition(el, val, 1), value: val, tokenType: "macro" },
         ];
     }
     else {
@@ -696,13 +824,13 @@ exports.compareRelationTokens = compareRelationTokens;
 
 
 /***/ }),
-/* 8 */
+/* 9 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports._parseVariables = void 0;
-const globalParserInfo_1 = __webpack_require__(2);
+const globalParserInfo_1 = __webpack_require__(4);
 const _checkForVisTag = (line, i) => {
     let x;
     const rx = /^\s*\[\s*vis\s*\]/;
@@ -744,6 +872,7 @@ const _parseVariables = (line, currentOffset, i) => {
                     globalParserInfo_1.attributes.set(pv.variableName, {
                         used: false,
                         type: pv.attributeType,
+                        line: i
                     });
                 }
                 else {
@@ -800,16 +929,16 @@ const _parseVariable = (text, type) => {
 
 
 /***/ }),
-/* 9 */
+/* 10 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports._parseDefines = exports.postProcessDefines = void 0;
-const diagnostics_1 = __webpack_require__(5);
-const globalParserInfo_1 = __webpack_require__(2);
-const ParseSection_1 = __webpack_require__(6);
-const relationParser_1 = __webpack_require__(7);
+const diagnostics_1 = __webpack_require__(3);
+const globalParserInfo_1 = __webpack_require__(4);
+const ParseSection_1 = __webpack_require__(7);
+const relationParser_1 = __webpack_require__(8);
 const parseTokensForITokens = (toParseTokens, lineNumber, line) => {
     const tokens = [];
     if (toParseTokens !== undefined) {
@@ -829,7 +958,7 @@ const parseDefinesBeforeValue = (line, lineNumber) => {
     const beforeEquals = line.slice(0, line.indexOf("="));
     const afterEquals = line.slice(line.indexOf("=") + 1, line.length);
     if (globalParserInfo_1.defines.has(beforeEquals.trim())) {
-        const retFromDiag = (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, line, beforeEquals.trim(), afterEquals.trim(), beforeEquals.trim() + " is already defined!", "warning", 0);
+        const retFromDiag = (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, line, beforeEquals.trim(), afterEquals.trim(), beforeEquals.trim() + " is already defined!", "warning", 0, diagnostics_1.NOT_YET_IMPLEMENTED + ":" + lineNumber);
         return parseTokensForITokens(retFromDiag, lineNumber, line);
     }
     else {
@@ -896,16 +1025,16 @@ exports._parseDefines = _parseDefines;
 
 
 /***/ }),
-/* 10 */
+/* 11 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports._parseTypes = void 0;
-const diagnostics_1 = __webpack_require__(5);
-const globalParserInfo_1 = __webpack_require__(2);
-const ParseSection_1 = __webpack_require__(6);
-const relationParser_1 = __webpack_require__(7);
+const diagnostics_1 = __webpack_require__(3);
+const globalParserInfo_1 = __webpack_require__(4);
+const ParseSection_1 = __webpack_require__(7);
+const relationParser_1 = __webpack_require__(8);
 const parseRangeTypes = (line, lineNumber) => {
     const toFindTokens = /^\s*[a-zA-Z][a-zA-Z0-9\_]*\s*\=\s*([a-zA-Z][a-zA-Z0-9\_]*|[0-9]+)\s*\.\.\s*([a-zA-Z][a-zA-Z0-9\_]*|[0-9]+)/;
     const toSeparateTokens = /(\,|\{|\})/;
@@ -926,7 +1055,7 @@ const parseEnumTypes = (line, lineNumber) => {
         if (elementIndex === 0) {
             elementIndex++;
             if (globalParserInfo_1.enums.has(el) || globalParserInfo_1.ranges.has(el)) {
-                (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is already declared", "warning");
+                (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is already declared", "warning", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + lineNumber);
                 return "function";
             }
             else {
@@ -1005,90 +1134,13 @@ exports._parseTypes = _parseTypes;
 /******/ 	}
 /******/ 	
 /************************************************************************/
-var __webpack_exports__ = {};
-// This entry need to be wrapped in an IIFE because it need to be isolated against other modules in the chunk.
-(() => {
-var exports = __webpack_exports__;
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.activate = void 0;
-const vscode = __webpack_require__(1);
-const globalParserInfo_1 = __webpack_require__(2);
-const textParser_1 = __webpack_require__(3);
-const tokenTypes = new Map();
-const tokenModifiers = new Map();
-const legend = (function () {
-    const tokenTypesLegend = [
-        "comment",
-        "string",
-        "keyword",
-        "number",
-        "regexp",
-        "operator",
-        "namespace",
-        "type",
-        "struct",
-        "class",
-        "interface",
-        "enum",
-        "typeParameter",
-        "function",
-        "method",
-        "decorator",
-        "macro",
-        "variable",
-        "parameter",
-        "property",
-        "label",
-    ];
-    tokenTypesLegend.forEach((tokenType, index) => tokenTypes.set(tokenType, index));
-    const tokenModifiersLegend = [];
-    tokenModifiersLegend.forEach((tokenModifier, index) => tokenModifiers.set(tokenModifier, index));
-    return new vscode.SemanticTokensLegend(tokenTypesLegend, tokenModifiersLegend);
-})();
-function activate(context) {
-    vscode.window.onDidChangeActiveTextEditor(() => {
-        (0, globalParserInfo_1.clearStoredValues)();
-    });
-    context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider({ language: "mal" }, new DocumentSemanticTokensProvider(), legend));
-}
-exports.activate = activate;
-class DocumentSemanticTokensProvider {
-    async provideDocumentSemanticTokens(document, token) {
-        const allTokens = (0, textParser_1._parseText)(document.getText());
-        const builder = new vscode.SemanticTokensBuilder();
-        allTokens.forEach((token) => {
-            builder.push(token.line, token.startCharacter, token.length, this._encodeTokenType(token.tokenType), this._encodeTokenModifiers(token.tokenModifiers));
-        });
-        return builder.build();
-    }
-    _encodeTokenType(tokenType) {
-        if (tokenTypes.has(tokenType)) {
-            return tokenTypes.get(tokenType);
-        }
-        else if (tokenType === "notInLegend") {
-            return tokenTypes.size + 2;
-        }
-        return 0;
-    }
-    _encodeTokenModifiers(strTokenModifiers) {
-        let result = 0;
-        for (let i = 0; i < strTokenModifiers.length; i++) {
-            const tokenModifier = strTokenModifiers[i];
-            if (tokenModifiers.has(tokenModifier)) {
-                result = result | (1 << tokenModifiers.get(tokenModifier));
-            }
-            else if (tokenModifier === "notInLegend") {
-                result = result | (1 << (tokenModifiers.size + 2));
-            }
-        }
-        return result;
-    }
-}
-
-})();
-
-module.exports = __webpack_exports__;
+/******/ 	
+/******/ 	// startup
+/******/ 	// Load entry module and return exports
+/******/ 	// This entry module is referenced by other modules so it can't be inlined
+/******/ 	var __webpack_exports__ = __webpack_require__(0);
+/******/ 	module.exports = __webpack_exports__;
+/******/ 	
 /******/ })()
 ;
 //# sourceMappingURL=extension.js.map

@@ -1,11 +1,11 @@
-import { addDiagnostic, addDiagnosticToRelation } from "../diagnostics/diagnostics";
+import { addDiagnostic, addDiagnosticToRelation, NOT_YET_IMPLEMENTED } from "../diagnostics/diagnostics";
 import { actions, attributes, enums, IParsedToken } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 import { compareRelationTokens } from "./relationParser";
 
 const parseConditions = (line: string, lineNumber: number) => {
   const toFindTokens = /^.*(?=\s*\<?\-\>)/;
-  const toSeparateTokens = /(\&|\||\)|\()/;
+  const toSeparateTokens = /(\&|\||\)|\(|\!)/;
   const previousTokens = "";
 
   const parseConditionsSection: ParseSection = new ParseSection(
@@ -32,7 +32,7 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
       if (actions.has(el)) {
         return "function";
       } else {
-        addDiagnostic(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error");
+        addDiagnostic(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error", NOT_YET_IMPLEMENTED+":"+lineNumber);
         return "variable";
       }
     }
@@ -48,7 +48,7 @@ const parsePer = (line: string, lineNumber: number) => {
     if (actions.has(el)) {
       return "function";
     } else {
-      addDiagnostic(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error");
+      addDiagnostic(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error",NOT_YET_IMPLEMENTED+":"+lineNumber);
       return "variable";
     }
   });
@@ -57,7 +57,7 @@ const parsePer = (line: string, lineNumber: number) => {
 
 const parseNextState = (line: string, lineNumber: number) => {
   const toFindTokens = /(?<=(\]|^per\s*\(.*\)\s*\<?\-\>)).*/;
-  const toSeparateTokens = /(\&|\||\)|\()/;
+  const toSeparateTokens = /(\&|\||\)|\(|\,)/;
   const previousTokens = "";
 
   const parseConditionsSection: ParseSection = new ParseSection(
