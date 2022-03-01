@@ -303,32 +303,68 @@ exports.clearStoredValues = clearStoredValues;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports._parseText = void 0;
 const axiomParser_1 = __webpack_require__(6);
-const actionAndAttribParser_1 = __webpack_require__(9);
 const definesParser_1 = __webpack_require__(10);
 const globalParserInfo_1 = __webpack_require__(4);
 const diagnostics_1 = __webpack_require__(3);
 const typesParser_1 = __webpack_require__(11);
+const actionsParser_1 = __webpack_require__(12);
+const attributesParser_1 = __webpack_require__(13);
+/* Simple method to check if a line is an expression or a simple line,
+ by checking if it is a number,true or false */
 const isNotAnExpression = (line) => {
+    // get the index of the equal sign, then splitting the line in case there are any comments
     const afterEquals = line
         .slice(line.indexOf("=") + 1)
         .split("#")[0]
         .trim();
-    if (!isNaN(+afterEquals) ||
-        afterEquals === "true" ||
-        afterEquals === "false") {
+    if (!isNaN(+afterEquals) || afterEquals === "true" || afterEquals === "false") {
         return true;
     }
     return false;
 };
+const parseSpecificPart = (parser, tokenArray, line, lineNumber, currentOffset) => {
+    const parsedDefines = parser(line.slice(currentOffset), lineNumber);
+    if (parsedDefines !== undefined) {
+        parsedDefines.tokens.forEach((el) => {
+            tokenArray.push(el);
+        });
+        currentOffset += parsedDefines.size;
+        return currentOffset;
+    }
+    return undefined;
+};
+const getActiveSection = () => {
+    for (let x of globalParserInfo_1.sections) {
+        if (x[1]) {
+            return x[0];
+        }
+    }
+    return "none";
+};
 function _parseText(text) {
+    getActiveSection();
+    // Array of the parsed tokens
+    /* These tokens are objects such as:
+    {line: lineNumber, startCharacter: index,length: number,tokenType: string,tokenModifiers: [""]} */
     const r = [];
+    // structure to save some lines for post process, in case the information written ahead is relevant
+    // the key, is a string that represents the section in from where the lines come
+    // the value, is an object composed by the line text itself as well as the line number.
     const lineHolder = new Map();
+    // in case there is any information in the data structures, these get erased before the text is parsed again
     (0, diagnostics_1.clearDiagnosticCollection)();
+    // splitting the lines
     const lines = text.split(/\r\n|\r|\n/);
+    //loopn through all lines
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+        //variable to represent the current offset to be considered when parsing the line
         let currentOffset = 0;
         do {
+            console.log(currentOffset + " " + line);
+            // Checking if the line represents a special section (ex: actions, axioms...), but its not inside an interactor
+            // so that an error can be emitted to the user
+            // TODO: currently only change the color of the text
             if ((0, globalParserInfo_1.isSubSection)(line.trim()) && !(0, globalParserInfo_1.isInsideInteractor)()) {
                 r.push({
                     line: i,
@@ -340,19 +376,21 @@ function _parseText(text) {
                 break;
             }
             else {
+                // the update section is called in order to specificy in which part of the text we are currently in,
+                // as well as giving the information if the current line represent a change of section
                 const isNewSection = (0, globalParserInfo_1.updateSection)(line, i);
+                // in case there is a change of section
                 if (isNewSection) {
+                    /* If the previous section is "attributes" than, the defines can be processed,
+                    atleast those that are not simple, and require the information of which attributes where defined
+                    inside the interactors */
                     if (globalParserInfo_1.previousSection === "attributes") {
                         const definesLinesHeld = lineHolder.get("defines");
                         if (definesLinesHeld !== undefined) {
                             for (let x = 0; x < definesLinesHeld.length; x++) {
+                                const { line, lineNumber } = definesLinesHeld[x];
                                 currentOffset = 0;
-                                const parsedDefines = (0, definesParser_1._parseDefines)(definesLinesHeld[x].line.slice(currentOffset), definesLinesHeld[x].lineNumber);
-                                if (parsedDefines !== undefined) {
-                                    parsedDefines.tokens.forEach((el) => {
-                                        r.push(el);
-                                    });
-                                    currentOffset += parsedDefines.size;
+                                if ((currentOffset = parseSpecificPart(definesParser_1._parseDefines, r, line.slice(currentOffset), lineNumber, currentOffset))) {
                                 }
                                 else {
                                     break;
@@ -364,67 +402,67 @@ function _parseText(text) {
                     }
                     break;
                 }
-                else if (globalParserInfo_1.sections.get("types")) {
-                    const parsedTypes = (0, typesParser_1._parseTypes)(line.slice(currentOffset), i);
-                    if (parsedTypes !== undefined) {
-                        parsedTypes.tokens.forEach((el) => {
-                            r.push(el);
-                        });
-                        currentOffset += parsedTypes.size;
-                    }
-                    else {
-                        break;
-                    }
-                }
-                else if (globalParserInfo_1.sections.get("defines")) {
-                    /* The lines need to be stored in order to process them later
-                    (after the attributes were defined)*/
-                    if (isNotAnExpression(line)) {
-                        const parsedDefines = (0, definesParser_1._parseDefines)(line.slice(currentOffset), i);
-                        if (parsedDefines !== undefined) {
-                            parsedDefines.tokens.forEach((el) => {
-                                r.push(el);
-                            });
-                            currentOffset += parsedDefines.size;
-                        }
-                        else {
-                            break;
-                        }
-                    }
-                    else {
-                        if (!lineHolder.has("defines")) {
-                            lineHolder.set("defines", []);
-                        }
-                        lineHolder.get("defines").push({ line: line, lineNumber: i });
-                        break;
-                    }
-                }
-                else if (globalParserInfo_1.sections.get("attributes") || globalParserInfo_1.sections.get("actions")) {
-                    const parsedVariables = (0, actionAndAttribParser_1._parseVariables)(line, currentOffset, i);
-                    if (parsedVariables === undefined) {
-                        break;
-                    }
-                    else {
-                        r.push(parsedVariables.foundToken);
-                        currentOffset = parsedVariables.nextOffset;
-                    }
-                }
-                else if (globalParserInfo_1.sections.get("axioms")) {
-                    const parsedAxiom = (0, axiomParser_1._parseAxioms)(line.slice(currentOffset), i);
-                    if (parsedAxiom !== undefined) {
-                        parsedAxiom.tokens.forEach((el) => {
-                            r.push(el);
-                        });
-                        currentOffset += parsedAxiom.size;
-                    }
-                    else {
-                        break;
-                    }
-                    break;
-                }
                 else {
+                    switch (getActiveSection()) {
+                        case "types":
+                            if ((currentOffset = parseSpecificPart(typesParser_1._parseTypes, r, line, i, currentOffset))) {
+                            }
+                            else {
+                                break;
+                            }
+                            break;
+                        case "defines":
+                            if (isNotAnExpression(line)) {
+                                if ((currentOffset = parseSpecificPart(definesParser_1._parseDefines, r, line, i, currentOffset))) {
+                                }
+                                else {
+                                    break;
+                                }
+                            }
+                            else {
+                                if (!lineHolder.has("defines")) {
+                                    lineHolder.set("defines", []);
+                                }
+                                lineHolder.get("defines").push({ line: line, lineNumber: i });
+                                break;
+                            }
+                            break;
+                        case "axioms":
+                            if ((currentOffset = parseSpecificPart(axiomParser_1._parseAxioms, r, line, i, currentOffset))) {
+                            }
+                            else {
+                                break;
+                            }
+                            break;
+                        case "actions":
+                            if ((currentOffset = parseSpecificPart(actionsParser_1._parseActions, r, line, i, currentOffset))) {
+                            }
+                            else {
+                                break;
+                            }
+                            break;
+                        case "attributes":
+                            if ((currentOffset = parseSpecificPart(attributesParser_1._parseAttributes, r, line, i, currentOffset))) {
+                            }
+                            else {
+                                break;
+                            }
+                            break;
+                        default: break;
+                    }
                     break;
                 }
+                /*if (sections.get("attributes")) {
+                  const parsedVariables = _parseVariables(line,currentOffset, i);
+                  if (parsedVariables === undefined) {
+                    break;
+                  } else {
+                    r.push(parsedVariables.foundToken);
+                    currentOffset = parsedVariables.nextOffset;
+                  }
+                }  else {
+                  break;
+                }*/
             }
         } while (true);
     }
@@ -839,117 +877,13 @@ exports.compareRelationTokens = compareRelationTokens;
 
 
 /***/ }),
-/* 9 */
-/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
-
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports._parseVariables = void 0;
-const globalParserInfo_1 = __webpack_require__(4);
-const _checkForVisTag = (line, i) => {
-    let x;
-    const rx = /^\s*\[\s*vis\s*\]/;
-    x = rx.exec(line);
-    if (x) {
-        return {
-            r: {
-                line: i,
-                startCharacter: x[0].indexOf("vis"),
-                length: 3,
-                tokenType: "keyword",
-                tokenModifiers: [],
-            },
-            nextOffset: x[0].length,
-        };
-    }
-    else {
-        return undefined;
-    }
-};
-const _parseVariables = (line, currentOffset, i) => {
-    // Check if the line contains the vis tag for that variable
-    const parserBracketResult = _checkForVisTag(line.slice(currentOffset), i);
-    if (parserBracketResult !== undefined) {
-        return {
-            foundToken: parserBracketResult.r,
-            nextOffset: parserBracketResult.nextOffset,
-        };
-    }
-    else {
-        // checks if we are inside the attributes or actions sub section of the interactor
-        if (globalParserInfo_1.sections.get("attributes") || globalParserInfo_1.sections.get("actions")) {
-            //check if there are any variables to be parsed in that line, if so
-            // they are added to the attributes or actions map.
-            const pv = _parseVariable(line.slice(currentOffset), globalParserInfo_1.sections.get("attributes") ? "attributes" : "actions");
-            // if found something
-            if (pv !== undefined) {
-                if (globalParserInfo_1.sections.get("attributes")) {
-                    globalParserInfo_1.attributes.set(pv.variableName, {
-                        used: false,
-                        type: pv.attributeType,
-                        line: i
-                    });
-                }
-                else {
-                    globalParserInfo_1.actions.set(pv.variableName, false);
-                }
-                return {
-                    foundToken: {
-                        line: i,
-                        startCharacter: currentOffset,
-                        length: pv.size,
-                        tokenType: pv.tokenType,
-                        tokenModifiers: pv.tokenModifiers,
-                    },
-                    nextOffset: currentOffset + pv.size + 1,
-                };
-            }
-            else {
-                return undefined;
-            }
-        }
-        else {
-            return undefined;
-        }
-    }
-};
-exports._parseVariables = _parseVariables;
-// function responsible for parsing each individual variable written in attributes or actions
-const _parseVariable = (text, type) => {
-    let x;
-    // regex to match attributes, which means they have to have either : or , in front of them
-    const forAttributes = /^\s*[a-zA-Z]+[a-zA-Z\_0-9]*\s*(?=(:|,))/;
-    // get the type of the attributes
-    const getAttributesType = /(?<=:)\s*[a-zA-Z]+[a-zA-Z\_0-9]*(?=\s*($|#))/;
-    // get the actions, these must be separated into different lines
-    const forActions = /^\s*[a-zA-Z]+[a-zA-Z\_0-9]*\s*(?=(#|$))/;
-    if ((x = (type === "attributes" ? forAttributes : forActions).exec(text))) {
-        if (x) {
-            let attributeType;
-            attributeType =
-                type === "attributes" ? getAttributesType.exec(text) : null;
-            return {
-                size: x[0].length,
-                tokenType: type === "attributes" ? "variable" : "method",
-                tokenModifiers: [""],
-                variableName: x[0].trim(),
-                attributeType: attributeType !== null && attributeType !== undefined
-                    ? attributeType[0].trim()
-                    : undefined,
-            };
-        }
-    }
-    return undefined;
-};
-
-
-/***/ }),
+/* 9 */,
 /* 10 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports._parseDefines = exports.postProcessDefines = void 0;
+exports._parseDefines = void 0;
 const diagnostics_1 = __webpack_require__(3);
 const globalParserInfo_1 = __webpack_require__(4);
 const ParseSection_1 = __webpack_require__(7);
@@ -1003,16 +937,11 @@ const parseDefinesBeforeValue = (line, lineNumber) => {
         }
     }
 };
-const postProcessDefines = () => {
-};
-exports.postProcessDefines = postProcessDefines;
 const _parseDefines = (line, lineNumber) => {
     let currentOffset = 0;
     let toRetTokens = [];
     let size = 0;
-    const sectionsToParseParsers = [
-        parseDefinesBeforeValue,
-    ];
+    const sectionsToParseParsers = [parseDefinesBeforeValue];
     const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
     while (currentOffset < lineWithoutComments.length) {
         let foundMatch = false;
@@ -1119,6 +1048,151 @@ const _parseTypes = (line, lineNumber) => {
     }
 };
 exports._parseTypes = _parseTypes;
+
+
+/***/ }),
+/* 12 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports._parseActions = void 0;
+const globalParserInfo_1 = __webpack_require__(4);
+const ParseSection_1 = __webpack_require__(7);
+const parseVis = (line, lineNumber, currentOffset) => {
+    const toFindTokens = /^\s*\[\s*vis\s*\]/;
+    const toSeparateTokens = /(\[|\])/;
+    const previousTokens = "";
+    const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
+        console.log("parsed a vis!");
+        return "keyword";
+    });
+    return parseActionSection.getTokens(line, lineNumber, currentOffset);
+};
+const parseAction = (line, lineNumber, currentOffset) => {
+    const toFindTokens = /\s*[A-Za-z]+\w*\s*/;
+    const toSeparateTokens = /(\&|\||\)|\(|\,)/;
+    const previousTokens = "";
+    const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
+        //TODO: check if the action exists already or not
+        globalParserInfo_1.actions.set(el.trim(), false);
+        return "function";
+    });
+    return parseActionSection.getTokens(line, lineNumber, currentOffset);
+};
+const _parseActions = (line, lineNumber) => {
+    let currentOffset = 0;
+    let toRetTokens = [];
+    let size = 0;
+    const sectionsToParseParsers = [
+        parseVis,
+        parseAction
+    ];
+    const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
+    while (currentOffset < lineWithoutComments.length) {
+        let foundMatch = false;
+        for (const parser of sectionsToParseParsers) {
+            const matchedPiece = parser(lineWithoutComments, lineNumber, currentOffset);
+            if (matchedPiece && matchedPiece.size > 0) {
+                foundMatch = true;
+                toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
+                size += matchedPiece.size;
+                currentOffset += matchedPiece.size;
+            }
+        }
+        if (!foundMatch) {
+            break;
+        }
+    }
+    if (size === 0) {
+        return undefined;
+    }
+    else {
+        return { tokens: toRetTokens, size: size };
+    }
+};
+exports._parseActions = _parseActions;
+
+
+/***/ }),
+/* 13 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports._parseAttributes = void 0;
+const globalParserInfo_1 = __webpack_require__(4);
+const ParseSection_1 = __webpack_require__(7);
+let attributesInLine = [];
+const parseAttribute = (line, lineNumber, currentOffset) => {
+    const toFindTokens = /(\s*[A-Za-z]+\w*\s*(\,|(?=\:)))+/;
+    const toSeparateTokens = /(\,)/;
+    const previousTokens = "";
+    const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
+        //TODO: check if the attribute exists already or not
+        attributesInLine.push(el.trim());
+        return "variable";
+    });
+    return parseActionSection.getTokens(line, lineNumber, currentOffset);
+};
+const parseVis = (line, lineNumber, currentOffset) => {
+    const toFindTokens = /^\s*\[\s*vis\s*\]/;
+    const toSeparateTokens = /(\[|\])/;
+    const previousTokens = "";
+    const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
+        console.log("parsed a vis!");
+        return "keyword";
+    });
+    return parseActionSection.getTokens(line, lineNumber, currentOffset);
+};
+const parseType = (line, lineNumber, currentOffset) => {
+    const toFindTokens = /:\s*[A-Za-z\_]+\w*\s*/;
+    const toSeparateTokens = /\:/;
+    const previousTokens = "";
+    const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
+        const type = el.trim();
+        for (let att of attributesInLine) {
+            globalParserInfo_1.attributes.set(att, { used: false, type: type, line: lineNumber });
+        }
+        attributesInLine = [];
+        return "type";
+    });
+    return parseActionSection.getTokens(line, lineNumber, currentOffset);
+};
+const _parseAttributes = (line, lineNumber) => {
+    console.log("started parsing attributes");
+    let currentOffset = 0;
+    let toRetTokens = [];
+    let size = 0;
+    const sectionsToParseParsers = [
+        parseVis,
+        parseAttribute,
+        parseType
+    ];
+    const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
+    while (currentOffset < lineWithoutComments.length) {
+        let foundMatch = false;
+        for (const parser of sectionsToParseParsers) {
+            const matchedPiece = parser(lineWithoutComments, lineNumber, currentOffset);
+            if (matchedPiece && matchedPiece.size > 0) {
+                foundMatch = true;
+                toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
+                size += matchedPiece.size;
+                currentOffset += matchedPiece.size;
+            }
+        }
+        if (!foundMatch) {
+            break;
+        }
+    }
+    if (size === 0) {
+        return undefined;
+    }
+    else {
+        return { tokens: toRetTokens, size: size };
+    }
+};
+exports._parseAttributes = _parseAttributes;
 
 
 /***/ })

@@ -1,44 +1,90 @@
 import { _parseAxioms } from "./axiomParser";
-import { _parseVariables } from "./actionAndAttribParser";
 import { _parseDefines } from "./definesParser";
 import {
-  actions,
-  attributes,
   IParsedToken,
   isInsideInteractor,
   isSubSection,
   previousSection,
-  ranges,
   sections,
   updateSection,
 } from "./globalParserInfo";
 import { clearDiagnosticCollection } from "../diagnostics/diagnostics";
 import { _parseTypes } from "./typesParser";
+import { _parseActions } from "./actionsParser";
+import { _parseAttributes } from "./attributesParser";
+
+/* Simple method to check if a line is an expression or a simple line,
+ by checking if it is a number,true or false */
 
 const isNotAnExpression = (line: string) => {
+  // get the index of the equal sign, then splitting the line in case there are any comments
   const afterEquals = line
     .slice(line.indexOf("=") + 1)
     .split("#")[0]
     .trim();
-  if (
-    !isNaN(+afterEquals) ||
-    afterEquals === "true" ||
-    afterEquals === "false"
-  ) {
+  if (!isNaN(+afterEquals) || afterEquals === "true" || afterEquals === "false") {
     return true;
   }
   return false;
 };
 
+const parseSpecificPart = (
+  parser: Function,
+  tokenArray: IParsedToken[],
+  line: string,
+  lineNumber: number,
+  currentOffset: number
+) => {
+  const parsedDefines = parser(line.slice(currentOffset), lineNumber);
+  if (parsedDefines !== undefined) {
+    parsedDefines.tokens.forEach((el: IParsedToken) => {
+      tokenArray.push(el);
+    });
+    currentOffset += parsedDefines.size;
+    return currentOffset;
+  }
+  return undefined;
+};
+
+const getActiveSection = () => {
+  for (let x of sections) {
+    if (x[1]) {
+      return x[0];
+    }
+  }
+  return "none";
+};
+
 export function _parseText(text: string): IParsedToken[] {
+  getActiveSection();
+  // Array of the parsed tokens
+  /* These tokens are objects such as:
+  {line: lineNumber, startCharacter: index,length: number,tokenType: string,tokenModifiers: [""]} */
   const r: IParsedToken[] = [];
+
+  // structure to save some lines for post process, in case the information written ahead is relevant
+  // the key, is a string that represents the section in from where the lines come
+  // the value, is an object composed by the line text itself as well as the line number.
   const lineHolder = new Map<string, { line: string; lineNumber: number }[]>();
+
+  // in case there is any information in the data structures, these get erased before the text is parsed again
   clearDiagnosticCollection();
+
+  // splitting the lines
   const lines = text.split(/\r\n|\r|\n/);
+
+  //loopn through all lines
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+
+    //variable to represent the current offset to be considered when parsing the line
     let currentOffset = 0;
+
     do {
+      console.log(currentOffset+" "+line);
+      // Checking if the line represents a special section (ex: actions, axioms...), but its not inside an interactor
+      // so that an error can be emitted to the user
+      // TODO: currently only change the color of the text
       if (isSubSection(line.trim()) && !isInsideInteractor()) {
         r.push({
           line: i,
@@ -49,22 +95,29 @@ export function _parseText(text: string): IParsedToken[] {
         });
         break;
       } else {
-        const isNewSection = updateSection(line,i);
+        // the update section is called in order to specificy in which part of the text we are currently in,
+        // as well as giving the information if the current line represent a change of section
+        const isNewSection = updateSection(line, i);
+        // in case there is a change of section
         if (isNewSection) {
+          /* If the previous section is "attributes" than, the defines can be processed,
+          atleast those that are not simple, and require the information of which attributes where defined
+          inside the interactors */
           if (previousSection === "attributes") {
             const definesLinesHeld = lineHolder.get("defines");
             if (definesLinesHeld !== undefined) {
               for (let x = 0; x < definesLinesHeld.length; x++) {
+                const { line, lineNumber } = definesLinesHeld[x];
                 currentOffset = 0;
-                const parsedDefines = _parseDefines(
-                  definesLinesHeld[x].line.slice(currentOffset),
-                  definesLinesHeld[x].lineNumber
-                );
-                if (parsedDefines !== undefined) {
-                  parsedDefines.tokens.forEach((el) => {
-                    r.push(el);
-                  });
-                  currentOffset += parsedDefines.size;
+                if (
+                  (currentOffset = parseSpecificPart(
+                    _parseDefines,
+                    r,
+                    line.slice(currentOffset),
+                    lineNumber,
+                    currentOffset
+                  )!)
+                ) {
                 } else {
                   break;
                 }
@@ -74,59 +127,61 @@ export function _parseText(text: string): IParsedToken[] {
             }
           }
           break;
-        } else if (sections.get("types")) {
-          const parsedTypes = _parseTypes(line.slice(currentOffset), i);
-          if (parsedTypes !== undefined) {
-            parsedTypes.tokens.forEach((el) => {
-              r.push(el);
-            });
-            currentOffset += parsedTypes.size;
-          } else {
-            break;
-          }
-        } else if (sections.get("defines")) {
-          /* The lines need to be stored in order to process them later
-          (after the attributes were defined)*/
-          if (isNotAnExpression(line)) {
-            const parsedDefines = _parseDefines(line.slice(currentOffset), i);
-            if (parsedDefines !== undefined) {
-              parsedDefines.tokens.forEach((el) => {
-                r.push(el);
-              });
-              currentOffset += parsedDefines.size;
-            } else {
+        } else {
+          switch (getActiveSection()) {
+            case "types":
+              if ((currentOffset = parseSpecificPart(_parseTypes, r, line, i, currentOffset)!)) {
+              } else {
+                break;
+              }
               break;
-            }
-          } else {
-            if (!lineHolder.has("defines")) {
-              lineHolder.set("defines", []);
-            }
-            lineHolder.get("defines")!.push({ line: line, lineNumber: i });
-            break;
+            case "defines":
+              if (isNotAnExpression(line)) {
+                if ((currentOffset = parseSpecificPart(_parseDefines, r, line, i, currentOffset)!)) {
+                } else {
+                  break;
+                }
+              } else {
+                if (!lineHolder.has("defines")) {
+                  lineHolder.set("defines", []);
+                }
+                lineHolder.get("defines")!.push({ line: line, lineNumber: i });
+                break;
+              }
+              break;
+              case "axioms":
+                if ((currentOffset = parseSpecificPart(_parseAxioms, r, line, i, currentOffset)!)) {
+                } else {
+                  break;
+                }
+                break;
+              case "actions":
+              if ((currentOffset = parseSpecificPart(_parseActions, r, line, i, currentOffset)!)) {
+              } else {
+                break;
+              }
+              break;
+              case "attributes":
+              if ((currentOffset = parseSpecificPart(_parseAttributes, r, line, i, currentOffset)!)) {
+              } else {
+                break;
+              }
+              break;
+              default: break;
           }
-        } else if (sections.get("attributes") || sections.get("actions")) {
-          const parsedVariables = _parseVariables(line, currentOffset, i);
+          break;
+        }
+        /*if (sections.get("attributes")) {
+          const parsedVariables = _parseVariables(line,currentOffset, i);
           if (parsedVariables === undefined) {
             break;
           } else {
             r.push(parsedVariables.foundToken);
             currentOffset = parsedVariables.nextOffset;
           }
-        } else if (sections.get("axioms")) {
-          const parsedAxiom = _parseAxioms(line.slice(currentOffset), i);
-          if (parsedAxiom !== undefined) {
-            parsedAxiom.tokens.forEach((el) => {
-              r.push(el);
-            });
-            currentOffset += parsedAxiom.size;
-          } else {
-            break;
-          }
-
+        }  else {
           break;
-        } else {
-          break;
-        }
+        }*/
       }
     } while (true);
   }

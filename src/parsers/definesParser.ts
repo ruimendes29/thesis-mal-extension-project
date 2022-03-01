@@ -1,8 +1,4 @@
-import {
-  addDiagnostic,
-  addDiagnosticToRelation,
-  NOT_YET_IMPLEMENTED
-} from "../diagnostics/diagnostics";
+import { addDiagnosticToRelation, NOT_YET_IMPLEMENTED } from "../diagnostics/diagnostics";
 import { defines, IParsedToken } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 import { compareRelationTokens } from "./relationParser";
@@ -39,7 +35,9 @@ const parseDefinesBeforeValue = (line: string, lineNumber: number) => {
       beforeEquals.trim(),
       afterEquals.trim(),
       beforeEquals.trim() + " is already defined!",
-      "warning",0,NOT_YET_IMPLEMENTED+":"+lineNumber
+      "warning",
+      0,
+      NOT_YET_IMPLEMENTED + ":" + lineNumber
     );
     return parseTokensForITokens(retFromDiag, lineNumber, line);
   } else {
@@ -55,8 +53,7 @@ const parseDefinesBeforeValue = (line: string, lineNumber: number) => {
           { value: beforeEquals.trim(), tokenType: "keyword" },
           { value: afterEquals.trim(), tokenType: "number" },
         ];
-      }
-      else {
+      } else {
         const toFindTokens = /^.*/;
         const toSeparateTokens = /(\&|\||\(|\)|\-\>)/;
         const previousTokens = "";
@@ -68,17 +65,12 @@ const parseDefinesBeforeValue = (line: string, lineNumber: number) => {
             return "comment";
           }
         );
-        return parseExpressions.getTokens(line,lineNumber,line.indexOf(afterEquals),true,compareRelationTokens);
-        
+        return parseExpressions.getTokens(line, lineNumber, line.indexOf(afterEquals), true, compareRelationTokens);
       }
 
       return parseTokensForITokens(arrayToTokenize, lineNumber, line);
     }
   }
-};
-
-export const postProcessDefines = () => {
-
 };
 
 export const _parseDefines = (
@@ -91,20 +83,14 @@ export const _parseDefines = (
   const sectionsToParseParsers: ((
     line: string,
     lineNumber: number
-  ) => { tokens: IParsedToken[]; size: number } | undefined)[] = [
-    parseDefinesBeforeValue,
-  ];
+  ) => { tokens: IParsedToken[]; size: number } | undefined)[] = [parseDefinesBeforeValue];
 
-  const lineWithoutComments =
-    line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
+  const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
 
   while (currentOffset < lineWithoutComments.length) {
     let foundMatch: boolean = false;
     for (const parser of sectionsToParseParsers) {
-      const matchedPiece = parser(
-        lineWithoutComments.slice(currentOffset),
-        lineNumber
-      );
+      const matchedPiece = parser(lineWithoutComments.slice(currentOffset), lineNumber);
       if (matchedPiece && matchedPiece.size > 0) {
         foundMatch = true;
         toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
