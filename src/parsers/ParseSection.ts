@@ -1,28 +1,30 @@
 import { IParsedToken } from "./globalParserInfo";
 
 export class ParseSection {
+  // Regular expression that represent the tokens that need to be found as a whole
   private findTokens: RegExp;
+  // Regular expression through which to separate the main match
   private separationSymbols: RegExp;
-  private previousSymbols: string;
-  private followingSymbols: string;
+  // Method that receives a string and the start character and return the token type (as defined in extension.ts)
   private tokenTypeCondition: (s: string, sc: number) => string;
+
+  /* Constructor with the findTokens, separationSymbols and the tokenTypeCondition function */
   constructor(
     fTokens: RegExp,
     sSymbols: RegExp,
-    pSymbols: string,
-    ttc: (s: string, sc: number) => string,
-    fSymbols?: string
+    ttc: (s: string, sc: number) => string
   ) {
     this.findTokens = fTokens;
     this.separationSymbols = sSymbols;
     this.tokenTypeCondition = ttc;
-    this.previousSymbols = pSymbols;
-    this.followingSymbols = fSymbols ? fSymbols : "";
   }
 
+  /* Method to find the index where a given occurance of a substring starts in the main string */
   public static getPosition(line: string, subString: string, index: number) {
+    // special characters that need to be escaped in regular expressions
     const toEscape = /[ `!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/;
 
+    // see if there are any characters in the line that need to be escaped and if so, do it
     const escapedSub = subString
       .split("")
       .map((el) => {
@@ -33,6 +35,9 @@ export class ParseSection {
         }
       })
       .join("");
+
+    // check if the regular expression contains escaped characters, and in case it does
+    // there is no need to add the \b (bounded) symbol to the regular expression 
     const regex = !toEscape.test(escapedSub) ? "\\b" + subString + "\\b" : escapedSub;
     return line.split(new RegExp(regex), index).join(subString).length;
   }
@@ -46,26 +51,24 @@ export class ParseSection {
     areTokensExpressions?: boolean
   ) {
     let x: RegExpExecArray | null;
-    // regular expression to check if there are conditions in the axiom
-    // checking if there is only one or more variables surrounded by parentheses
-    // TODO: check for variables where there are no parentheses but operators exist like "aux = 3"
-    const aux = this.findTokens;
-    if ((x = aux.exec(line.slice(offset)))) {
+    
+    // check if any match can be found the sliced line with the findTokens RegExp
+    if ((x = this.findTokens.exec(line.slice(offset)))) {
+      // In case there was a match:
       if (x) {
-        //list of operators
-        let rx = this.separationSymbols;
-        // separate the matched line into de different components (operators and variables)
-        let separatedLine = x[0].trim().split(rx);
+        //alias for separationSymbols
+        let ss = this.separationSymbols;
+        // separate the matched line into de different elements through the separationSymbols
+        let separatedLine = x[0].trim().split(ss);
         // to return the tokens found in the line
         let tokens: IParsedToken[] = [];
-        // map that holds as key the string correspondent to an attribute and as value the last index in which is was seen
-        // so that we can later tell the token where the attribute, even if is has multiple occurences
+        // map that holds as key the string correspondent to an element and as value the occurance number,
+        // so that we can later tell the token where the attribute is, even if it has multiple occurences
         let mapTokens: Map<string, number> = new Map();
         // loop through each element
-        let offsetForPosition = offset;
         separatedLine.forEach((el) => {
-          // check if it not an operator or just spaces
-          if (!rx.test(el.trim()) && el.trim() !== "") {
+          // check if the element is not an operator or just spaces
+          if (!ss.test(el.trim()) && el.trim() !== "") {
             const trimmedEl = el.trim();
             const tokenForMap =
               trimmedEl[trimmedEl.length - 1] === "'"

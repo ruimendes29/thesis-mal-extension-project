@@ -28,6 +28,7 @@ const isNotAnExpression = (line: string) => {
   return false;
 };
 
+// Method for parsing a specific line of the text given the correct parser to use
 const parseSpecificPart = (
   parser: Function,
   tokenArray: IParsedToken[],
@@ -46,6 +47,9 @@ const parseSpecificPart = (
   return undefined;
 };
 
+// Method that loops through all sections and checks which one is currently set to true
+// meaning that that section is the one active
+// ex: x[0] = "attributes" & x[1] = true => return "attributes"
 const getActiveSection = () => {
   for (let x of sections) {
     if (x[1]) {
@@ -122,12 +126,14 @@ export function _parseText(text: string): IParsedToken[] {
                   break;
                 }
               }
+              // clearing the lines held for defines
               lineHolder.set("defines", []);
               currentOffset = 0;
             }
           }
           break;
         } else {
+          // A simple to switch for dealing with different sections
           switch (getActiveSection()) {
             case "types":
               if ((currentOffset = parseSpecificPart(_parseTypes, r, line, i, currentOffset)!)) {
@@ -171,17 +177,6 @@ export function _parseText(text: string): IParsedToken[] {
           }
           break;
         }
-        /*if (sections.get("attributes")) {
-          const parsedVariables = _parseVariables(line,currentOffset, i);
-          if (parsedVariables === undefined) {
-            break;
-          } else {
-            r.push(parsedVariables.foundToken);
-            currentOffset = parsedVariables.nextOffset;
-          }
-        }  else {
-          break;
-        }*/
       }
     } while (true);
   }

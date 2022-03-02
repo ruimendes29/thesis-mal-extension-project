@@ -178,7 +178,7 @@
             },
             {
               "match": "per",
-              "name":"keyword.control.per.mal"
+              "name": "keyword.control.per.mal"
             },
             {
               "name": "variable.language.next_state.mal",
@@ -201,8 +201,6 @@
               "match": "(A|E)(G|F|X|U)"
             },
             { "include": "$self" }
-
-
           ]
         },
         {

@@ -56,11 +56,9 @@ const parseDefinesBeforeValue = (line: string, lineNumber: number) => {
       } else {
         const toFindTokens = /^.*/;
         const toSeparateTokens = /(\&|\||\(|\)|\-\>)/;
-        const previousTokens = "";
         const parseExpressions: ParseSection = new ParseSection(
           toFindTokens,
           toSeparateTokens,
-          previousTokens,
           (el, sc) => {
             return "comment";
           }

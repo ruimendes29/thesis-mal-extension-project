@@ -106,10 +106,6 @@ export const separateRangeTokens = (
   return undefined;
 };
 
-const checkIfNegationIsValid = (s: string): string => {
-  return "";
-};
-
 const processExpressions = (el: string, att: string, val: string, implies: boolean) => {
   const specialChars = /(\+|\!|\-|\&|\*|\,|\)|\(|\/|\||\>|\<)/;
   const splittedValue = val.split(specialChars);

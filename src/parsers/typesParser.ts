@@ -8,11 +8,9 @@ import { separateRangeTokens } from "./relationParser";
 const parseRangeTypes = (line:string,lineNumber:number) => {
   const toFindTokens = /^\s*[a-zA-Z][a-zA-Z0-9\_]*\s*\=\s*([a-zA-Z][a-zA-Z0-9\_]*|[0-9]+)\s*\.\.\s*([a-zA-Z][a-zA-Z0-9\_]*|[0-9]+)/;
   const toSeparateTokens = /(\,|\{|\})/;
-  const previousTokens = "";
   const parseRanges: ParseSection = new ParseSection(
     toFindTokens,
     toSeparateTokens,
-    previousTokens,
     (el, sc) => {
       return "cantprint";
     }
@@ -24,13 +22,11 @@ const parseRangeTypes = (line:string,lineNumber:number) => {
 const parseEnumTypes = (line: string, lineNumber: number) => {
   const toFindTokens = /^\s*[a-zA-Z][a-zA-Z0-9\_]*\s*\=\s*\{.*\}/;
   const toSeparateTokens = /(\=|\,|\{|\})/;
-  const previousTokens = "";
   let elementIndex = 0;
   let typeName = "";
   const parseEnums: ParseSection = new ParseSection(
     toFindTokens,
     toSeparateTokens,
-    previousTokens,
     (el, sc) => {
         if (elementIndex === 0) {
             elementIndex++;

@@ -303,12 +303,12 @@ exports.clearStoredValues = clearStoredValues;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports._parseText = void 0;
 const axiomParser_1 = __webpack_require__(6);
-const definesParser_1 = __webpack_require__(10);
+const definesParser_1 = __webpack_require__(9);
 const globalParserInfo_1 = __webpack_require__(4);
 const diagnostics_1 = __webpack_require__(3);
-const typesParser_1 = __webpack_require__(11);
-const actionsParser_1 = __webpack_require__(12);
-const attributesParser_1 = __webpack_require__(13);
+const typesParser_1 = __webpack_require__(10);
+const actionsParser_1 = __webpack_require__(11);
+const attributesParser_1 = __webpack_require__(12);
 /* Simple method to check if a line is an expression or a simple line,
  by checking if it is a number,true or false */
 const isNotAnExpression = (line) => {
@@ -322,6 +322,7 @@ const isNotAnExpression = (line) => {
     }
     return false;
 };
+// Method for parsing a specific line of the text given the correct parser to use
 const parseSpecificPart = (parser, tokenArray, line, lineNumber, currentOffset) => {
     const parsedDefines = parser(line.slice(currentOffset), lineNumber);
     if (parsedDefines !== undefined) {
@@ -333,6 +334,9 @@ const parseSpecificPart = (parser, tokenArray, line, lineNumber, currentOffset) 
     }
     return undefined;
 };
+// Method that loops through all sections and checks which one is currently set to true
+// meaning that that section is the one active
+// ex: x[0] = "attributes" & x[1] = true => return "attributes"
 const getActiveSection = () => {
     for (let x of globalParserInfo_1.sections) {
         if (x[1]) {
@@ -396,6 +400,7 @@ function _parseText(text) {
                                     break;
                                 }
                             }
+                            // clearing the lines held for defines
                             lineHolder.set("defines", []);
                             currentOffset = 0;
                         }
@@ -403,6 +408,7 @@ function _parseText(text) {
                     break;
                 }
                 else {
+                    // A simple to switch for dealing with different sections
                     switch (getActiveSection()) {
                         case "types":
                             if ((currentOffset = parseSpecificPart(typesParser_1._parseTypes, r, line, i, currentOffset))) {
@@ -452,17 +458,6 @@ function _parseText(text) {
                     }
                     break;
                 }
-                /*if (sections.get("attributes")) {
-                  const parsedVariables = _parseVariables(line,currentOffset, i);
-                  if (parsedVariables === undefined) {
-                    break;
-                  } else {
-                    r.push(parsedVariables.foundToken);
-                    currentOffset = parsedVariables.nextOffset;
-                  }
-                }  else {
-                  break;
-                }*/
             }
         } while (true);
     }
@@ -485,8 +480,7 @@ const relationParser_1 = __webpack_require__(8);
 const parseConditions = (line, lineNumber) => {
     const toFindTokens = /^.*(?=\s*\<?\-\>)/;
     const toSeparateTokens = /(\&|\||\)|\(|\!)/;
-    const previousTokens = "";
-    const parseConditionsSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
+    const parseConditionsSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         return "cantprint";
     });
     return parseConditionsSection.getTokens(line, lineNumber, 0, true, relationParser_1.compareRelationTokens);
@@ -494,8 +488,7 @@ const parseConditions = (line, lineNumber) => {
 const parseTriggerAction = (line, lineNumber) => {
     const toFindTokens = /(\<?\s*\-\>\s*)?\[[^\[]+\]/;
     const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\])/;
-    const previousTokens = "";
-    const parseTriggerActions = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
+    const parseTriggerActions = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         if (globalParserInfo_1.actions.has(el)) {
             return "function";
         }
@@ -509,8 +502,7 @@ const parseTriggerAction = (line, lineNumber) => {
 const parsePer = (line, lineNumber) => {
     const toFindTokens = /(?<=^\s*per\s*\().+(?=\))/;
     const toSeparateTokens = /(\(|\)|\||\&|\!)/;
-    const previousTokens = "";
-    const parsePers = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
+    const parsePers = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         if (globalParserInfo_1.actions.has(el)) {
             return "function";
         }
@@ -524,8 +516,7 @@ const parsePer = (line, lineNumber) => {
 const parseNextState = (line, lineNumber) => {
     const toFindTokens = /(?<=(\]|^per\s*\(.*\)\s*\<?\-\>)).*/;
     const toSeparateTokens = /(\&|\||\)|\(|\,)/;
-    const previousTokens = "";
-    const parseConditionsSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
+    const parseConditionsSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         return "cantprint";
     });
     const perRegex = /^\s*per\s*\(\s*\w*\s*\)\s*\-\s*\>/;
@@ -576,15 +567,17 @@ exports._parseAxioms = _parseAxioms;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ParseSection = void 0;
 class ParseSection {
-    constructor(fTokens, sSymbols, pSymbols, ttc, fSymbols) {
+    /* Constructor with the findTokens, separationSymbols and the tokenTypeCondition function */
+    constructor(fTokens, sSymbols, ttc) {
         this.findTokens = fTokens;
         this.separationSymbols = sSymbols;
         this.tokenTypeCondition = ttc;
-        this.previousSymbols = pSymbols;
-        this.followingSymbols = fSymbols ? fSymbols : "";
     }
+    /* Method to find the index where a given occurance of a substring starts in the main string */
     static getPosition(line, subString, index) {
+        // special characters that need to be escaped in regular expressions
         const toEscape = /[ `!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/;
+        // see if there are any characters in the line that need to be escaped and if so, do it
         const escapedSub = subString
             .split("")
             .map((el) => {
@@ -596,31 +589,30 @@ class ParseSection {
             }
         })
             .join("");
+        // check if the regular expression contains escaped characters, and in case it does
+        // there is no need to add the \b (bounded) symbol to the regular expression 
         const regex = !toEscape.test(escapedSub) ? "\\b" + subString + "\\b" : escapedSub;
         return line.split(new RegExp(regex), index).join(subString).length;
     }
     getTokens(line, lineNumber, offset, aggregatedTokens, separateTokens, areTokensExpressions) {
         let x;
-        // regular expression to check if there are conditions in the axiom
-        // checking if there is only one or more variables surrounded by parentheses
-        // TODO: check for variables where there are no parentheses but operators exist like "aux = 3"
-        const aux = this.findTokens;
-        if ((x = aux.exec(line.slice(offset)))) {
+        // check if any match can be found the sliced line with the findTokens RegExp
+        if ((x = this.findTokens.exec(line.slice(offset)))) {
+            // In case there was a match:
             if (x) {
-                //list of operators
-                let rx = this.separationSymbols;
-                // separate the matched line into de different components (operators and variables)
-                let separatedLine = x[0].trim().split(rx);
+                //alias for separationSymbols
+                let ss = this.separationSymbols;
+                // separate the matched line into de different elements through the separationSymbols
+                let separatedLine = x[0].trim().split(ss);
                 // to return the tokens found in the line
                 let tokens = [];
-                // map that holds as key the string correspondent to an attribute and as value the last index in which is was seen
-                // so that we can later tell the token where the attribute, even if is has multiple occurences
+                // map that holds as key the string correspondent to an element and as value the occurance number,
+                // so that we can later tell the token where the attribute is, even if it has multiple occurences
                 let mapTokens = new Map();
                 // loop through each element
-                let offsetForPosition = offset;
                 separatedLine.forEach((el) => {
-                    // check if it not an operator or just spaces
-                    if (!rx.test(el.trim()) && el.trim() !== "") {
+                    // check if the element is not an operator or just spaces
+                    if (!ss.test(el.trim()) && el.trim() !== "") {
                         const trimmedEl = el.trim();
                         const tokenForMap = trimmedEl[trimmedEl.length - 1] === "'"
                             ? trimmedEl.slice(0, trimmedEl.length - 1)
@@ -771,9 +763,6 @@ const separateRangeTokens = (el, line, lineNumber, offset) => {
     return undefined;
 };
 exports.separateRangeTokens = separateRangeTokens;
-const checkIfNegationIsValid = (s) => {
-    return "";
-};
 const processExpressions = (el, att, val, implies) => {
     const specialChars = /(\+|\!|\-|\&|\*|\,|\)|\(|\/|\||\>|\<)/;
     const splittedValue = val.split(specialChars);
@@ -877,8 +866,7 @@ exports.compareRelationTokens = compareRelationTokens;
 
 
 /***/ }),
-/* 9 */,
-/* 10 */
+/* 9 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
@@ -927,8 +915,7 @@ const parseDefinesBeforeValue = (line, lineNumber) => {
             else {
                 const toFindTokens = /^.*/;
                 const toSeparateTokens = /(\&|\||\(|\)|\-\>)/;
-                const previousTokens = "";
-                const parseExpressions = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
+                const parseExpressions = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
                     return "comment";
                 });
                 return parseExpressions.getTokens(line, lineNumber, line.indexOf(afterEquals), true, relationParser_1.compareRelationTokens);
@@ -969,7 +956,7 @@ exports._parseDefines = _parseDefines;
 
 
 /***/ }),
-/* 11 */
+/* 10 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
@@ -982,8 +969,7 @@ const relationParser_1 = __webpack_require__(8);
 const parseRangeTypes = (line, lineNumber) => {
     const toFindTokens = /^\s*[a-zA-Z][a-zA-Z0-9\_]*\s*\=\s*([a-zA-Z][a-zA-Z0-9\_]*|[0-9]+)\s*\.\.\s*([a-zA-Z][a-zA-Z0-9\_]*|[0-9]+)/;
     const toSeparateTokens = /(\,|\{|\})/;
-    const previousTokens = "";
-    const parseRanges = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
+    const parseRanges = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         return "cantprint";
     });
     const toReturnRanges = parseRanges.getTokens(line, lineNumber, 0, true, relationParser_1.separateRangeTokens);
@@ -992,10 +978,9 @@ const parseRangeTypes = (line, lineNumber) => {
 const parseEnumTypes = (line, lineNumber) => {
     const toFindTokens = /^\s*[a-zA-Z][a-zA-Z0-9\_]*\s*\=\s*\{.*\}/;
     const toSeparateTokens = /(\=|\,|\{|\})/;
-    const previousTokens = "";
     let elementIndex = 0;
     let typeName = "";
-    const parseEnums = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
+    const parseEnums = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         if (elementIndex === 0) {
             elementIndex++;
             if (globalParserInfo_1.enums.has(el) || globalParserInfo_1.ranges.has(el)) {
@@ -1051,7 +1036,7 @@ exports._parseTypes = _parseTypes;
 
 
 /***/ }),
-/* 12 */
+/* 11 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
@@ -1059,21 +1044,31 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports._parseActions = void 0;
 const globalParserInfo_1 = __webpack_require__(4);
 const ParseSection_1 = __webpack_require__(7);
+/* Method responsible for parsing the vis tag that some action might have and assign the
+semantic token "keyword" to it*/
 const parseVis = (line, lineNumber, currentOffset) => {
     const toFindTokens = /^\s*\[\s*vis\s*\]/;
+    // separate in the square brackets so that only the vis is colored
     const toSeparateTokens = /(\[|\])/;
-    const previousTokens = "";
-    const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
-        console.log("parsed a vis!");
+    // Create an instance of ParseSection
+    const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, 
+    // in case there is an element keyword is returned
+    (el, sc) => {
         return "keyword";
     });
+    /* It is needed to pass the currentOffset so that the getTokens method can slice
+    the current line to search only after the index of currentOffset as well as being aware
+    of what offset previously existed to determine the start character of the tokens in the whole line
+    and not only in the sliced one */
     return parseActionSection.getTokens(line, lineNumber, currentOffset);
 };
+/* Very similar to the method above, where only the findTokens expression is changed as well as the
+tokens to separate the main match. */
 const parseAction = (line, lineNumber, currentOffset) => {
     const toFindTokens = /\s*[A-Za-z]+\w*\s*/;
     const toSeparateTokens = /(\&|\||\)|\(|\,)/;
-    const previousTokens = "";
-    const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
+    const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
+        // if an element is found, add it to the actions map and return function as the token type
         //TODO: check if the action exists already or not
         globalParserInfo_1.actions.set(el.trim(), false);
         return "function";
@@ -1084,10 +1079,7 @@ const _parseActions = (line, lineNumber) => {
     let currentOffset = 0;
     let toRetTokens = [];
     let size = 0;
-    const sectionsToParseParsers = [
-        parseVis,
-        parseAction
-    ];
+    const sectionsToParseParsers = [parseVis, parseAction];
     const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
     while (currentOffset < lineWithoutComments.length) {
         let foundMatch = false;
@@ -1115,7 +1107,7 @@ exports._parseActions = _parseActions;
 
 
 /***/ }),
-/* 13 */
+/* 12 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
@@ -1127,8 +1119,7 @@ let attributesInLine = [];
 const parseAttribute = (line, lineNumber, currentOffset) => {
     const toFindTokens = /(\s*[A-Za-z]+\w*\s*(\,|(?=\:)))+/;
     const toSeparateTokens = /(\,)/;
-    const previousTokens = "";
-    const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
+    const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         //TODO: check if the attribute exists already or not
         attributesInLine.push(el.trim());
         return "variable";
@@ -1138,8 +1129,7 @@ const parseAttribute = (line, lineNumber, currentOffset) => {
 const parseVis = (line, lineNumber, currentOffset) => {
     const toFindTokens = /^\s*\[\s*vis\s*\]/;
     const toSeparateTokens = /(\[|\])/;
-    const previousTokens = "";
-    const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
+    const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         console.log("parsed a vis!");
         return "keyword";
     });
@@ -1148,8 +1138,7 @@ const parseVis = (line, lineNumber, currentOffset) => {
 const parseType = (line, lineNumber, currentOffset) => {
     const toFindTokens = /:\s*[A-Za-z\_]+\w*\s*/;
     const toSeparateTokens = /\:/;
-    const previousTokens = "";
-    const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, previousTokens, (el, sc) => {
+    const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         const type = el.trim();
         for (let att of attributesInLine) {
             globalParserInfo_1.attributes.set(att, { used: false, type: type, line: lineNumber });

@@ -6,12 +6,10 @@ let attributesInLine: Array<string> = [];
 const parseAttribute = (line: string, lineNumber: number,currentOffset: number) => {
   const toFindTokens = /(\s*[A-Za-z]+\w*\s*(\,|(?=\:)))+/;
   const toSeparateTokens = /(\,)/;
-  const previousTokens = "";
 
   const parseActionSection: ParseSection = new ParseSection(
     toFindTokens,
     toSeparateTokens,
-    previousTokens,
     (el, sc) => {
     //TODO: check if the attribute exists already or not
       attributesInLine.push(el.trim());
@@ -24,12 +22,10 @@ const parseAttribute = (line: string, lineNumber: number,currentOffset: number) 
 const parseVis = (line: string, lineNumber: number,currentOffset: number) => {
   const toFindTokens = /^\s*\[\s*vis\s*\]/;
   const toSeparateTokens = /(\[|\])/;
-  const previousTokens = "";
 
   const parseActionSection: ParseSection = new ParseSection(
     toFindTokens,
     toSeparateTokens,
-    previousTokens,
     (el, sc) => {
       console.log("parsed a vis!");
       return "keyword";
@@ -41,12 +37,10 @@ const parseVis = (line: string, lineNumber: number,currentOffset: number) => {
 const parseType = (line: string, lineNumber: number,currentOffset: number) => {
   const toFindTokens = /:\s*[A-Za-z\_]+\w*\s*/;
   const toSeparateTokens = /\:/;
-  const previousTokens = "";
 
   const parseActionSection: ParseSection = new ParseSection(
     toFindTokens,
     toSeparateTokens,
-    previousTokens,
     (el, sc) => {
       const type = el.trim();
       for (let att of attributesInLine)

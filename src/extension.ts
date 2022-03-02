@@ -1,6 +1,5 @@
 import * as vscode from "vscode";
 import { Emojinfo } from "./codeActions/codeActionsProvider";
-import { addDiagnostic } from "./diagnostics/diagnostics";
 import { clearStoredValues } from "./parsers/globalParserInfo";
 import { _parseText } from "./parsers/textParser";
 
