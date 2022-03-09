@@ -9,7 +9,7 @@ const attributeExists = (attribute: string): boolean => {
   );
 };
 
-const findValueType = (value: string): string | undefined => {
+export const findValueType = (value: string): string | undefined => {
   const correctValue = value[value.length - 1] === "'" ? value.slice(0, value.length - 1) : value;
   if (value === "true" || value === "false") {
     return "boolean";

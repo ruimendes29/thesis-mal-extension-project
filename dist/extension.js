@@ -9,6 +9,8 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.activate = exports.diagnosticCollection = void 0;
 const vscode = __webpack_require__(1);
 const codeActionsProvider_1 = __webpack_require__(2);
+const globalParserInfo_1 = __webpack_require__(4);
+const relationParser_1 = __webpack_require__(8);
 const textParser_1 = __webpack_require__(6);
 const tokenTypes = new Map();
 const tokenModifiers = new Map();
@@ -43,9 +45,44 @@ const legend = (function () {
 })();
 exports.diagnosticCollection = vscode.languages.createDiagnosticCollection();
 function activate(context) {
-    context.subscriptions.push(exports.diagnosticCollection);
-    vscode.window.onDidChangeActiveTextEditor(() => {
+    const provider1 = vscode.languages.registerCompletionItemProvider("mal", {
+        provideCompletionItems(document, position, token, context) {
+            // a simple completion item which inserts `Hello World!`
+            const simpleCompletion = new vscode.CompletionItem("Hello World!");
+            const attributesCompletion = Array.from(globalParserInfo_1.attributes).map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Variable));
+            const actionsCompletion = Array.from(globalParserInfo_1.actions).map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Function));
+            const definesCompletion = Array.from(globalParserInfo_1.defines).map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Constant));
+            // return all completion items as array
+            return [...attributesCompletion, ...definesCompletion, ...actionsCompletion];
+        },
     });
+    const provider2 = vscode.languages.registerCompletionItemProvider("mal", {
+        provideCompletionItems(document, position) {
+            // get all text until the `position` and check if it reads `console.`
+            // and if so then complete if `log`, `warn`, and `error`
+            let match;
+            const linePrefix = document.lineAt(position).text.slice(0, position.character);
+            if (linePrefix.match(/\[/)) {
+                return Array.from(globalParserInfo_1.actions).map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Function));
+            }
+            else if ((match = linePrefix.match(/(\w+)\s*\=/)) !== null) {
+                console.log((0, relationParser_1.findValueType)(match[1])); //Valor dentro do capture group
+                if (globalParserInfo_1.enums.has((0, relationParser_1.findValueType)(match[1]))) {
+                    return globalParserInfo_1.enums.get((0, relationParser_1.findValueType)(match[1])).values.map(v => new vscode.CompletionItem(v, vscode.CompletionItemKind.EnumMember));
+                }
+                else {
+                    return undefined;
+                }
+            }
+            else {
+                return undefined;
+            }
+        },
+    }, "[", "=" // triggered whenever a '.' is being typed
+    );
+    context.subscriptions.push(provider1, provider2);
+    context.subscriptions.push(exports.diagnosticCollection);
+    vscode.window.onDidChangeActiveTextEditor(() => { });
     context.subscriptions.push(vscode.languages.registerCodeActionsProvider("mal", new codeActionsProvider_1.Emojinfo(), {
         providedCodeActionKinds: codeActionsProvider_1.Emojinfo.providedCodeActionKinds,
     }));
@@ -610,7 +647,6 @@ function _parseText(text) {
         } while (true);
     }
     (0, checkIfUsed_1.checkIfUsed)(lines);
-    console.log(globalParserInfo_1.actionsToAttributes);
     return r;
 }
 exports._parseText = _parseText;
@@ -642,7 +678,6 @@ const parseTriggerAction = (line, lineNumber) => {
     const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\])/;
     const parseTriggerActions = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         if (globalParserInfo_1.actions.has(el)) {
-            console.log(line + " ACTION= " + el);
             triggerAction.push(el);
             const prevAction = globalParserInfo_1.actions.get(el);
             globalParserInfo_1.actions.set(el, { used: true, line: prevAction.line });
@@ -755,7 +790,7 @@ exports._parseAxioms = _parseAxioms;
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.compareRelationTokens = exports.separateRangeTokens = void 0;
+exports.compareRelationTokens = exports.separateRangeTokens = exports.findValueType = void 0;
 const diagnostics_1 = __webpack_require__(3);
 const globalParserInfo_1 = __webpack_require__(4);
 const ParseSection_1 = __webpack_require__(5);
@@ -790,9 +825,10 @@ const findValueType = (value) => {
     }
     return undefined;
 };
+exports.findValueType = findValueType;
 const isAttributeSameAsValue = (attribute, value) => {
-    if (globalParserInfo_1.attributes.get(attribute).type === findValueType(value) ||
-        (globalParserInfo_1.ranges.has(globalParserInfo_1.attributes.get(attribute).type) && findValueType(value) === "number")) {
+    if (globalParserInfo_1.attributes.get(attribute).type === (0, exports.findValueType)(value) ||
+        (globalParserInfo_1.ranges.has(globalParserInfo_1.attributes.get(attribute).type) && (0, exports.findValueType)(value) === "number")) {
         return true;
     }
     else {
@@ -865,11 +901,11 @@ const processExpressions = (el, att, val, implies) => {
             }
             else {
                 if (i === 0) {
-                    currentType = findValueType(trimmedV);
+                    currentType = (0, exports.findValueType)(trimmedV);
                     offsetForToks += splittedValue[i].length;
                 }
                 else {
-                    const newType = findValueType(trimmedV);
+                    const newType = (0, exports.findValueType)(trimmedV);
                     offsetForToks += splittedValue[i].length;
                     if (currentType !== newType) {
                         break;
@@ -917,15 +953,15 @@ const compareRelationTokens = (el, line, lineNumber, offset) => {
             }
         }
         // if the type of the value can not be found
-        if (val.trim() !== "" && findValueType(val) === undefined) {
+        if (val.trim() !== "" && (0, exports.findValueType)(val) === undefined) {
             return (0, diagnostics_1.addDiagnosticToRelation)("val", line, lineNumber, el, att, val, val + " is not a valid value", "error", 0, diagnostics_1.NOT_YET_IMPLEMENTED + ":" + lineNumber);
         }
         //check if the attribute existe in the already processed attributes
         if (!attributeExists(att)) {
-            return (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, el, att, val, att + " is not defined", "error", 0, diagnostics_1.DEFINE_ATTRIBUTE + ":" + findValueType(val) + ":" + att);
+            return (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, el, att, val, att + " is not defined", "error", 0, diagnostics_1.DEFINE_ATTRIBUTE + ":" + (0, exports.findValueType)(val) + ":" + att);
         }
         // if the value is a boolean and starts with the negation symbol, that we can take that char off
-        if (val.trim()[0] === "!" && findValueType(val.slice(val.indexOf("!") + 1).trim()) === "boolean") {
+        if (val.trim()[0] === "!" && (0, exports.findValueType)(val.slice(val.indexOf("!") + 1).trim()) === "boolean") {
             val = val.slice(val.indexOf("!") + 1).trim();
         }
         //process multiple expressions when connected
@@ -935,7 +971,7 @@ const compareRelationTokens = (el, line, lineNumber, offset) => {
         }
         // the attribute and the value are not of the same type
         if (val.trim() !== "" && att.trim() !== "" && !isAttributeSameAsValue(att, val)) {
-            return (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, el, att, val, att + " is not of type " + findValueType(val), "warning", 0, diagnostics_1.CHANGE_TYPE + ":" + findValueType(val) + ":" + globalParserInfo_1.attributes.get(att.trim()).line + ":" + att);
+            return (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, el, att, val, att + " is not of type " + (0, exports.findValueType)(val), "warning", 0, diagnostics_1.CHANGE_TYPE + ":" + (0, exports.findValueType)(val) + ":" + globalParserInfo_1.attributes.get(att.trim()).line + ":" + att);
         }
         return [
             { offset: ParseSection_1.ParseSection.getPosition(el, att, 1), value: att, tokenType: "variable", nextState: preAtt !== att },

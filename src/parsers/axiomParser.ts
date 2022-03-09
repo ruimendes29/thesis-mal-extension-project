@@ -25,7 +25,6 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
   const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\])/;
   const parseTriggerActions: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
     if (actions.has(el)) {
-      console.log(line+" ACTION= "+el);
       triggerAction.push(el);
       const prevAction = actions.get(el)!;
       actions.set(el,{used:true,line:prevAction.line});
