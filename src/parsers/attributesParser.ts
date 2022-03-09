@@ -1,3 +1,4 @@
+import { addDiagnostic, ALREADY_DEFINED } from "../diagnostics/diagnostics";
 import { actions, attributes, IParsedToken } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 
@@ -11,9 +12,22 @@ const parseAttribute = (line: string, lineNumber: number,currentOffset: number) 
     toFindTokens,
     toSeparateTokens,
     (el, sc) => {
-    //TODO: check if the attribute exists already or not
+      // if an element is found, add it to the actions map and return function as the token type
+    if (attributes.has(el.trim())) {
+      addDiagnostic(
+        lineNumber,
+        sc,
+        lineNumber,
+        sc + el.trim().length,
+        el.trim() + " is already defined",
+        "error",
+        ALREADY_DEFINED + ":" + lineNumber + ":" + el.trim()
+      );
+      return "regexp";
+    } else {
       attributesInLine.push(el.trim());
       return "variable";
+    }
     }
   );
   return parseActionSection.getTokens(line, lineNumber, currentOffset);
@@ -27,7 +41,6 @@ const parseVis = (line: string, lineNumber: number,currentOffset: number) => {
     toFindTokens,
     toSeparateTokens,
     (el, sc) => {
-      console.log("parsed a vis!");
       return "keyword";
     }
   );
@@ -45,7 +58,7 @@ const parseType = (line: string, lineNumber: number,currentOffset: number) => {
       const type = el.trim();
       for (let att of attributesInLine)
       {
-        attributes.set(att,{used:false,type:type,line:lineNumber});
+        attributes.set(att,{used:false,type:type,line:lineNumber,alone: attributesInLine.length===1});
       }
       attributesInLine = [];
       return "type";
@@ -58,7 +71,6 @@ export const _parseAttributes = (
   line: string,
   lineNumber: number,
 ): { tokens: IParsedToken[]; size: number } | undefined => {
-  console.log("started parsing attributes");
   let currentOffset = 0;
   let toRetTokens: IParsedToken[] = [];
   let size = 0;

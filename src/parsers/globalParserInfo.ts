@@ -1,11 +1,13 @@
 export const sections = new Map<string, boolean>();
 export let previousSection = "";
-export const actionsStartingLine = new Array<number>();
-export const attributes = new Map<string, { used: boolean; type: string | undefined; line: number }>();
-export const actions = new Map<string, boolean>();
+export let actionsStartingLine = new Array<number>();
+export let attributesStartingLine = new Array<number>();
+export const attributes = new Map<string, { used: boolean; type: string | undefined; line: number, alone: boolean }>();
+export const actions = new Map<string, {used:boolean,line:number}>();
 export const defines = new Map<string, { used: boolean; type: string | undefined; value: string }>();
 export const enums = new Map<string, { used: boolean; values: string[] }>();
 export const ranges = new Map<string, { used: boolean; minimum: number; maximum: number }>();
+export const actionsToAttributes = new Map<string,Set<string>>();
 
 sections.set("attributes", false);
 sections.set("types", false);
@@ -26,6 +28,9 @@ export interface IParsedToken {
 export const updateSection = (line: string, lineNumber: number): boolean => {
   if (line.trim() === "actions") {
     actionsStartingLine.push(lineNumber);
+  }
+  else if (line.trim()==="attributes"){
+    attributesStartingLine.push(lineNumber);
   }
   let x: RegExpExecArray | null;
   x = /^\s*interactor\s+[a-zA-Z]+[a-zA-Z\_0-9]*/.exec(line);
@@ -63,6 +68,13 @@ export const isInsideInteractor = (): boolean => {
 };
 
 export const clearStoredValues = () => {
+  actionsStartingLine = [];
+  attributesStartingLine = [];
+  actionsToAttributes.clear();
+  attributes.clear();
+  actions.clear();
+  defines.clear();
+  enums.clear();
   attributes.clear();
   sections.forEach((_v, key) => {
     sections.set(key, false);

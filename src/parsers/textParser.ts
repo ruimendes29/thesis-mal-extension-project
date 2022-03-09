@@ -1,6 +1,9 @@
 import { _parseAxioms } from "./axiomParser";
 import { _parseDefines } from "./definesParser";
 import {
+  actionsToAttributes,
+  attributes,
+  clearStoredValues,
   IParsedToken,
   isInsideInteractor,
   isSubSection,
@@ -8,10 +11,12 @@ import {
   sections,
   updateSection,
 } from "./globalParserInfo";
-import { clearDiagnosticCollection } from "../diagnostics/diagnostics";
+import { addDiagnostic, clearDiagnosticCollection } from "../diagnostics/diagnostics";
 import { _parseTypes } from "./typesParser";
 import { _parseActions } from "./actionsParser";
 import { _parseAttributes } from "./attributesParser";
+import { ParseSection } from "./ParseSection";
+import { checkIfUsed } from "./checkIfUsed";
 
 /* Simple method to check if a line is an expression or a simple line,
  by checking if it is a number,true or false */
@@ -73,7 +78,7 @@ export function _parseText(text: string): IParsedToken[] {
 
   // in case there is any information in the data structures, these get erased before the text is parsed again
   clearDiagnosticCollection();
-
+  clearStoredValues();
   // splitting the lines
   const lines = text.split(/\r\n|\r|\n/);
 
@@ -85,10 +90,10 @@ export function _parseText(text: string): IParsedToken[] {
     let currentOffset = 0;
 
     do {
-      console.log(currentOffset+" "+line);
       // Checking if the line represents a special section (ex: actions, axioms...), but its not inside an interactor
       // so that an error can be emitted to the user
-      // TODO: currently only change the color of the text
+      // TODO: currently only change the color of the text, need to add error
+      // TODO: being able to check if attributes and actions are used anywhere on the text
       if (isSubSection(line.trim()) && !isInsideInteractor()) {
         r.push({
           line: i,
@@ -179,6 +184,9 @@ export function _parseText(text: string): IParsedToken[] {
         }
       }
     } while (true);
+
   }
+  checkIfUsed(lines);
+  console.log(actionsToAttributes);
   return r;
 }

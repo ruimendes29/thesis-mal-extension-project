@@ -47,8 +47,7 @@ export class ParseSection {
     lineNumber: number,
     offset: number,
     aggregatedTokens?: boolean,
-    separateTokens?: Function,
-    areTokensExpressions?: boolean
+    separateTokens?: Function
   ) {
     let x: RegExpExecArray | null;
     
@@ -81,9 +80,7 @@ export class ParseSection {
               mapTokens.set(tokenForMap, 1);
             }
             // find the next index to be considered while parsing the elements from the line
-            let nextIndexLine = !areTokensExpressions
-              ? ParseSection.getPosition(line.slice(offset), tokenForMap, mapTokens.get(tokenForMap)!)
-              : line.indexOf(trimmedEl);
+            let nextIndexLine = ParseSection.getPosition(line.slice(offset), tokenForMap, mapTokens.get(tokenForMap)!)
             if (!aggregatedTokens) {
               tokens.push({
                 line: lineNumber,
@@ -97,6 +94,7 @@ export class ParseSection {
               const sepTokens = separateTokens!(trimmedEl, line, lineNumber, offset);
               if (sepTokens !== undefined) {
                 for (let t of sepTokens) {
+                  this.tokenTypeCondition(t.value+":"+t.nextState,nextIndexLine+offset);
                   tokens.push({
                     line: lineNumber,
                     startCharacter: nextIndexLine + offset + t.offset,

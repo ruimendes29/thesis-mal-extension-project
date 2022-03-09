@@ -1,4 +1,4 @@
-import { addDiagnosticToRelation, NOT_YET_IMPLEMENTED, CHANGE_TYPE } from "../diagnostics/diagnostics";
+import { addDiagnosticToRelation, NOT_YET_IMPLEMENTED, CHANGE_TYPE, DEFINE_ATTRIBUTE } from "../diagnostics/diagnostics";
 import { attributes, defines, enums, ranges } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 
@@ -82,7 +82,8 @@ export const separateRangeTokens = (
         max,
         minimum.value + " is equal or greater than " + maximum.value,
         "warning",
-        offset, NOT_YET_IMPLEMENTED+":"+lineNumber
+        offset,
+        NOT_YET_IMPLEMENTED + ":" + lineNumber
       );
     }
     ranges.set(afterAndBefore[0].trim(), {
@@ -153,7 +154,7 @@ export const compareRelationTokens = (
   line: string,
   lineNumber: number,
   offset: number
-): { offset: number; value: string; tokenType: string }[] | undefined => {
+): { offset: number; value: string; tokenType: string,nextState?: boolean }[] | undefined => {
   let indexOfOp;
 
   // Check if there is any symbol that might indicate a relation
@@ -163,6 +164,10 @@ export const compareRelationTokens = (
     // take out the ' that simbolizes the next state
     let att = preAtt.charAt(preAtt.length - 1) === "'" ? preAtt.substring(0, preAtt.length - 1) : preAtt;
 
+    if (attributes.has(att.trim())) {
+      const attAux = attributes.get(att)!;
+      attributes.set(att, { used: true, alone: attAux.alone, line: attAux.line, type: attAux.type });
+    }
     //get the value
     let val = el.slice(el.indexOf(indexOfOp[0]) + indexOfOp[0].length).trim();
 
@@ -184,9 +189,36 @@ export const compareRelationTokens = (
       }
     }
 
+        // if the type of the value can not be found
+        if (val.trim() !== "" && findValueType(val) === undefined) {
+          return addDiagnosticToRelation(
+            "val",
+            line,
+            lineNumber,
+            el,
+            att,
+            val,
+            val + " is not a valid value",
+            "error",
+            0,
+            NOT_YET_IMPLEMENTED + ":" + lineNumber
+          );
+        }
+
     //check if the attribute existe in the already processed attributes
     if (!attributeExists(att)) {
-      return addDiagnosticToRelation("att", line, lineNumber, el, att, val, att + " is not defined", "error", 0, NOT_YET_IMPLEMENTED+":"+lineNumber);
+      return addDiagnosticToRelation(
+        "att",
+        line,
+        lineNumber,
+        el,
+        att,
+        val,
+        att + " is not defined",
+        "error",
+        0,
+        DEFINE_ATTRIBUTE +":"+findValueType(val)+":"+att
+      );
     }
 
     // if the value is a boolean and starts with the negation symbol, that we can take that char off
@@ -201,13 +233,10 @@ export const compareRelationTokens = (
       return expressionsParsed;
     }
 
-    // if the type of the value can not be found
-    if (val.trim()!=="" && findValueType(val) === undefined) {
-      return addDiagnosticToRelation("val", line, lineNumber, el, att, val, val + " is not a valid value", "error", 0,NOT_YET_IMPLEMENTED+":"+lineNumber);
-    }
+
 
     // the attribute and the value are not of the same type
-    if (val.trim()!=="" && att.trim()!=="" && !isAttributeSameAsValue(att, val)) {
+    if (val.trim() !== "" && att.trim() !== "" && !isAttributeSameAsValue(att, val)) {
       return addDiagnosticToRelation(
         "att",
         line,
@@ -217,11 +246,12 @@ export const compareRelationTokens = (
         val,
         att + " is not of type " + findValueType(val),
         "warning",
-        0,CHANGE_TYPE+":"+findValueType(val)+":"+attributes.get(att.trim())!.line
+        0,
+        CHANGE_TYPE + ":" + findValueType(val) + ":" + attributes.get(att.trim())!.line + ":" + att
       );
     }
     return [
-      { offset: ParseSection.getPosition(el, att, 1), value: att, tokenType: "variable" },
+      { offset: ParseSection.getPosition(el, att, 1), value: att, tokenType: "variable", nextState:preAtt!==att },
       { offset: ParseSection.getPosition(el, val, 1), value: val, tokenType: "macro" },
     ];
   } else {

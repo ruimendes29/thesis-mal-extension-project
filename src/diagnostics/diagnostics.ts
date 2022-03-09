@@ -1,10 +1,12 @@
 import * as vscode from "vscode";
 import { diagnosticCollection } from "../extension";
-import { actions, defines, enums } from "../parsers/globalParserInfo";
+import { actions, actionsStartingLine, attributes, defines, enums } from "../parsers/globalParserInfo";
 
 export const CHANGE_TYPE = "changeType";
 export const DECLARE_ACTION = "declareAction";
+export const ALREADY_DEFINED = "alreadyDefined";
 export const NOT_YET_IMPLEMENTED = "notYetImplemented";
+export const DEFINE_ATTRIBUTE = "defineAttribute";
 
 const mapForDiag: Map<vscode.Uri, vscode.Diagnostic[]> = new Map<
   vscode.Uri,
@@ -13,9 +15,7 @@ const mapForDiag: Map<vscode.Uri, vscode.Diagnostic[]> = new Map<
 
 
 export const clearDiagnosticCollection = () => {
-  actions.clear();
-  defines.clear();
-  enums.clear();
+  diagnosticCollection.clear();
   mapForDiag.clear();
 };
 

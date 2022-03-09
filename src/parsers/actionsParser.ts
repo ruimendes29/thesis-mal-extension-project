@@ -1,4 +1,5 @@
-import { actions, IParsedToken } from "./globalParserInfo";
+import { addDiagnostic, ALREADY_DEFINED } from "../diagnostics/diagnostics";
+import { actions, actionsToAttributes, IParsedToken } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 
 /* Method responsible for parsing the vis tag that some action might have and assign the 
@@ -30,16 +31,25 @@ const parseAction = (line: string, lineNumber: number, currentOffset: number) =>
   const toFindTokens = /\s*[A-Za-z]+\w*\s*/;
   const toSeparateTokens = /(\&|\||\)|\(|\,)/;
 
-  const parseActionSection: ParseSection = new ParseSection(
-    toFindTokens,
-    toSeparateTokens,
-    (el, sc) => {
-      // if an element is found, add it to the actions map and return function as the token type
-      //TODO: check if the action exists already or not
-      actions.set(el.trim(), false);
+  const parseActionSection: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
+    // if an element is found, add it to the actions map and return function as the token type
+    if (actions.has(el.trim())) {
+      addDiagnostic(
+        lineNumber,
+        sc,
+        lineNumber,
+        sc + el.trim().length,
+        el.trim() + " is already defined",
+        "error",
+        ALREADY_DEFINED + ":" + lineNumber + ":" + el.trim()
+      );
+      return "regexp";
+    } else {
+      actionsToAttributes.set(el.trim(),new Set<string>());
+      actions.set(el.trim(), {used:false,line:lineNumber});
       return "function";
     }
-  );
+  });
   return parseActionSection.getTokens(line, lineNumber, currentOffset);
 };
 

@@ -9,8 +9,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.activate = exports.diagnosticCollection = void 0;
 const vscode = __webpack_require__(1);
 const codeActionsProvider_1 = __webpack_require__(2);
-const globalParserInfo_1 = __webpack_require__(4);
-const textParser_1 = __webpack_require__(5);
+const textParser_1 = __webpack_require__(6);
 const tokenTypes = new Map();
 const tokenModifiers = new Map();
 const legend = (function () {
@@ -46,7 +45,6 @@ exports.diagnosticCollection = vscode.languages.createDiagnosticCollection();
 function activate(context) {
     context.subscriptions.push(exports.diagnosticCollection);
     vscode.window.onDidChangeActiveTextEditor(() => {
-        (0, globalParserInfo_1.clearStoredValues)();
     });
     context.subscriptions.push(vscode.languages.registerCodeActionsProvider("mal", new codeActionsProvider_1.Emojinfo(), {
         providedCodeActionKinds: codeActionsProvider_1.Emojinfo.providedCodeActionKinds,
@@ -104,6 +102,7 @@ exports.Emojinfo = void 0;
 const vscode = __webpack_require__(1);
 const diagnostics_1 = __webpack_require__(3);
 const globalParserInfo_1 = __webpack_require__(4);
+const ParseSection_1 = __webpack_require__(5);
 const COMMAND = "mal.command";
 /**
  * Provides code actions corresponding to diagnostic problems.
@@ -111,26 +110,49 @@ const COMMAND = "mal.command";
 class Emojinfo {
     provideCodeActions(document, range, context, token) {
         // for each diagnostic entry that has the matching `code`, create a code action command
-        return context.diagnostics
-            .map((diagnostic) => {
+        return context.diagnostics.map((diagnostic) => {
+            const diagnosticS = (diagnostic.code + "").split(":");
             switch (diagnostic.code.toString().split(":")[0]) {
                 case diagnostics_1.DECLARE_ACTION:
                     return this.declareAction(document, diagnostic.code.toString().split(":")[1], diagnostic);
                 case diagnostics_1.CHANGE_TYPE:
-                    return this.changeToCorrectType(document, diagnostic.code?.toString().split(":")[1], +diagnostic.code?.toString().split(":")[2], diagnostic);
+                    return this.changeToCorrectType(document, diagnosticS[1], +diagnosticS[2], diagnosticS[3], diagnostic);
+                case diagnostics_1.ALREADY_DEFINED:
+                    //ALREADY_DEFINED + ":" + lineNumber + ":" + el.trim()
+                    return this.alreadyDefined(document, +diagnosticS[1], diagnosticS[2], diagnostic);
+                case diagnostics_1.DEFINE_ATTRIBUTE:
+                    //DEFINE_ATTRIBUTE +":"+findValueType(val)+":"+attribute
+                    return this.addAttribute(document, diagnosticS[1], diagnosticS[2], diagnostic);
                 default:
-                    return this.changeToCorrectType(document, diagnostic.code?.toString().split(":")[1], +diagnostic.code?.toString().split(":")[2], diagnostic);
+                    return new vscode.CodeAction(`No QuickFix available`, vscode.CodeActionKind.QuickFix);
             }
         });
     }
-    changeToCorrectType(document, newType, lineToFix, diagnostic) {
+    alreadyDefined(document, lineToFix, defined, diagnostic) {
+        const fix = new vscode.CodeAction(`Delete already defined ${defined}`, vscode.CodeActionKind.QuickFix);
+        fix.diagnostics = [diagnostic];
+        fix.edit = new vscode.WorkspaceEdit();
+        const line = document.lineAt(lineToFix).text;
+        const actionRange = new vscode.Range(new vscode.Position(lineToFix - 1, document.lineAt(Math.max(0, lineToFix - 1)).text.length), new vscode.Position(lineToFix, line.length));
+        fix.edit.replace(document.uri, actionRange, "");
+        return fix;
+    }
+    changeToCorrectType(document, newType, lineToFix, attribute, diagnostic) {
         const fix = new vscode.CodeAction(`Convert to ${newType}`, vscode.CodeActionKind.QuickFix);
         fix.diagnostics = [diagnostic];
         fix.edit = new vscode.WorkspaceEdit();
         const line = document.lineAt(lineToFix).text;
         const characterOfType = line.indexOf(":") + 2;
-        const oldTypeRange = new vscode.Range(new vscode.Position(lineToFix, characterOfType), new vscode.Position(lineToFix, line.indexOf("#") > 0 ? line.indexOf("#") : line.length));
-        fix.edit.replace(document.uri, oldTypeRange, newType + " ");
+        if (globalParserInfo_1.attributes.get(attribute).alone) {
+            const oldTypeRange = new vscode.Range(new vscode.Position(lineToFix, characterOfType), new vscode.Position(lineToFix, line.indexOf("#") > 0 ? line.indexOf("#") : line.length));
+            fix.edit.replace(document.uri, oldTypeRange, newType + " ");
+        }
+        else {
+            const indexOfComma = line.slice(ParseSection_1.ParseSection.getPosition(line, attribute, 1) + attribute.length - 1).indexOf(",");
+            const oldAttributeRange = new vscode.Range(new vscode.Position(lineToFix, ParseSection_1.ParseSection.getPosition(line, attribute, 1)), new vscode.Position(lineToFix, ParseSection_1.ParseSection.getPosition(line, attribute, 1) + attribute.length + (indexOfComma > 0 ? indexOfComma : 0)));
+            fix.edit.replace(document.uri, oldAttributeRange, "");
+            fix.edit.insert(document.uri, new vscode.Position(lineToFix + 1, 2), attribute + " : " + newType + " " + "\n  ");
+        }
         return fix;
     }
     declareAction(document, newAction, diagnostic) {
@@ -138,6 +160,13 @@ class Emojinfo {
         fix.diagnostics = [diagnostic];
         fix.edit = new vscode.WorkspaceEdit();
         fix.edit.insert(document.uri, new vscode.Position(globalParserInfo_1.actionsStartingLine[0] + 1, 0), "  " + newAction + "\n");
+        return fix;
+    }
+    addAttribute(document, newType, attribute, diagnostic) {
+        const fix = new vscode.CodeAction(`Add ${attribute} with type ${newType}`, vscode.CodeActionKind.QuickFix);
+        fix.diagnostics = [diagnostic];
+        fix.edit = new vscode.WorkspaceEdit();
+        fix.edit.insert(document.uri, new vscode.Position(globalParserInfo_1.attributesStartingLine[0] + 1, 2), attribute + " : " + newType + " " + "\n  ");
         return fix;
     }
 }
@@ -151,18 +180,17 @@ Emojinfo.providedCodeActionKinds = [vscode.CodeActionKind.QuickFix];
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.addDiagnosticToRelation = exports.addDiagnostic = exports.clearDiagnosticCollection = exports.NOT_YET_IMPLEMENTED = exports.DECLARE_ACTION = exports.CHANGE_TYPE = void 0;
+exports.addDiagnosticToRelation = exports.addDiagnostic = exports.clearDiagnosticCollection = exports.DEFINE_ATTRIBUTE = exports.NOT_YET_IMPLEMENTED = exports.ALREADY_DEFINED = exports.DECLARE_ACTION = exports.CHANGE_TYPE = void 0;
 const vscode = __webpack_require__(1);
 const extension_1 = __webpack_require__(0);
-const globalParserInfo_1 = __webpack_require__(4);
 exports.CHANGE_TYPE = "changeType";
 exports.DECLARE_ACTION = "declareAction";
+exports.ALREADY_DEFINED = "alreadyDefined";
 exports.NOT_YET_IMPLEMENTED = "notYetImplemented";
+exports.DEFINE_ATTRIBUTE = "defineAttribute";
 const mapForDiag = new Map();
 const clearDiagnosticCollection = () => {
-    globalParserInfo_1.actions.clear();
-    globalParserInfo_1.defines.clear();
-    globalParserInfo_1.enums.clear();
+    extension_1.diagnosticCollection.clear();
     mapForDiag.clear();
 };
 exports.clearDiagnosticCollection = clearDiagnosticCollection;
@@ -231,15 +259,17 @@ exports.addDiagnosticToRelation = addDiagnosticToRelation;
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.clearStoredValues = exports.isInsideInteractor = exports.isSubSection = exports.updateSection = exports.ranges = exports.enums = exports.defines = exports.actions = exports.attributes = exports.actionsStartingLine = exports.previousSection = exports.sections = void 0;
+exports.clearStoredValues = exports.isInsideInteractor = exports.isSubSection = exports.updateSection = exports.actionsToAttributes = exports.ranges = exports.enums = exports.defines = exports.actions = exports.attributes = exports.attributesStartingLine = exports.actionsStartingLine = exports.previousSection = exports.sections = void 0;
 exports.sections = new Map();
 exports.previousSection = "";
 exports.actionsStartingLine = new Array();
+exports.attributesStartingLine = new Array();
 exports.attributes = new Map();
 exports.actions = new Map();
 exports.defines = new Map();
 exports.enums = new Map();
 exports.ranges = new Map();
+exports.actionsToAttributes = new Map();
 exports.sections.set("attributes", false);
 exports.sections.set("types", false);
 exports.sections.set("defines", false);
@@ -250,6 +280,9 @@ exports.sections.set("test", false);
 const updateSection = (line, lineNumber) => {
     if (line.trim() === "actions") {
         exports.actionsStartingLine.push(lineNumber);
+    }
+    else if (line.trim() === "attributes") {
+        exports.attributesStartingLine.push(lineNumber);
     }
     let x;
     x = /^\s*interactor\s+[a-zA-Z]+[a-zA-Z\_0-9]*/.exec(line);
@@ -287,6 +320,13 @@ const isInsideInteractor = () => {
 };
 exports.isInsideInteractor = isInsideInteractor;
 const clearStoredValues = () => {
+    exports.actionsStartingLine = [];
+    exports.attributesStartingLine = [];
+    exports.actionsToAttributes.clear();
+    exports.attributes.clear();
+    exports.actions.clear();
+    exports.defines.clear();
+    exports.enums.clear();
     exports.attributes.clear();
     exports.sections.forEach((_v, key) => {
         exports.sections.set(key, false);
@@ -297,18 +337,125 @@ exports.clearStoredValues = clearStoredValues;
 
 /***/ }),
 /* 5 */
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ParseSection = void 0;
+class ParseSection {
+    /* Constructor with the findTokens, separationSymbols and the tokenTypeCondition function */
+    constructor(fTokens, sSymbols, ttc) {
+        this.findTokens = fTokens;
+        this.separationSymbols = sSymbols;
+        this.tokenTypeCondition = ttc;
+    }
+    /* Method to find the index where a given occurance of a substring starts in the main string */
+    static getPosition(line, subString, index) {
+        // special characters that need to be escaped in regular expressions
+        const toEscape = /[ `!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/;
+        // see if there are any characters in the line that need to be escaped and if so, do it
+        const escapedSub = subString
+            .split("")
+            .map((el) => {
+            if (toEscape.test(el)) {
+                return "\\" + el;
+            }
+            else {
+                return el;
+            }
+        })
+            .join("");
+        // check if the regular expression contains escaped characters, and in case it does
+        // there is no need to add the \b (bounded) symbol to the regular expression 
+        const regex = !toEscape.test(escapedSub) ? "\\b" + subString + "\\b" : escapedSub;
+        return line.split(new RegExp(regex), index).join(subString).length;
+    }
+    getTokens(line, lineNumber, offset, aggregatedTokens, separateTokens) {
+        let x;
+        // check if any match can be found the sliced line with the findTokens RegExp
+        if ((x = this.findTokens.exec(line.slice(offset)))) {
+            // In case there was a match:
+            if (x) {
+                //alias for separationSymbols
+                let ss = this.separationSymbols;
+                // separate the matched line into de different elements through the separationSymbols
+                let separatedLine = x[0].trim().split(ss);
+                // to return the tokens found in the line
+                let tokens = [];
+                // map that holds as key the string correspondent to an element and as value the occurance number,
+                // so that we can later tell the token where the attribute is, even if it has multiple occurences
+                let mapTokens = new Map();
+                // loop through each element
+                separatedLine.forEach((el) => {
+                    // check if the element is not an operator or just spaces
+                    if (!ss.test(el.trim()) && el.trim() !== "") {
+                        const trimmedEl = el.trim();
+                        const tokenForMap = trimmedEl[trimmedEl.length - 1] === "'"
+                            ? trimmedEl.slice(0, trimmedEl.length - 1)
+                            : trimmedEl.indexOf("=") > 0
+                                ? trimmedEl.slice(0, trimmedEl.indexOf("=") + 1)
+                                : trimmedEl;
+                        // if the element is not already in the map, then we put it
+                        if (!mapTokens.has(tokenForMap)) {
+                            mapTokens.set(tokenForMap, 1);
+                        }
+                        // find the next index to be considered while parsing the elements from the line
+                        let nextIndexLine = ParseSection.getPosition(line.slice(offset), tokenForMap, mapTokens.get(tokenForMap));
+                        if (!aggregatedTokens) {
+                            tokens.push({
+                                line: lineNumber,
+                                startCharacter: nextIndexLine + offset,
+                                length: trimmedEl.length,
+                                // to had the token type we check if the element is in the attributes and is a boolean
+                                tokenType: this.tokenTypeCondition(trimmedEl, nextIndexLine + offset),
+                                tokenModifiers: [""],
+                            });
+                        }
+                        else {
+                            const sepTokens = separateTokens(trimmedEl, line, lineNumber, offset);
+                            if (sepTokens !== undefined) {
+                                for (let t of sepTokens) {
+                                    this.tokenTypeCondition(t.value + ":" + t.nextState, nextIndexLine + offset);
+                                    tokens.push({
+                                        line: lineNumber,
+                                        startCharacter: nextIndexLine + offset + t.offset,
+                                        length: t.value.length,
+                                        tokenType: t.tokenType,
+                                        tokenModifiers: [""],
+                                    });
+                                }
+                            }
+                        }
+                        // update the index in the mapTokens
+                        mapTokens.set(tokenForMap, mapTokens.get(tokenForMap) + 1);
+                    }
+                });
+                return { tokens: tokens, size: x[0].length };
+            }
+            else {
+                return undefined;
+            }
+        }
+    }
+}
+exports.ParseSection = ParseSection;
+
+
+/***/ }),
+/* 6 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports._parseText = void 0;
-const axiomParser_1 = __webpack_require__(6);
+const axiomParser_1 = __webpack_require__(7);
 const definesParser_1 = __webpack_require__(9);
 const globalParserInfo_1 = __webpack_require__(4);
 const diagnostics_1 = __webpack_require__(3);
 const typesParser_1 = __webpack_require__(10);
 const actionsParser_1 = __webpack_require__(11);
 const attributesParser_1 = __webpack_require__(12);
+const checkIfUsed_1 = __webpack_require__(13);
 /* Simple method to check if a line is an expression or a simple line,
  by checking if it is a number,true or false */
 const isNotAnExpression = (line) => {
@@ -357,6 +504,7 @@ function _parseText(text) {
     const lineHolder = new Map();
     // in case there is any information in the data structures, these get erased before the text is parsed again
     (0, diagnostics_1.clearDiagnosticCollection)();
+    (0, globalParserInfo_1.clearStoredValues)();
     // splitting the lines
     const lines = text.split(/\r\n|\r|\n/);
     //loopn through all lines
@@ -365,10 +513,10 @@ function _parseText(text) {
         //variable to represent the current offset to be considered when parsing the line
         let currentOffset = 0;
         do {
-            console.log(currentOffset + " " + line);
             // Checking if the line represents a special section (ex: actions, axioms...), but its not inside an interactor
             // so that an error can be emitted to the user
-            // TODO: currently only change the color of the text
+            // TODO: currently only change the color of the text, need to add error
+            // TODO: being able to check if attributes and actions are used anywhere on the text
             if ((0, globalParserInfo_1.isSubSection)(line.trim()) && !(0, globalParserInfo_1.isInsideInteractor)()) {
                 r.push({
                     line: i,
@@ -461,13 +609,15 @@ function _parseText(text) {
             }
         } while (true);
     }
+    (0, checkIfUsed_1.checkIfUsed)(lines);
+    console.log(globalParserInfo_1.actionsToAttributes);
     return r;
 }
 exports._parseText = _parseText;
 
 
 /***/ }),
-/* 6 */
+/* 7 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
@@ -475,8 +625,10 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports._parseAxioms = void 0;
 const diagnostics_1 = __webpack_require__(3);
 const globalParserInfo_1 = __webpack_require__(4);
-const ParseSection_1 = __webpack_require__(7);
+const ParseSection_1 = __webpack_require__(5);
 const relationParser_1 = __webpack_require__(8);
+let triggerAction = [];
+const setOfAttributesAttended = new Set();
 const parseConditions = (line, lineNumber) => {
     const toFindTokens = /^.*(?=\s*\<?\-\>)/;
     const toSeparateTokens = /(\&|\||\)|\(|\!)/;
@@ -490,6 +642,10 @@ const parseTriggerAction = (line, lineNumber) => {
     const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\])/;
     const parseTriggerActions = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         if (globalParserInfo_1.actions.has(el)) {
+            console.log(line + " ACTION= " + el);
+            triggerAction.push(el);
+            const prevAction = globalParserInfo_1.actions.get(el);
+            globalParserInfo_1.actions.set(el, { used: true, line: prevAction.line });
             return "function";
         }
         else {
@@ -504,19 +660,47 @@ const parsePer = (line, lineNumber) => {
     const toSeparateTokens = /(\(|\)|\||\&|\!)/;
     const parsePers = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         if (globalParserInfo_1.actions.has(el)) {
+            const prevAction = globalParserInfo_1.actions.get(el);
+            globalParserInfo_1.actions.set(el, { used: true, line: prevAction.line });
             return "function";
         }
         else {
-            (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + lineNumber);
+            (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error", diagnostics_1.DECLARE_ACTION + ":" + el);
             return "variable";
         }
     });
     return parsePers.getTokens(line, lineNumber, 0);
 };
+const filterAttribute = (isInKeep, s) => {
+    if (isInKeep) {
+        if (s.indexOf("'") < 0) {
+            return "keep " + s;
+        }
+    }
+    else {
+        if (s.indexOf("!") === 0) {
+            s = s.slice(1);
+        }
+        if (s.indexOf("'") === s.length - 1) {
+            s = s.slice(0, s.length - 1);
+            return s;
+        }
+        return "";
+    }
+};
 const parseNextState = (line, lineNumber) => {
     const toFindTokens = /(?<=(\]|^per\s*\(.*\)\s*\<?\-\>)).*/;
     const toSeparateTokens = /(\&|\||\)|\(|\,)/;
+    let isInKeep = false;
     const parseConditionsSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
+        const isNextState = el.split(":")[1] === "true";
+        if (el.split(":")[0] === "keep") {
+            isInKeep = true;
+            return "";
+        }
+        if (isInKeep || isNextState) {
+            setOfAttributesAttended.add(el.split(":")[0]);
+        }
         return "cantprint";
     });
     const perRegex = /^\s*per\s*\(\s*\w*\s*\)\s*\-\s*\>/;
@@ -536,6 +720,7 @@ const _parseAxioms = (line, lineNumber) => {
     const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
     while (currentOffset < lineWithoutComments.length) {
         let foundMatch = false;
+        triggerAction = [];
         for (const parser of sectionsToParseParsers) {
             const matchedPiece = parser(lineWithoutComments, lineNumber);
             if (matchedPiece && matchedPiece.size > 0) {
@@ -543,6 +728,11 @@ const _parseAxioms = (line, lineNumber) => {
                 toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
                 size += matchedPiece.size;
                 currentOffset += matchedPiece.size;
+            }
+            if (setOfAttributesAttended.size > 0) {
+                for (let act of triggerAction) {
+                    globalParserInfo_1.actionsToAttributes.set(act, setOfAttributesAttended);
+                }
             }
         }
         if (!foundMatch) {
@@ -560,113 +750,6 @@ exports._parseAxioms = _parseAxioms;
 
 
 /***/ }),
-/* 7 */
-/***/ ((__unused_webpack_module, exports) => {
-
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ParseSection = void 0;
-class ParseSection {
-    /* Constructor with the findTokens, separationSymbols and the tokenTypeCondition function */
-    constructor(fTokens, sSymbols, ttc) {
-        this.findTokens = fTokens;
-        this.separationSymbols = sSymbols;
-        this.tokenTypeCondition = ttc;
-    }
-    /* Method to find the index where a given occurance of a substring starts in the main string */
-    static getPosition(line, subString, index) {
-        // special characters that need to be escaped in regular expressions
-        const toEscape = /[ `!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/;
-        // see if there are any characters in the line that need to be escaped and if so, do it
-        const escapedSub = subString
-            .split("")
-            .map((el) => {
-            if (toEscape.test(el)) {
-                return "\\" + el;
-            }
-            else {
-                return el;
-            }
-        })
-            .join("");
-        // check if the regular expression contains escaped characters, and in case it does
-        // there is no need to add the \b (bounded) symbol to the regular expression 
-        const regex = !toEscape.test(escapedSub) ? "\\b" + subString + "\\b" : escapedSub;
-        return line.split(new RegExp(regex), index).join(subString).length;
-    }
-    getTokens(line, lineNumber, offset, aggregatedTokens, separateTokens, areTokensExpressions) {
-        let x;
-        // check if any match can be found the sliced line with the findTokens RegExp
-        if ((x = this.findTokens.exec(line.slice(offset)))) {
-            // In case there was a match:
-            if (x) {
-                //alias for separationSymbols
-                let ss = this.separationSymbols;
-                // separate the matched line into de different elements through the separationSymbols
-                let separatedLine = x[0].trim().split(ss);
-                // to return the tokens found in the line
-                let tokens = [];
-                // map that holds as key the string correspondent to an element and as value the occurance number,
-                // so that we can later tell the token where the attribute is, even if it has multiple occurences
-                let mapTokens = new Map();
-                // loop through each element
-                separatedLine.forEach((el) => {
-                    // check if the element is not an operator or just spaces
-                    if (!ss.test(el.trim()) && el.trim() !== "") {
-                        const trimmedEl = el.trim();
-                        const tokenForMap = trimmedEl[trimmedEl.length - 1] === "'"
-                            ? trimmedEl.slice(0, trimmedEl.length - 1)
-                            : trimmedEl.indexOf("=") > 0
-                                ? trimmedEl.slice(0, trimmedEl.indexOf("=") + 1)
-                                : trimmedEl;
-                        // if the element is not already in the map, then we put it
-                        if (!mapTokens.has(tokenForMap)) {
-                            mapTokens.set(tokenForMap, 1);
-                        }
-                        // find the next index to be considered while parsing the elements from the line
-                        let nextIndexLine = !areTokensExpressions
-                            ? ParseSection.getPosition(line.slice(offset), tokenForMap, mapTokens.get(tokenForMap))
-                            : line.indexOf(trimmedEl);
-                        if (!aggregatedTokens) {
-                            tokens.push({
-                                line: lineNumber,
-                                startCharacter: nextIndexLine + offset,
-                                length: trimmedEl.length,
-                                // to had the token type we check if the element is in the attributes and is a boolean
-                                tokenType: this.tokenTypeCondition(trimmedEl, nextIndexLine + offset),
-                                tokenModifiers: [""],
-                            });
-                        }
-                        else {
-                            const sepTokens = separateTokens(trimmedEl, line, lineNumber, offset);
-                            if (sepTokens !== undefined) {
-                                for (let t of sepTokens) {
-                                    tokens.push({
-                                        line: lineNumber,
-                                        startCharacter: nextIndexLine + offset + t.offset,
-                                        length: t.value.length,
-                                        tokenType: t.tokenType,
-                                        tokenModifiers: [""],
-                                    });
-                                }
-                            }
-                        }
-                        // update the index in the mapTokens
-                        mapTokens.set(tokenForMap, mapTokens.get(tokenForMap) + 1);
-                    }
-                });
-                return { tokens: tokens, size: x[0].length };
-            }
-            else {
-                return undefined;
-            }
-        }
-    }
-}
-exports.ParseSection = ParseSection;
-
-
-/***/ }),
 /* 8 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
@@ -675,7 +758,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.compareRelationTokens = exports.separateRangeTokens = void 0;
 const diagnostics_1 = __webpack_require__(3);
 const globalParserInfo_1 = __webpack_require__(4);
-const ParseSection_1 = __webpack_require__(7);
+const ParseSection_1 = __webpack_require__(5);
 const attributeExists = (attribute) => {
     return (globalParserInfo_1.attributes.has(attribute) ||
         (attribute.charAt(attribute.length - 1) === "'" && globalParserInfo_1.attributes.has(attribute.substring(0, attribute.length - 1))));
@@ -814,6 +897,10 @@ const compareRelationTokens = (el, line, lineNumber, offset) => {
         const preAtt = el.slice(0, el.indexOf(indexOfOp[0])).trim();
         // take out the ' that simbolizes the next state
         let att = preAtt.charAt(preAtt.length - 1) === "'" ? preAtt.substring(0, preAtt.length - 1) : preAtt;
+        if (globalParserInfo_1.attributes.has(att.trim())) {
+            const attAux = globalParserInfo_1.attributes.get(att);
+            globalParserInfo_1.attributes.set(att, { used: true, alone: attAux.alone, line: attAux.line, type: attAux.type });
+        }
         //get the value
         let val = el.slice(el.indexOf(indexOfOp[0]) + indexOfOp[0].length).trim();
         const withoutExclamation = att.slice(att.indexOf("!") + 1).trim();
@@ -829,9 +916,13 @@ const compareRelationTokens = (el, line, lineNumber, offset) => {
                 return expressionsParsedx;
             }
         }
+        // if the type of the value can not be found
+        if (val.trim() !== "" && findValueType(val) === undefined) {
+            return (0, diagnostics_1.addDiagnosticToRelation)("val", line, lineNumber, el, att, val, val + " is not a valid value", "error", 0, diagnostics_1.NOT_YET_IMPLEMENTED + ":" + lineNumber);
+        }
         //check if the attribute existe in the already processed attributes
         if (!attributeExists(att)) {
-            return (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, el, att, val, att + " is not defined", "error", 0, diagnostics_1.NOT_YET_IMPLEMENTED + ":" + lineNumber);
+            return (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, el, att, val, att + " is not defined", "error", 0, diagnostics_1.DEFINE_ATTRIBUTE + ":" + findValueType(val) + ":" + att);
         }
         // if the value is a boolean and starts with the negation symbol, that we can take that char off
         if (val.trim()[0] === "!" && findValueType(val.slice(val.indexOf("!") + 1).trim()) === "boolean") {
@@ -842,16 +933,12 @@ const compareRelationTokens = (el, line, lineNumber, offset) => {
         if (expressionsParsed !== undefined) {
             return expressionsParsed;
         }
-        // if the type of the value can not be found
-        if (val.trim() !== "" && findValueType(val) === undefined) {
-            return (0, diagnostics_1.addDiagnosticToRelation)("val", line, lineNumber, el, att, val, val + " is not a valid value", "error", 0, diagnostics_1.NOT_YET_IMPLEMENTED + ":" + lineNumber);
-        }
         // the attribute and the value are not of the same type
         if (val.trim() !== "" && att.trim() !== "" && !isAttributeSameAsValue(att, val)) {
-            return (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, el, att, val, att + " is not of type " + findValueType(val), "warning", 0, diagnostics_1.CHANGE_TYPE + ":" + findValueType(val) + ":" + globalParserInfo_1.attributes.get(att.trim()).line);
+            return (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, el, att, val, att + " is not of type " + findValueType(val), "warning", 0, diagnostics_1.CHANGE_TYPE + ":" + findValueType(val) + ":" + globalParserInfo_1.attributes.get(att.trim()).line + ":" + att);
         }
         return [
-            { offset: ParseSection_1.ParseSection.getPosition(el, att, 1), value: att, tokenType: "variable" },
+            { offset: ParseSection_1.ParseSection.getPosition(el, att, 1), value: att, tokenType: "variable", nextState: preAtt !== att },
             { offset: ParseSection_1.ParseSection.getPosition(el, val, 1), value: val, tokenType: "macro" },
         ];
     }
@@ -874,7 +961,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports._parseDefines = void 0;
 const diagnostics_1 = __webpack_require__(3);
 const globalParserInfo_1 = __webpack_require__(4);
-const ParseSection_1 = __webpack_require__(7);
+const ParseSection_1 = __webpack_require__(5);
 const relationParser_1 = __webpack_require__(8);
 const parseTokensForITokens = (toParseTokens, lineNumber, line) => {
     const tokens = [];
@@ -895,7 +982,7 @@ const parseDefinesBeforeValue = (line, lineNumber) => {
     const beforeEquals = line.slice(0, line.indexOf("="));
     const afterEquals = line.slice(line.indexOf("=") + 1, line.length);
     if (globalParserInfo_1.defines.has(beforeEquals.trim())) {
-        const retFromDiag = (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, line, beforeEquals.trim(), afterEquals.trim(), beforeEquals.trim() + " is already defined!", "warning", 0, diagnostics_1.NOT_YET_IMPLEMENTED + ":" + lineNumber);
+        const retFromDiag = (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, line, beforeEquals.trim(), afterEquals.trim(), beforeEquals.trim() + " is already defined!", "warning", 0, diagnostics_1.ALREADY_DEFINED + ":" + lineNumber + ":" + beforeEquals.trim());
         return parseTokensForITokens(retFromDiag, lineNumber, line);
     }
     else {
@@ -964,7 +1051,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports._parseTypes = void 0;
 const diagnostics_1 = __webpack_require__(3);
 const globalParserInfo_1 = __webpack_require__(4);
-const ParseSection_1 = __webpack_require__(7);
+const ParseSection_1 = __webpack_require__(5);
 const relationParser_1 = __webpack_require__(8);
 const parseRangeTypes = (line, lineNumber) => {
     const toFindTokens = /^\s*[a-zA-Z][a-zA-Z0-9\_]*\s*\=\s*([a-zA-Z][a-zA-Z0-9\_]*|[0-9]+)\s*\.\.\s*([a-zA-Z][a-zA-Z0-9\_]*|[0-9]+)/;
@@ -984,7 +1071,7 @@ const parseEnumTypes = (line, lineNumber) => {
         if (elementIndex === 0) {
             elementIndex++;
             if (globalParserInfo_1.enums.has(el) || globalParserInfo_1.ranges.has(el)) {
-                (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is already declared", "warning", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + lineNumber);
+                (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is already declared", "warning", diagnostics_1.ALREADY_DEFINED + ":" + lineNumber + ":" + el.trim());
                 return "function";
             }
             else {
@@ -1042,8 +1129,9 @@ exports._parseTypes = _parseTypes;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports._parseActions = void 0;
+const diagnostics_1 = __webpack_require__(3);
 const globalParserInfo_1 = __webpack_require__(4);
-const ParseSection_1 = __webpack_require__(7);
+const ParseSection_1 = __webpack_require__(5);
 /* Method responsible for parsing the vis tag that some action might have and assign the
 semantic token "keyword" to it*/
 const parseVis = (line, lineNumber, currentOffset) => {
@@ -1069,9 +1157,15 @@ const parseAction = (line, lineNumber, currentOffset) => {
     const toSeparateTokens = /(\&|\||\)|\(|\,)/;
     const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         // if an element is found, add it to the actions map and return function as the token type
-        //TODO: check if the action exists already or not
-        globalParserInfo_1.actions.set(el.trim(), false);
-        return "function";
+        if (globalParserInfo_1.actions.has(el.trim())) {
+            (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.trim().length, el.trim() + " is already defined", "error", diagnostics_1.ALREADY_DEFINED + ":" + lineNumber + ":" + el.trim());
+            return "regexp";
+        }
+        else {
+            globalParserInfo_1.actionsToAttributes.set(el.trim(), new Set());
+            globalParserInfo_1.actions.set(el.trim(), { used: false, line: lineNumber });
+            return "function";
+        }
     });
     return parseActionSection.getTokens(line, lineNumber, currentOffset);
 };
@@ -1113,16 +1207,23 @@ exports._parseActions = _parseActions;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports._parseAttributes = void 0;
+const diagnostics_1 = __webpack_require__(3);
 const globalParserInfo_1 = __webpack_require__(4);
-const ParseSection_1 = __webpack_require__(7);
+const ParseSection_1 = __webpack_require__(5);
 let attributesInLine = [];
 const parseAttribute = (line, lineNumber, currentOffset) => {
     const toFindTokens = /(\s*[A-Za-z]+\w*\s*(\,|(?=\:)))+/;
     const toSeparateTokens = /(\,)/;
     const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-        //TODO: check if the attribute exists already or not
-        attributesInLine.push(el.trim());
-        return "variable";
+        // if an element is found, add it to the actions map and return function as the token type
+        if (globalParserInfo_1.attributes.has(el.trim())) {
+            (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.trim().length, el.trim() + " is already defined", "error", diagnostics_1.ALREADY_DEFINED + ":" + lineNumber + ":" + el.trim());
+            return "regexp";
+        }
+        else {
+            attributesInLine.push(el.trim());
+            return "variable";
+        }
     });
     return parseActionSection.getTokens(line, lineNumber, currentOffset);
 };
@@ -1130,7 +1231,6 @@ const parseVis = (line, lineNumber, currentOffset) => {
     const toFindTokens = /^\s*\[\s*vis\s*\]/;
     const toSeparateTokens = /(\[|\])/;
     const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-        console.log("parsed a vis!");
         return "keyword";
     });
     return parseActionSection.getTokens(line, lineNumber, currentOffset);
@@ -1141,7 +1241,7 @@ const parseType = (line, lineNumber, currentOffset) => {
     const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         const type = el.trim();
         for (let att of attributesInLine) {
-            globalParserInfo_1.attributes.set(att, { used: false, type: type, line: lineNumber });
+            globalParserInfo_1.attributes.set(att, { used: false, type: type, line: lineNumber, alone: attributesInLine.length === 1 });
         }
         attributesInLine = [];
         return "type";
@@ -1149,7 +1249,6 @@ const parseType = (line, lineNumber, currentOffset) => {
     return parseActionSection.getTokens(line, lineNumber, currentOffset);
 };
 const _parseAttributes = (line, lineNumber) => {
-    console.log("started parsing attributes");
     let currentOffset = 0;
     let toRetTokens = [];
     let size = 0;
@@ -1182,6 +1281,34 @@ const _parseAttributes = (line, lineNumber) => {
     }
 };
 exports._parseAttributes = _parseAttributes;
+
+
+/***/ }),
+/* 13 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.checkIfUsed = void 0;
+const diagnostics_1 = __webpack_require__(3);
+const globalParserInfo_1 = __webpack_require__(4);
+const ParseSection_1 = __webpack_require__(5);
+const notUsed = (lines, variable, info) => {
+    if (!info.used) {
+        const l = info.line;
+        const sc = ParseSection_1.ParseSection.getPosition(lines[l], variable, 1);
+        (0, diagnostics_1.addDiagnostic)(l, sc, l, sc + variable.length, variable + " was never used!", "warning", "NOTHING");
+    }
+};
+const checkIfUsed = (lines) => {
+    for (let x of globalParserInfo_1.actions) {
+        notUsed(lines, x[0], { used: x[1].used, line: x[1].line });
+    }
+    for (let x of globalParserInfo_1.attributes) {
+        notUsed(lines, x[0], { used: x[1].used, line: x[1].line });
+    }
+};
+exports.checkIfUsed = checkIfUsed;
 
 
 /***/ })

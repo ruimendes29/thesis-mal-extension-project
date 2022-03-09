@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { Emojinfo } from "./codeActions/codeActionsProvider";
+import { clearDiagnosticCollection } from "./diagnostics/diagnostics";
 import { clearStoredValues } from "./parsers/globalParserInfo";
 import { _parseText } from "./parsers/textParser";
 
@@ -44,7 +45,6 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(diagnosticCollection);
 
   vscode.window.onDidChangeActiveTextEditor(() => {
-    clearStoredValues();
   });
 
   context.subscriptions.push(
