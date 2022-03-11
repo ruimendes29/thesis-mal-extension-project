@@ -615,12 +615,9 @@ const processExpressions = (line, lineNumber, el, att, val, implies, isNextState
             }
             else {
                 if (splittedValue[i].indexOf("=") > 0) {
-                    console.log(line + " " + splittedValue[i]);
                     const fromCompare = (0, exports.compareRelationTokens)(splittedValue[i], line, lineNumber, offsetForToks - splittedValue[i].length);
                     if (fromCompare !== undefined) {
                         for (let x of fromCompare) {
-                            console.log(x);
-                            console.log(offsetForToks + x.offset);
                             toks.push({
                                 offset: offsetForToks + x.offset,
                                 value: x.value,
@@ -657,26 +654,19 @@ const processExpressions = (line, lineNumber, el, att, val, implies, isNextState
     return undefined;
 };
 const removeExclamation = (att) => {
-    let ret = att;
     let nextState = false;
-    const withoutExclamation = att.slice(att.indexOf("!") + 1).trim();
-    if (att.charAt(0) === "!" &&
-        globalParserInfo_1.attributes.has(withoutExclamation) &&
-        globalParserInfo_1.attributes.get(withoutExclamation)?.type === "boolean") {
-        ret = withoutExclamation;
-    }
-    if (ret.trim().charAt(ret.length - 1) === "'") {
-        ret = ret.slice(0, ret.length - 1);
+    const we = att.trim().charAt(0) === "!" ? att.trim().slice(1) : att.trim();
+    let ret;
+    if (we.charAt(we.length - 1) === "'") {
+        ret = we.slice(0, we.length - 1);
         nextState = true;
+    }
+    else {
+        ret = we;
     }
     return { value: ret, isNextState: nextState };
 };
 const compareRelationTokens = (el, line, lineNumber, offset) => {
-    if (lineNumber === 10) {
-        console.log("line length " + line.length + " offset " + offset + " lineNumber " + lineNumber);
-        console.log(el);
-        return [{ offset: 0, value: el, tokenType: "comment" }];
-    }
     let indexOfOp;
     if (el === "keep") {
         return [{ offset: 0, value: el, tokenType: "keyword" }];
@@ -686,7 +676,7 @@ const compareRelationTokens = (el, line, lineNumber, offset) => {
         //separate the attribute and the value
         const preAtt = el.slice(0, el.indexOf(indexOfOp[0])).trim();
         // take out the ' that simbolizes the next state
-        let att = preAtt.charAt(preAtt.length - 1) === "'" ? preAtt.substring(0, preAtt.length - 1) : preAtt;
+        let { value: att, isNextState } = removeExclamation(preAtt);
         if (globalParserInfo_1.attributes.has(att.trim())) {
             const attAux = globalParserInfo_1.attributes.get(att);
             globalParserInfo_1.attributes.set(att, { used: true, alone: attAux.alone, line: attAux.line, type: attAux.type });
@@ -709,7 +699,7 @@ const compareRelationTokens = (el, line, lineNumber, offset) => {
             }
         }
         //process multiple expressions when connected
-        const expressionsParsed = processExpressions(line, lineNumber, el, att, val, false, preAtt !== att);
+        const expressionsParsed = processExpressions(line, lineNumber, el, att, val, false, isNextState);
         if (expressionsParsed !== undefined) {
             return expressionsParsed;
         }
@@ -730,13 +720,33 @@ const compareRelationTokens = (el, line, lineNumber, offset) => {
             return (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, el, att, val, att + " is not of type " + (0, exports.findValueType)(val), "warning", 0, diagnostics_1.CHANGE_TYPE + ":" + (0, exports.findValueType)(val) + ":" + globalParserInfo_1.attributes.get(att.trim()).line + ":" + att);
         }
         return [
-            { offset: ParseSection_1.ParseSection.getPosition(el, att, 1), value: att, tokenType: "variable", nextState: preAtt !== att },
-            { offset: ParseSection_1.ParseSection.getPosition(el, val, 1), value: val, tokenType: !isNaN(+val) ? "number" : "macro" },
+            { offset: ParseSection_1.ParseSection.getPosition(el, att, 1), value: att, tokenType: "variable", nextState: isNextState },
+            { offset: ParseSection_1.ParseSection.getPosition(el, val, val.trim() === att ? 2 : 1), value: val, tokenType: !isNaN(+val) ? "number" : "macro" },
         ];
     }
     else {
-        if (globalParserInfo_1.attributes.has(el.trim())) {
-            return [{ offset: 0, value: el, tokenType: "variable" }];
+        // without exclamation
+        const clearedOfSymbols = removeExclamation(el);
+        if (globalParserInfo_1.attributes.has(clearedOfSymbols.value)) {
+            if (clearedOfSymbols.value !== el.trim() && globalParserInfo_1.attributes.get(clearedOfSymbols.value)?.type !== "boolean") {
+                (0, diagnostics_1.addDiagnostic)(lineNumber, ParseSection_1.ParseSection.getPosition(line, el, 1), lineNumber, ParseSection_1.ParseSection.getPosition(line, el, 1) + el.length, clearedOfSymbols.value + " is not a boolean", "error", diagnostics_1.CHANGE_TYPE +
+                    ":" +
+                    "boolean" +
+                    ":" +
+                    globalParserInfo_1.attributes.get(clearedOfSymbols.value.trim()).line +
+                    ":" +
+                    clearedOfSymbols.value);
+            }
+            else {
+                return [
+                    {
+                        offset: ParseSection_1.ParseSection.getPosition(el, clearedOfSymbols.value, 1),
+                        value: clearedOfSymbols.value,
+                        tokenType: "variable",
+                        nextState: new RegExp("keep\\s*\\(.*" + clearedOfSymbols.value + ".*\\)").test(line) || clearedOfSymbols.isNextState,
+                    },
+                ];
+            }
         }
     }
     return undefined;
@@ -1022,6 +1032,9 @@ const parseNextState = (line, lineNumber) => {
             return "";
         }
         if (isInKeep || isNextState) {
+            if (lineNumber === 68) {
+                console.log(el);
+            }
             setOfAttributesAttended.add(el.split(":")[0]);
         }
         return "cantprint";
@@ -1117,12 +1130,12 @@ const parseDefinesBeforeValue = (line, lineNumber) => {
                 ];
             }
             else {
-                const toFindTokens = /(?<=\=).*/;
+                const toFindTokens = /(?<=^\s*\w+\s*\=).*/;
                 const toSeparateTokens = /(\&|\||\(|\)|\-\>)/;
                 const parseExpressions = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
                     return "comment";
                 });
-                return parseExpressions.getTokens(line, lineNumber, line.indexOf(afterEquals), true, relationParser_1.compareRelationTokens);
+                return parseExpressions.getTokens(line, lineNumber, 0, true, relationParser_1.compareRelationTokens);
             }
             return parseTokensForITokens(arrayToTokenize, lineNumber, line);
         }

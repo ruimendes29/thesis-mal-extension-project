@@ -80,7 +80,7 @@ export class ParseSection {
               mapTokens.set(tokenForMap, 1);
             }
             // find the next index to be considered while parsing the elements from the line
-            let nextIndexLine = ParseSection.getPosition(line.slice(offset), tokenForMap, mapTokens.get(tokenForMap)!)
+            let nextIndexLine = ParseSection.getPosition(line.slice(offset), tokenForMap, mapTokens.get(tokenForMap)!);
             if (!aggregatedTokens) {
               tokens.push({
                 line: lineNumber,

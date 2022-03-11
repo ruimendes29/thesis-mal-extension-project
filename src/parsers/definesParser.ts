@@ -54,7 +54,7 @@ const parseDefinesBeforeValue = (line: string, lineNumber: number) => {
           { value: afterEquals.trim(), tokenType: "number" },
         ];
       } else {
-        const toFindTokens = /(?<=\=).*/;
+        const toFindTokens = /(?<=^\s*\w+\s*\=).*/;
         const toSeparateTokens = /(\&|\||\(|\)|\-\>)/;
         const parseExpressions: ParseSection = new ParseSection(
           toFindTokens,
@@ -63,7 +63,7 @@ const parseDefinesBeforeValue = (line: string, lineNumber: number) => {
             return "comment";
           }
         );
-        return parseExpressions.getTokens(line, lineNumber, line.indexOf(afterEquals), true, compareRelationTokens);
+        return parseExpressions.getTokens(line, lineNumber,0, true, compareRelationTokens);
       }
 
       return parseTokensForITokens(arrayToTokenize, lineNumber, line);

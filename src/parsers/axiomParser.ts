@@ -105,6 +105,10 @@ const parseNextState = (line: string, lineNumber: number) => {
       }
       if (isInKeep || isNextState)
       {
+        if(lineNumber===68)
+        {
+          console.log(el);
+        }
         setOfAttributesAttended.add(el.split(":")[0]);
       }
 
