@@ -36,8 +36,8 @@
     ],
     "commands": [
       {
-        "command": "mal.helloWorld",
-        "title": "Hello World"
+        "command": "mal.checkIfActionsAreDeterministic",
+        "title": "Are Actions Deterministic?"
       }
     ]
   },

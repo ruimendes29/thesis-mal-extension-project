@@ -1,4 +1,9 @@
-import { addDiagnosticToRelation, NOT_YET_IMPLEMENTED, CHANGE_TYPE, DEFINE_ATTRIBUTE } from "../diagnostics/diagnostics";
+import {
+  addDiagnosticToRelation,
+  NOT_YET_IMPLEMENTED,
+  CHANGE_TYPE,
+  DEFINE_ATTRIBUTE,
+} from "../diagnostics/diagnostics";
 import { attributes, defines, enums, ranges } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 
@@ -107,7 +112,15 @@ export const separateRangeTokens = (
   return undefined;
 };
 
-const processExpressions = (el: string, att: string, val: string, implies: boolean) => {
+const processExpressions = (
+  line: string,
+  lineNumber: number,
+  el: string,
+  att: string,
+  val: string,
+  implies: boolean,
+  isNextState?: boolean
+) => {
   const specialChars = /(\+|\!|\-|\&|\*|\,|\)|\(|\/|\||\>|\<)/;
   const splittedValue = val.split(specialChars);
   let currentType = "";
@@ -118,27 +131,52 @@ const processExpressions = (el: string, att: string, val: string, implies: boole
     return undefined;
   }
   if ((isAttributeSameAsValue(att, splittedValue[0].trim()) && splittedValue.length > 1) || implies) {
-    toks.push({ offset: el.indexOf(att), value: att, tokenType: implies ? "variable" : "keyword" });
+    toks.push({
+      offset: el.indexOf(att),
+      value: att,
+      tokenType: "variable",
+      nextState: isNextState,
+    });
     for (i = 0; i < splittedValue.length; i++) {
       const trimmedV = splittedValue[i].trim();
       if (trimmedV.match(specialChars) !== null) {
         offsetForToks += splittedValue[i].length;
       } else {
-        if (i === 0) {
-          currentType = findValueType(trimmedV)!;
-          offsetForToks += splittedValue[i].length;
-        } else {
-          const newType = findValueType(trimmedV);
-          offsetForToks += splittedValue[i].length;
-          if (currentType !== newType) {
-            break;
+        if (splittedValue[i].indexOf("=") > 0) {
+          console.log(line+" "+splittedValue[i]);
+          const fromCompare = compareRelationTokens(splittedValue[i], line, lineNumber, offsetForToks - splittedValue[i].length);
+          if (fromCompare!==undefined)
+          {
+            for (let x of fromCompare)
+            {
+              console.log(x);
+              console.log(offsetForToks+x.offset);
+                toks.push({
+                  offset: offsetForToks +x.offset,
+                  value: x.value,
+                  tokenType: x.tokenType,
+                });
+            }
           }
+          
         }
-        toks.push({
-          offset: offsetForToks - splittedValue[i].length,
-          value: trimmedV,
-          tokenType: !isNaN(+trimmedV) ? "number" : "variable",
-        });
+        else {
+          if (i === 0) {
+            currentType = findValueType(trimmedV)!;
+            offsetForToks += splittedValue[i].length;
+          } else {
+            const newType = findValueType(trimmedV);
+            offsetForToks += splittedValue[i].length;
+            if (currentType !== newType) {
+              break;
+            }
+          }
+          toks.push({
+            offset: offsetForToks - splittedValue[i].length,
+            value: trimmedV,
+            tokenType: !isNaN(+trimmedV) ? "number" : "macro",
+          });
+        }
       }
     }
     if (i === splittedValue.length) {
@@ -149,14 +187,41 @@ const processExpressions = (el: string, att: string, val: string, implies: boole
   return undefined;
 };
 
+const removeExclamation = (att: string) => {
+  let ret = att;
+  let nextState = false;
+  const withoutExclamation = att.slice(att.indexOf("!") + 1).trim();
+  if (
+    att.charAt(0) === "!" &&
+    attributes.has(withoutExclamation) &&
+    attributes.get(withoutExclamation)?.type === "boolean"
+  ) {
+    ret = withoutExclamation;
+  }
+  if (ret.trim().charAt(ret.length - 1) === "'") {
+    ret = ret.slice(0, ret.length - 1);
+    nextState = true;
+  }
+  return { value: ret, isNextState: nextState };
+};
+
 export const compareRelationTokens = (
   el: string,
   line: string,
   lineNumber: number,
   offset: number
-): { offset: number; value: string; tokenType: string,nextState?: boolean }[] | undefined => {
-  let indexOfOp;
+): { offset: number; value: string; tokenType: string; nextState?: boolean }[] | undefined => {
+  if (lineNumber===10)
+  {
+    console.log("line length "+line.length+" offset "+offset+" lineNumber "+lineNumber);
+    console.log(el);
+    return [{offset:0,value:el,tokenType:"comment"}];
+  }
 
+  let indexOfOp;
+  if (el === "keep") {
+    return [{ offset: 0, value: el, tokenType: "keyword" }];
+  }
   // Check if there is any symbol that might indicate a relation
   if ((indexOfOp = el.match(/(\<\s*\=|\>\s*\=|\=|\>|\<|\<?\s*\-\s*\>)/)) !== null) {
     //separate the attribute and the value
@@ -170,40 +235,53 @@ export const compareRelationTokens = (
     }
     //get the value
     let val = el.slice(el.indexOf(indexOfOp[0]) + indexOfOp[0].length).trim();
-
-    const withoutExclamation = att.slice(att.indexOf("!") + 1).trim();
-    if (
-      att[0] === "!" &&
-      attributes.has(withoutExclamation) &&
-      attributes.get(withoutExclamation)?.type === "boolean"
-    ) {
-      att = withoutExclamation;
+    //examine when the exclamation point appears in front of the value
+    if (val.charAt(0) === "!") {
+      const tempVal = val.slice(1);
+      if (findValueType(tempVal) === "boolean") {
+        val = tempVal;
+      }
     }
+
+    att = removeExclamation(att).value;
 
     if (/\<?\s*\-\s*\>/.test(indexOfOp[0])) {
       //process multiple expressions when connected
-      const expressionsParsedx = processExpressions(el, att, val, true);
+      const expressionsParsedx = processExpressions(
+        line,lineNumber,
+        el,
+        removeExclamation(att).value,
+        val,
+        true,
+        removeExclamation(att).isNextState
+      );
 
       if (expressionsParsedx !== undefined) {
         return expressionsParsedx;
       }
     }
+    //process multiple expressions when connected
+    const expressionsParsed = processExpressions(line,lineNumber,el, att, val, false, preAtt !== att);
 
-        // if the type of the value can not be found
-        if (val.trim() !== "" && findValueType(val) === undefined) {
-          return addDiagnosticToRelation(
-            "val",
-            line,
-            lineNumber,
-            el,
-            att,
-            val,
-            val + " is not a valid value",
-            "error",
-            0,
-            NOT_YET_IMPLEMENTED + ":" + lineNumber
-          );
-        }
+    if (expressionsParsed !== undefined) {
+      return expressionsParsed;
+    }
+
+    // if the type of the value can not be found
+    if (val.trim() !== "" && findValueType(val) === undefined) {
+      return addDiagnosticToRelation(
+        "val",
+        line,
+        lineNumber,
+        el,
+        att,
+        val,
+        val + " is not a valid value",
+        "error",
+        0,
+        NOT_YET_IMPLEMENTED + ":" + lineNumber
+      );
+    }
 
     //check if the attribute existe in the already processed attributes
     if (!attributeExists(att)) {
@@ -217,7 +295,7 @@ export const compareRelationTokens = (
         att + " is not defined",
         "error",
         0,
-        DEFINE_ATTRIBUTE +":"+findValueType(val)+":"+att
+        DEFINE_ATTRIBUTE + ":" + findValueType(val) + ":" + att
       );
     }
 
@@ -225,15 +303,6 @@ export const compareRelationTokens = (
     if (val.trim()[0] === "!" && findValueType(val.slice(val.indexOf("!") + 1).trim()) === "boolean") {
       val = val.slice(val.indexOf("!") + 1).trim();
     }
-
-    //process multiple expressions when connected
-    const expressionsParsed = processExpressions(el, att, val, false);
-
-    if (expressionsParsed !== undefined) {
-      return expressionsParsed;
-    }
-
-
 
     // the attribute and the value are not of the same type
     if (val.trim() !== "" && att.trim() !== "" && !isAttributeSameAsValue(att, val)) {
@@ -251,11 +320,11 @@ export const compareRelationTokens = (
       );
     }
     return [
-      { offset: ParseSection.getPosition(el, att, 1), value: att, tokenType: "variable", nextState:preAtt!==att },
-      { offset: ParseSection.getPosition(el, val, 1), value: val, tokenType: "macro" },
+      { offset: ParseSection.getPosition(el, att, 1), value: att, tokenType: "variable", nextState: preAtt !== att },
+      { offset: ParseSection.getPosition(el, val, 1), value: val, tokenType: !isNaN(+val) ? "number" : "macro" },
     ];
   } else {
-    if (attributes.has(el.trim()) && attributes.get(el.trim())?.type === "boolean") {
+    if (attributes.has(el.trim())) {
       return [{ offset: 0, value: el, tokenType: "variable" }];
     }
   }

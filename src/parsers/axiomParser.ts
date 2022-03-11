@@ -10,7 +10,7 @@ let triggerAction:string [] = [];
 const setOfAttributesAttended:Set<string> = new Set();
 
 const parseConditions = (line: string, lineNumber: number) => {
-  const toFindTokens = /^.*(?=\s*\<?\-\>)/;
+  const toFindTokens = /^.*(?=\s*\<?\-\>\s*\[)/;
   const toSeparateTokens = /(\&|\||\)|\(|\!)/;
 
   const parseConditionsSection: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
@@ -135,14 +135,11 @@ export const _parseAxioms = (
   ];
 
   const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
-
-  while (currentOffset < lineWithoutComments.length) {
-    let foundMatch: boolean = false;
     triggerAction=[];
+    setOfAttributesAttended.clear();
     for (const parser of sectionsToParseParsers) {
       const matchedPiece = parser(lineWithoutComments, lineNumber);
       if (matchedPiece && matchedPiece.size > 0) {
-        foundMatch = true;
         toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
         size += matchedPiece.size;
         currentOffset += matchedPiece.size;
@@ -151,15 +148,15 @@ export const _parseAxioms = (
       {
         for (let act of triggerAction)
          {
-          actionsToAttributes.set(act,setOfAttributesAttended);
+           if (!actionsToAttributes.has(act))
+           {
+             actionsToAttributes.set(act,new Set());
+           }
+          actionsToAttributes.set(act,new Set([...actionsToAttributes.get(act)!,...setOfAttributesAttended]));
          }
         
       }
     }
-    if (!foundMatch) {
-      break;
-    }
-  }
   if (size === 0) {
     return undefined;
   } else {
