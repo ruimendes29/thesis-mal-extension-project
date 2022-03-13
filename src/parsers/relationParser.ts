@@ -338,11 +338,23 @@ export const compareRelationTokens = (
             offset: ParseSection.getPosition(el, clearedOfSymbols.value, 1),
             value: clearedOfSymbols.value,
             tokenType: "variable",
-            nextState: new RegExp("keep\\s*\\(.*"+clearedOfSymbols.value+".*\\)").test(line)||clearedOfSymbols.isNextState,
+            nextState: new RegExp("keep\\s*\\(.*\\b"+clearedOfSymbols.value+"\\b.*\\)").test(line)||clearedOfSymbols.isNextState,
           },
         ];
       }
     }
+    else {
+      if (defines.has(el.trim()))
+      {
+        return [{
+          offset: 0,
+          value: el.trim(),
+          tokenType: "function",
+          nextState: false
+        }];
+      }
+    }
+   
   }
   return undefined;
 };

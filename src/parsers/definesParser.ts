@@ -54,6 +54,7 @@ const parseDefinesBeforeValue = (line: string, lineNumber: number) => {
           { value: afterEquals.trim(), tokenType: "number" },
         ];
       } else {
+        defines.set(beforeEquals.trim(),{used:false,type:"expression",value:afterEquals.trim()});
         const toFindTokens = /(?<=^\s*\w+\s*\=).*/;
         const toSeparateTokens = /(\&|\||\(|\)|\-\>)/;
         const parseExpressions: ParseSection = new ParseSection(
@@ -85,7 +86,6 @@ export const _parseDefines = (
 
   const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
 
-  while (currentOffset < lineWithoutComments.length) {
     let foundMatch: boolean = false;
     for (const parser of sectionsToParseParsers) {
       const matchedPiece = parser(lineWithoutComments.slice(currentOffset), lineNumber);
@@ -96,10 +96,6 @@ export const _parseDefines = (
         currentOffset += matchedPiece.size;
       }
     }
-    if (!foundMatch) {
-      break;
-    }
-  }
   if (size === 0) {
     return undefined;
   } else {

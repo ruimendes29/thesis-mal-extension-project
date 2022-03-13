@@ -14,6 +14,28 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mal-explorer",
+          "title": "MAL Functionalities",
+          "icon": "resources/info.svg"
+        }
+      ]
+    },
+    "views": {
+      "mal-explorer": [
+        {
+          "type":"webview",
+          "id": "mal-deterministic",
+          "name": "Determinism of Actions"
+        },
+        {
+          "id": "mal-properties",
+          "name": "Properties Creator"
+        }
+      ]
+    },
     "languages": [
       {
         "id": "mal",

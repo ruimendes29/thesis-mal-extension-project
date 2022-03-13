@@ -5,6 +5,7 @@ import { commandHandler } from "./commands/commands";
 import { clearDiagnosticCollection } from "./diagnostics/diagnostics";
 import { clearStoredValues } from "./parsers/globalParserInfo";
 import { _parseText } from "./parsers/textParser";
+import { ActionsDeterminismProvider } from "./webviews/actionsDeterminism";
 
 const tokenTypes = new Map<string, number>();
 const tokenModifiers = new Map<string, number>();
@@ -68,6 +69,21 @@ export function activate(context: vscode.ExtensionContext) {
       legend
     )
   );
+
+  const provider = new ActionsDeterminismProvider(context.extensionUri);
+
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(ActionsDeterminismProvider.viewType, provider));
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('calicoColors.addColor', () => {
+			provider.addColor();
+		}));
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('calicoColors.clearColors', () => {
+			provider.clearColors();
+		}));
 }
 
 class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensProvider {

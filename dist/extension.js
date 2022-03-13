@@ -14,6 +14,7 @@ const commands_1 = __webpack_require__(8);
 const diagnostics_1 = __webpack_require__(3);
 const globalParserInfo_1 = __webpack_require__(4);
 const textParser_1 = __webpack_require__(9);
+const actionsDeterminism_1 = __webpack_require__(16);
 const tokenTypes = new Map();
 const tokenModifiers = new Map();
 const legend = (function () {
@@ -56,6 +57,14 @@ function activate(context) {
         providedCodeActionKinds: codeActionsProvider_1.Emojinfo.providedCodeActionKinds,
     }));
     context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider({ language: "mal" }, new DocumentSemanticTokensProvider(), legend));
+    const provider = new actionsDeterminism_1.ActionsDeterminismProvider(context.extensionUri);
+    context.subscriptions.push(vscode.window.registerWebviewViewProvider(actionsDeterminism_1.ActionsDeterminismProvider.viewType, provider));
+    context.subscriptions.push(vscode.commands.registerCommand('calicoColors.addColor', () => {
+        provider.addColor();
+    }));
+    context.subscriptions.push(vscode.commands.registerCommand('calicoColors.clearColors', () => {
+        provider.clearColors();
+    }));
 }
 exports.activate = activate;
 class DocumentSemanticTokensProvider {
@@ -743,9 +752,19 @@ const compareRelationTokens = (el, line, lineNumber, offset) => {
                         offset: ParseSection_1.ParseSection.getPosition(el, clearedOfSymbols.value, 1),
                         value: clearedOfSymbols.value,
                         tokenType: "variable",
-                        nextState: new RegExp("keep\\s*\\(.*" + clearedOfSymbols.value + ".*\\)").test(line) || clearedOfSymbols.isNextState,
+                        nextState: new RegExp("keep\\s*\\(.*\\b" + clearedOfSymbols.value + "\\b.*\\)").test(line) || clearedOfSymbols.isNextState,
                     },
                 ];
+            }
+        }
+        else {
+            if (globalParserInfo_1.defines.has(el.trim())) {
+                return [{
+                        offset: 0,
+                        value: el.trim(),
+                        tokenType: "function",
+                        nextState: false
+                    }];
             }
         }
     }
@@ -766,11 +785,20 @@ const globalParserInfo_1 = __webpack_require__(4);
 //TODO verificar se os tipos existem
 //TODO verificar se os defines sao valores validos
 const commandHandler = () => {
+    const informationMessage = [];
     for (let x of globalParserInfo_1.actionsToAttributes) {
-        console.log(x[0]);
-        console.log(x[1]);
+        informationMessage.push(x[0] + " attributes a value for " + x[1].size + " out of " + globalParserInfo_1.attributes.size + "\n");
+        let i = 0;
+        for (let att of x[1]) {
+            informationMessage.push(att);
+            if (i < x[1].size) {
+                informationMessage.push(", ");
+            }
+            i++;
+        }
+        informationMessage.push(" )\\n");
     }
-    vscode.window.showInformationMessage('Hello World');
+    vscode.window.showInformationMessage(informationMessage.join(""));
     console.log(`Hello World!!!`);
 };
 exports.commandHandler = commandHandler;
@@ -1032,9 +1060,6 @@ const parseNextState = (line, lineNumber) => {
             return "";
         }
         if (isInKeep || isNextState) {
-            if (lineNumber === 68) {
-                console.log(el);
-            }
             setOfAttributesAttended.add(el.split(":")[0]);
         }
         return "cantprint";
@@ -1130,6 +1155,7 @@ const parseDefinesBeforeValue = (line, lineNumber) => {
                 ];
             }
             else {
+                globalParserInfo_1.defines.set(beforeEquals.trim(), { used: false, type: "expression", value: afterEquals.trim() });
                 const toFindTokens = /(?<=^\s*\w+\s*\=).*/;
                 const toSeparateTokens = /(\&|\||\(|\)|\-\>)/;
                 const parseExpressions = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
@@ -1147,19 +1173,14 @@ const _parseDefines = (line, lineNumber) => {
     let size = 0;
     const sectionsToParseParsers = [parseDefinesBeforeValue];
     const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
-    while (currentOffset < lineWithoutComments.length) {
-        let foundMatch = false;
-        for (const parser of sectionsToParseParsers) {
-            const matchedPiece = parser(lineWithoutComments.slice(currentOffset), lineNumber);
-            if (matchedPiece && matchedPiece.size > 0) {
-                foundMatch = true;
-                toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
-                size += matchedPiece.size;
-                currentOffset += matchedPiece.size;
-            }
-        }
-        if (!foundMatch) {
-            break;
+    let foundMatch = false;
+    for (const parser of sectionsToParseParsers) {
+        const matchedPiece = parser(lineWithoutComments.slice(currentOffset), lineNumber);
+        if (matchedPiece && matchedPiece.size > 0) {
+            foundMatch = true;
+            toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
+            size += matchedPiece.size;
+            currentOffset += matchedPiece.size;
         }
     }
     if (size === 0) {
@@ -1439,6 +1460,95 @@ const checkIfUsed = (lines) => {
     }
 };
 exports.checkIfUsed = checkIfUsed;
+
+
+/***/ }),
+/* 16 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ActionsDeterminismProvider = void 0;
+const vscode = __webpack_require__(1);
+class ActionsDeterminismProvider {
+    constructor(_extensionUri) {
+        this._extensionUri = _extensionUri;
+    }
+    resolveWebviewView(webviewView, context, _token) {
+        this._view = webviewView;
+        webviewView.webview.options = {
+            // Allow scripts in the webview
+            enableScripts: true,
+            localResourceRoots: [
+                this._extensionUri
+            ]
+        };
+        webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+        webviewView.webview.onDidReceiveMessage(data => {
+            switch (data.type) {
+                case 'colorSelected':
+                    {
+                        vscode.window.activeTextEditor?.insertSnippet(new vscode.SnippetString(`#${data.value}`));
+                        break;
+                    }
+            }
+        });
+    }
+    addColor() {
+        if (this._view) {
+            this._view.show?.(true); // `show` is not implemented in 1.49 but is for 1.50 insiders
+            this._view.webview.postMessage({ type: 'addColor' });
+        }
+    }
+    clearColors() {
+        if (this._view) {
+            this._view.webview.postMessage({ type: 'clearColors' });
+        }
+    }
+    _getHtmlForWebview(webview) {
+        // Get the local path to main script run in the webview, then convert it to a uri we can use in the webview.
+        const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'main.js'));
+        // Do the same for the stylesheet.
+        const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'reset.css'));
+        const styleVSCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'vscode.css'));
+        const styleMainUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'main.css'));
+        // Use a nonce to only allow a specific script to be run.
+        const nonce = getNonce();
+        return `<!DOCTYPE html>
+			<html lang="en">
+			<head>
+				<meta charset="UTF-8">
+				<!--
+					Use a content security policy to only allow loading images from https or from our extension directory,
+					and only allow scripts that have a specific nonce.
+				-->
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+				<meta name="viewport" content="width=device-width, initial-scale=1.0">
+				<link href="${styleResetUri}" rel="stylesheet">
+				<link href="${styleVSCodeUri}" rel="stylesheet">
+				<link href="${styleMainUri}" rel="stylesheet">
+				
+				<title>Cat Colors</title>
+			</head>
+			<body>
+				<ul class="color-list">
+				</ul>
+				<button class="add-color-button">Add Color</button>
+				<script nonce="${nonce}" src="${scriptUri}"></script>
+			</body>
+			</html>`;
+    }
+}
+exports.ActionsDeterminismProvider = ActionsDeterminismProvider;
+ActionsDeterminismProvider.viewType = 'mal-deterministic';
+function getNonce() {
+    let text = '';
+    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    for (let i = 0; i < 32; i++) {
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+    }
+    return text;
+}
 
 
 /***/ })
