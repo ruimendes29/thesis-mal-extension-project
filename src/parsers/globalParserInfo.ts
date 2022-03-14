@@ -7,6 +7,7 @@ export const actions = new Map<string, {used:boolean,line:number}>();
 export const defines = new Map<string, { used: boolean; type: string | undefined; value: string }>();
 export const enums = new Map<string, { used: boolean; values: string[] }>();
 export const ranges = new Map<string, { used: boolean; minimum: number; maximum: number }>();
+export const arrays = new Map<string, {firstIndex:number;lastIndex:number;type:string} >();
 export const actionsToAttributes = new Map<string,Set<string>>();
 
 sections.set("attributes", false);

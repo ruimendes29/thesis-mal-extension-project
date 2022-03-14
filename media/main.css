@@ -1,6 +1,23 @@
 body {
 	background-color: transparent;
 }
+ul{
+	list-style-type: none;
+	padding: 0;
+}
+li{
+	margin: 0;
+}
+.closed {
+	display: none;
+}
+
+.action-holder{
+	display:flex;
+	justify-content: space-between;
+	background-color: rgb(54, 54, 54);
+	margin: 5px auto;
+}
 
 .color-list {
 	list-style: none;

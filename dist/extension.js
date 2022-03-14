@@ -274,7 +274,7 @@ exports.addDiagnosticToRelation = addDiagnosticToRelation;
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.clearStoredValues = exports.isInsideInteractor = exports.isSubSection = exports.updateSection = exports.actionsToAttributes = exports.ranges = exports.enums = exports.defines = exports.actions = exports.attributes = exports.attributesStartingLine = exports.actionsStartingLine = exports.previousSection = exports.sections = void 0;
+exports.clearStoredValues = exports.isInsideInteractor = exports.isSubSection = exports.updateSection = exports.actionsToAttributes = exports.arrays = exports.ranges = exports.enums = exports.defines = exports.actions = exports.attributes = exports.attributesStartingLine = exports.actionsStartingLine = exports.previousSection = exports.sections = void 0;
 exports.sections = new Map();
 exports.previousSection = "";
 exports.actionsStartingLine = new Array();
@@ -284,6 +284,7 @@ exports.actions = new Map();
 exports.defines = new Map();
 exports.enums = new Map();
 exports.ranges = new Map();
+exports.arrays = new Map();
 exports.actionsToAttributes = new Map();
 exports.sections.set("attributes", false);
 exports.sections.set("types", false);
@@ -972,6 +973,7 @@ function _parseText(text) {
             }
         } while (true);
     }
+    console.log(globalParserInfo_1.arrays);
     (0, checkIfUsed_1.checkIfUsed)(lines);
     return r;
 }
@@ -1204,6 +1206,57 @@ const diagnostics_1 = __webpack_require__(3);
 const globalParserInfo_1 = __webpack_require__(4);
 const ParseSection_1 = __webpack_require__(5);
 const relationParser_1 = __webpack_require__(7);
+const getNumericalValue = (s) => {
+    if (!isNaN(+s)) {
+        return +s;
+    }
+    else if (globalParserInfo_1.defines.has(s) && globalParserInfo_1.defines.get(s).type === "number") {
+        return +globalParserInfo_1.defines.get(s).value;
+    }
+};
+const parseArray = (line, lineNumber) => {
+    let indexOfElement = 0;
+    let arrayName = "";
+    let firstIndex = 0;
+    let lastIndex = 0;
+    let arrayType = "";
+    const toFindTokens = /^\s*[a-zA-Z][a-zA-Z0-9\_]*\s*\=\s*array\s+\w+\s*\.\.\s*\w+\s+of\s+\w+/;
+    //const toFindTokens = /.*/;
+    const toSeparateTokens = /(\=|\barray\b|\.\.|of)/;
+    const parseRanges = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
+        console.log(indexOfElement + " " + el);
+        switch (indexOfElement) {
+            case 0:
+                arrayName = el.trim();
+                indexOfElement++;
+                return "type";
+            case 1:
+                firstIndex = getNumericalValue(el.trim());
+                indexOfElement++;
+                return "number";
+            case 2:
+                lastIndex = getNumericalValue(el.trim());
+                indexOfElement++;
+                return "number";
+            case 3:
+                arrayType = el.trim();
+                indexOfElement++;
+                if (arrayType === "number" || arrayType === "boolean" || globalParserInfo_1.ranges.has(arrayType) || globalParserInfo_1.enums.has(arrayType)) {
+                    return "type";
+                }
+                else {
+                    const stc = ParseSection_1.ParseSection.getPosition(line, arrayType, 1);
+                    (0, diagnostics_1.addDiagnostic)(lineNumber, stc, lineNumber, stc + arrayType.length, "error", arrayType + " is not a valid type", diagnostics_1.NOT_YET_IMPLEMENTED);
+                }
+        }
+        return "cantprint";
+    });
+    const toReturnRanges = parseRanges.getTokens(line, lineNumber, 0);
+    if (arrayName !== "") {
+        globalParserInfo_1.arrays.set(arrayName, { firstIndex: firstIndex, lastIndex: lastIndex, type: arrayType });
+    }
+    return toReturnRanges;
+};
 const parseRangeTypes = (line, lineNumber) => {
     const toFindTokens = /^\s*[a-zA-Z][a-zA-Z0-9\_]*\s*\=\s*([a-zA-Z][a-zA-Z0-9\_]*|[0-9]+)\s*\.\.\s*([a-zA-Z][a-zA-Z0-9\_]*|[0-9]+)/;
     const toSeparateTokens = /(\,|\{|\})/;
@@ -1243,24 +1296,16 @@ const _parseTypes = (line, lineNumber) => {
     let currentOffset = 0;
     let toRetTokens = [];
     let size = 0;
-    const sectionsToParseParsers = [
-        parseEnumTypes,
-        parseRangeTypes
-    ];
+    const sectionsToParseParsers = [parseArray, parseEnumTypes, parseRangeTypes];
     const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
-    while (currentOffset < lineWithoutComments.length) {
-        let foundMatch = false;
-        for (const parser of sectionsToParseParsers) {
-            const matchedPiece = parser(lineWithoutComments.slice(currentOffset), lineNumber);
-            if (matchedPiece && matchedPiece.size > 0) {
-                foundMatch = true;
-                toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
-                size += matchedPiece.size;
-                currentOffset += matchedPiece.size;
-            }
-        }
-        if (!foundMatch) {
-            break;
+    let foundMatch = false;
+    for (const parser of sectionsToParseParsers) {
+        const matchedPiece = parser(lineWithoutComments.slice(currentOffset), lineNumber);
+        if (matchedPiece && matchedPiece.size > 0) {
+            foundMatch = true;
+            toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
+            size += matchedPiece.size;
+            currentOffset += matchedPiece.size;
         }
     }
     if (size === 0) {
@@ -1470,6 +1515,7 @@ exports.checkIfUsed = checkIfUsed;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ActionsDeterminismProvider = void 0;
 const vscode = __webpack_require__(1);
+const globalParserInfo_1 = __webpack_require__(4);
 class ActionsDeterminismProvider {
     constructor(_extensionUri) {
         this._extensionUri = _extensionUri;
@@ -1479,39 +1525,41 @@ class ActionsDeterminismProvider {
         webviewView.webview.options = {
             // Allow scripts in the webview
             enableScripts: true,
-            localResourceRoots: [
-                this._extensionUri
-            ]
+            localResourceRoots: [this._extensionUri],
         };
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
-        webviewView.webview.onDidReceiveMessage(data => {
+        webviewView.webview.onDidReceiveMessage((data) => {
             switch (data.type) {
-                case 'colorSelected':
-                    {
-                        vscode.window.activeTextEditor?.insertSnippet(new vscode.SnippetString(`#${data.value}`));
-                        break;
-                    }
+                case "receiveActions": {
+                    webviewView.webview.postMessage({
+                        type: "refreshActions",
+                        actions: Array.from(globalParserInfo_1.actions).map(([key, _value]) => key),
+                        attributes: Array.from(globalParserInfo_1.actions).map(([key, _value]) => Array.from(globalParserInfo_1.actionsToAttributes.get(key).values())),
+                        totalAttributes: globalParserInfo_1.attributes.size,
+                    });
+                    break;
+                }
             }
         });
     }
     addColor() {
         if (this._view) {
             this._view.show?.(true); // `show` is not implemented in 1.49 but is for 1.50 insiders
-            this._view.webview.postMessage({ type: 'addColor' });
+            this._view.webview.postMessage({ type: "addColor" });
         }
     }
     clearColors() {
         if (this._view) {
-            this._view.webview.postMessage({ type: 'clearColors' });
+            this._view.webview.postMessage({ type: "clearColors" });
         }
     }
     _getHtmlForWebview(webview) {
         // Get the local path to main script run in the webview, then convert it to a uri we can use in the webview.
-        const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'main.js'));
+        const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "media", "main.js"));
         // Do the same for the stylesheet.
-        const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'reset.css'));
-        const styleVSCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'vscode.css'));
-        const styleMainUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'main.css'));
+        const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "media", "reset.css"));
+        const styleVSCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "media", "vscode.css"));
+        const styleMainUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "media", "main.css"));
         // Use a nonce to only allow a specific script to be run.
         const nonce = getNonce();
         return `<!DOCTYPE html>
@@ -1528,22 +1576,22 @@ class ActionsDeterminismProvider {
 				<link href="${styleVSCodeUri}" rel="stylesheet">
 				<link href="${styleMainUri}" rel="stylesheet">
 				
-				<title>Cat Colors</title>
+				<title>Determinism of Actions</title>
 			</head>
 			<body>
-				<ul class="color-list">
+				<ul class="actions-list">
 				</ul>
-				<button class="add-color-button">Add Color</button>
+				<button class="actions-button">Refresh Actions</button>
 				<script nonce="${nonce}" src="${scriptUri}"></script>
 			</body>
 			</html>`;
     }
 }
 exports.ActionsDeterminismProvider = ActionsDeterminismProvider;
-ActionsDeterminismProvider.viewType = 'mal-deterministic';
+ActionsDeterminismProvider.viewType = "mal-deterministic";
 function getNonce() {
-    let text = '';
-    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let text = "";
+    const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     for (let i = 0; i < 32; i++) {
         text += possible.charAt(Math.floor(Math.random() * possible.length));
     }

@@ -2,6 +2,7 @@ import { _parseAxioms } from "./axiomParser";
 import { _parseDefines } from "./definesParser";
 import {
   actionsToAttributes,
+  arrays,
   attributes,
   clearStoredValues,
   IParsedToken,
@@ -186,6 +187,7 @@ export function _parseText(text: string): IParsedToken[] {
     } while (true);
 
   }
+  console.log(arrays);
   checkIfUsed(lines);
   return r;
 }
