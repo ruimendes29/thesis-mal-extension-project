@@ -187,7 +187,6 @@ export function _parseText(text: string): IParsedToken[] {
     } while (true);
 
   }
-  console.log(arrays);
   checkIfUsed(lines);
   return r;
 }

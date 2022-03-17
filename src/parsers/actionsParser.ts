@@ -1,5 +1,5 @@
-import { addDiagnostic, ALREADY_DEFINED } from "../diagnostics/diagnostics";
-import { actions, actionsToAttributes, IParsedToken } from "./globalParserInfo";
+import { addDiagnostic, ALREADY_DEFINED, NOT_YET_IMPLEMENTED } from "../diagnostics/diagnostics";
+import { actions, actionsToAttributes, arrays, enums, IParsedToken, ranges } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 
 /* Method responsible for parsing the vis tag that some action might have and assign the 
@@ -28,29 +28,49 @@ const parseVis = (line: string, lineNumber: number, currentOffset: number) => {
 /* Very similar to the method above, where only the findTokens expression is changed as well as the 
 tokens to separate the main match. */
 const parseAction = (line: string, lineNumber: number, currentOffset: number) => {
-  const toFindTokens = /\s*[A-Za-z]+\w*\s*/;
+  let indexOfElement = 0;
+  const toFindTokens = /\s*[A-Za-z]+\w*\s*(\(((\s*\w+\s*),?)+\))?/;
   const toSeparateTokens = /(\&|\||\)|\(|\,)/;
+  let actionName:string = "";
+  const actionArguments:string[] = [];
 
   const parseActionSection: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-    // if an element is found, add it to the actions map and return function as the token type
-    if (actions.has(el.trim())) {
-      addDiagnostic(
-        lineNumber,
-        sc,
-        lineNumber,
-        sc + el.trim().length,
-        el.trim() + " is already defined",
-        "error",
-        ALREADY_DEFINED + ":" + lineNumber + ":" + el.trim()
-      );
-      return "regexp";
-    } else {
-      actionsToAttributes.set(el.trim(),new Set<string>());
-      actions.set(el.trim(), {used:false,line:lineNumber});
-      return "function";
+    if (indexOfElement === 0) {
+      // if an element is found, add it to the actions map and return function as the token type
+      if (actions.has(el.trim())) {
+        addDiagnostic(
+          lineNumber,
+          sc,
+          lineNumber,
+          sc + el.trim().length,
+          el.trim() + " is already defined",
+          "error",
+          ALREADY_DEFINED + ":" + lineNumber + ":" + el.trim()
+        );
+        indexOfElement++;
+        return "regexp";
+      } else {
+        actionsToAttributes.set(el.trim(), new Set<string>());
+        actionName = el.trim();
+        indexOfElement++;
+        return "function";
+      }
+    }
+    else {
+      indexOfElement++;
+      const et = el.trim();
+      const stc = ParseSection.getPosition(line,et,1);
+      if (enums.has(et) || ranges.has(et) || arrays.has(et) || et==="boolean" ||et==="number")
+      {actionArguments.push(et);return "type";}
+      else {
+        addDiagnostic(lineNumber,stc,lineNumber,stc+et.length,et+" is not a valid type","error",NOT_YET_IMPLEMENTED);
+        return "regexp";
+      }
     }
   });
-  return parseActionSection.getTokens(line, lineNumber, currentOffset);
+  const toReturnParseAction = parseActionSection.getTokens(line, lineNumber, currentOffset);
+  actions.set(actionName,{used:false,line:lineNumber,arguments:actionArguments});
+  return toReturnParseAction;
 };
 
 export const _parseActions = (

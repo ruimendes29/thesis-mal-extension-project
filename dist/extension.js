@@ -973,7 +973,6 @@ function _parseText(text) {
             }
         } while (true);
     }
-    console.log(globalParserInfo_1.arrays);
     (0, checkIfUsed_1.checkIfUsed)(lines);
     return r;
 }
@@ -1001,14 +1000,32 @@ const parseConditions = (line, lineNumber) => {
     });
     return parseConditionsSection.getTokens(line, lineNumber, 0, true, relationParser_1.compareRelationTokens);
 };
+const parseActionWithArguments = (line, lineNumber, action, numberOfArgs, startingChar) => {
+    const rx = /(\)|\(|\,)/;
+    const slicedLine = line.slice(startingChar + action.length);
+    const args = slicedLine.slice(0, slicedLine.indexOf(")") + 1);
+    const splitedArgs = args.split(rx).filter((el) => !rx.test(el) && el.trim() !== "");
+    if (splitedArgs.length !== numberOfArgs) {
+        (0, diagnostics_1.addDiagnostic)(lineNumber, startingChar, lineNumber, startingChar + action.length, action + " doest not have the right amount of arguments", "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + action);
+        return false;
+    }
+    else {
+        return true;
+    }
+};
 const parseTriggerAction = (line, lineNumber) => {
+    let numberOfArgumentsInAction = 0;
     const toFindTokens = /(\<?\s*\-\>\s*)?\[[^\[]+\]/;
-    const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\])/;
+    const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\]|\,)/;
     const parseTriggerActions = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         if (globalParserInfo_1.actions.has(el)) {
-            triggerAction.push(el);
             const prevAction = globalParserInfo_1.actions.get(el);
-            globalParserInfo_1.actions.set(el, { used: true, line: prevAction.line });
+            if (!parseActionWithArguments(line, lineNumber, el, prevAction.arguments.length, sc)) {
+                return "regexp";
+            }
+            triggerAction.push(el);
+            globalParserInfo_1.actions.set(el, { used: true, line: prevAction.line, arguments: prevAction.arguments });
+            console.log(globalParserInfo_1.actions.get(el));
             return "function";
         }
         else {
@@ -1024,7 +1041,7 @@ const parsePer = (line, lineNumber) => {
     const parsePers = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         if (globalParserInfo_1.actions.has(el)) {
             const prevAction = globalParserInfo_1.actions.get(el);
-            globalParserInfo_1.actions.set(el, { used: true, line: prevAction.line });
+            globalParserInfo_1.actions.set(el, { used: true, line: prevAction.line, arguments: prevAction.arguments });
             return "function";
         }
         else {
@@ -1224,7 +1241,6 @@ const parseArray = (line, lineNumber) => {
     //const toFindTokens = /.*/;
     const toSeparateTokens = /(\=|\barray\b|\.\.|of)/;
     const parseRanges = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-        console.log(indexOfElement + " " + el);
         switch (indexOfElement) {
             case 0:
                 arrayName = el.trim();
@@ -1349,21 +1365,43 @@ const parseVis = (line, lineNumber, currentOffset) => {
 /* Very similar to the method above, where only the findTokens expression is changed as well as the
 tokens to separate the main match. */
 const parseAction = (line, lineNumber, currentOffset) => {
-    const toFindTokens = /\s*[A-Za-z]+\w*\s*/;
+    let indexOfElement = 0;
+    const toFindTokens = /\s*[A-Za-z]+\w*\s*(\(((\s*\w+\s*),?)+\))?/;
     const toSeparateTokens = /(\&|\||\)|\(|\,)/;
+    let actionName = "";
+    const actionArguments = [];
     const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-        // if an element is found, add it to the actions map and return function as the token type
-        if (globalParserInfo_1.actions.has(el.trim())) {
-            (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.trim().length, el.trim() + " is already defined", "error", diagnostics_1.ALREADY_DEFINED + ":" + lineNumber + ":" + el.trim());
-            return "regexp";
+        if (indexOfElement === 0) {
+            // if an element is found, add it to the actions map and return function as the token type
+            if (globalParserInfo_1.actions.has(el.trim())) {
+                (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.trim().length, el.trim() + " is already defined", "error", diagnostics_1.ALREADY_DEFINED + ":" + lineNumber + ":" + el.trim());
+                indexOfElement++;
+                return "regexp";
+            }
+            else {
+                globalParserInfo_1.actionsToAttributes.set(el.trim(), new Set());
+                actionName = el.trim();
+                indexOfElement++;
+                return "function";
+            }
         }
         else {
-            globalParserInfo_1.actionsToAttributes.set(el.trim(), new Set());
-            globalParserInfo_1.actions.set(el.trim(), { used: false, line: lineNumber });
-            return "function";
+            indexOfElement++;
+            const et = el.trim();
+            const stc = ParseSection_1.ParseSection.getPosition(line, et, 1);
+            if (globalParserInfo_1.enums.has(et) || globalParserInfo_1.ranges.has(et) || globalParserInfo_1.arrays.has(et) || et === "boolean" || et === "number") {
+                actionArguments.push(et);
+                return "type";
+            }
+            else {
+                (0, diagnostics_1.addDiagnostic)(lineNumber, stc, lineNumber, stc + et.length, et + " is not a valid type", "error", diagnostics_1.NOT_YET_IMPLEMENTED);
+                return "regexp";
+            }
         }
     });
-    return parseActionSection.getTokens(line, lineNumber, currentOffset);
+    const toReturnParseAction = parseActionSection.getTokens(line, lineNumber, currentOffset);
+    globalParserInfo_1.actions.set(actionName, { used: false, line: lineNumber, arguments: actionArguments });
+    return toReturnParseAction;
 };
 const _parseActions = (line, lineNumber) => {
     let currentOffset = 0;

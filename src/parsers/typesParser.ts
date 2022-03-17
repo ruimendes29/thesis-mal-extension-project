@@ -21,7 +21,6 @@ const parseArray = (line: string, lineNumber: number) => {
   //const toFindTokens = /.*/;
   const toSeparateTokens = /(\=|\barray\b|\.\.|of)/;
   const parseRanges: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-    console.log(indexOfElement + " " + el);
     switch (indexOfElement) {
       case 0:
         arrayName = el.trim();
