@@ -37,7 +37,7 @@ const parseArray = (line: string, lineNumber: number) => {
       case 3:
         arrayType = el.trim();
         indexOfElement++;
-        if (arrayType==="number"||arrayType==="boolean"||ranges.has(arrayType)||enums.has(arrayType))
+        if (arrayType==="number"||arrayType==="boolean"||ranges.has(arrayType)||enums.has(arrayType)||arrays.has(arrayType))
         {
           return "type";
         }

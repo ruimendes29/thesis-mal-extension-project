@@ -8,11 +8,7 @@ export const ALREADY_DEFINED = "alreadyDefined";
 export const NOT_YET_IMPLEMENTED = "notYetImplemented";
 export const DEFINE_ATTRIBUTE = "defineAttribute";
 
-const mapForDiag: Map<vscode.Uri, vscode.Diagnostic[]> = new Map<
-  vscode.Uri,
-  vscode.Diagnostic[]
->();
-
+const mapForDiag: Map<vscode.Uri, vscode.Diagnostic[]> = new Map<vscode.Uri, vscode.Diagnostic[]>();
 
 export const clearDiagnosticCollection = () => {
   diagnosticCollection.clear();
@@ -26,7 +22,7 @@ export const addDiagnostic = (
   finalCharacter: number,
   diagnosticMessage: string,
   severity: string,
-  code:string
+  code: string
 ) => {
   let severityType;
   switch (severity) {
@@ -51,7 +47,7 @@ export const addDiagnostic = (
     diagnosticMessage,
     severityType
   );
-  diagnostic.code=code?code:"";
+  diagnostic.code = code ? code : "";
   const currentUri = vscode.window.activeTextEditor!.document.uri;
   if (!mapForDiag.has(currentUri)) {
     mapForDiag.set(currentUri, []);
@@ -68,45 +64,45 @@ export const addDiagnostic = (
 
 /* function responsible for adding diagnostics to the attributes when they are in the conditions
   if any given axiom */
- export const addDiagnosticToRelation = (
-    type: string,
-    line: string,
-    lineNumber: number,
-    fullCondition: string,
-    attribute: string,
-    value: string,
-    message: string,
-    severity: string,
-    offset: number,
-    code: string
-  ) => {
-    let stringToCompare = "";
-    if (type === "att") {
-      stringToCompare = attribute;
-    } else if (type === "val") {
-      stringToCompare = value;
-    }
-      addDiagnostic(
-        lineNumber,
-        line.indexOf(fullCondition) + fullCondition.indexOf(stringToCompare) + offset,
-        lineNumber,
-        line.indexOf(fullCondition) +
-          fullCondition.indexOf(stringToCompare) +
-          stringToCompare.length + offset,
-        message,
-        severity, code
-      );
-   
-    return [
-      {
-        offset: fullCondition.indexOf(attribute),
-        value: attribute,
-        tokenType: stringToCompare === attribute ? "regexp" : "variable",
-      },
-      {
-        offset: fullCondition.indexOf(value),
-        value: value,
-        tokenType: stringToCompare === value ? "regexp" : "macro",
-      },
-    ];
-  };
+export const addDiagnosticToRelation = (
+  type: string,
+  line: string,
+  lineNumber: number,
+  fullCondition: string,
+  attribute: string,
+  value: string,
+  message: string,
+  severity: string,
+  offset: number,
+  code: string
+) => {
+  let stringToCompare = "";
+  if (type === "att") {
+    stringToCompare = attribute;
+  } else if (type === "val") {
+    stringToCompare = value;
+  }
+  const correctOffset = line.indexOf(fullCondition) + fullCondition.indexOf(stringToCompare) + offset;
+  addDiagnostic(
+    lineNumber,
+    correctOffset,
+    lineNumber,
+    correctOffset+stringToCompare.length,
+    message,
+    severity,
+    code
+  );
+  const scOfValue = fullCondition.indexOf(attribute) + attribute.length;
+  return [
+    {
+      offset: fullCondition.indexOf(attribute),
+      value: attribute,
+      tokenType: stringToCompare === attribute ? "regexp" : "variable",
+    },
+    {
+      offset:  scOfValue+ fullCondition.slice(scOfValue).indexOf(value),
+      value: value,
+      tokenType: stringToCompare === value ? "regexp" : "macro",
+    },
+  ];
+};

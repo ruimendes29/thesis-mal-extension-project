@@ -5,7 +5,9 @@ import {
   DEFINE_ATTRIBUTE,
   addDiagnostic,
 } from "../diagnostics/diagnostics";
-import { attributes, defines, enums, ranges } from "./globalParserInfo";
+import { getArrayInStore, getArrayWrittenInfo, isDeclaredButIsNotAnArray, parseArray } from "./arrayRelations";
+import { findTemporaryType } from "./axiomParser";
+import { arrays, attributes, defines, enums, ranges } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 
 const attributeExists = (attribute: string): boolean => {
@@ -35,17 +37,20 @@ export const findValueType = (value: string): string | undefined => {
       }
     }
   }
-  return undefined;
+  return findTemporaryType(value.trim());
 };
 
 const isAttributeSameAsValue = (attribute: string, value: string): boolean => {
-  if (
-    attributes.get(attribute)!.type === findValueType(value) ||
-    (ranges.has(attributes.get(attribute)!.type!) && findValueType(value) === "number")
-  ) {
-    return true;
+  if (attribute.includes("]") || attribute.includes("[")) {
+    const { arrayName } = getArrayWrittenInfo(attribute);
+    const { type } = getArrayInStore(arrayName);
+    return type === findValueType(value);
   } else {
-    return false;
+    return (
+      attributes.has(attribute) &&
+      (attributes.get(attribute)!.type === findValueType(value) ||
+        (ranges.has(attributes.get(attribute)!.type!) && findValueType(value) === "number"))
+    );
   }
 };
 
@@ -113,7 +118,7 @@ export const separateRangeTokens = (
   return undefined;
 };
 
-const processExpressions = (
+export const processExpressions = (
   line: string,
   lineNumber: number,
   el: string,
@@ -173,7 +178,7 @@ const processExpressions = (
           toks.push({
             offset: offsetForToks - splittedValue[i].length,
             value: trimmedV,
-            tokenType: !isNaN(+trimmedV) ? "number" : "macro",
+            tokenType: !isNaN(+trimmedV) ? "number" : findTemporaryType(trimmedV)?"keyword":"macro",
           });
         }
       }
@@ -199,12 +204,17 @@ const removeExclamation = (att: string) => {
   return { value: ret, isNextState: nextState };
 };
 
+const hasSquareBrackets = (s: string): boolean => {
+  return s.includes("]") || s.includes("[");
+};
+
 export const compareRelationTokens = (
   el: string,
   line: string,
   lineNumber: number,
   offset: number
 ): { offset: number; value: string; tokenType: string; nextState?: boolean }[] | undefined => {
+  let tp;
   let indexOfOp;
   if (el === "keep") {
     return [{ offset: 0, value: el, tokenType: "keyword" }];
@@ -229,8 +239,28 @@ export const compareRelationTokens = (
         val = tempVal;
       }
     }
-
     att = removeExclamation(att).value;
+
+    // if the type of the value can not be found
+    let isAtt;
+    if (
+      (isAtt =
+        (hasSquareBrackets(att) && isDeclaredButIsNotAnArray(att.trim())) ||
+        (hasSquareBrackets(val) && isDeclaredButIsNotAnArray(val.trim())))
+    ) {
+      return addDiagnosticToRelation(
+        isAtt ? "att" : "val",
+        line,
+        lineNumber,
+        el,
+        att,
+        val,
+        (isAtt ? att : val) + " is not an array",
+        "error",
+        0,
+        NOT_YET_IMPLEMENTED + ":" + lineNumber
+      );
+    }
 
     if (/\<?\s*\-\s*\>/.test(indexOfOp[0])) {
       //process multiple expressions when connected
@@ -272,7 +302,7 @@ export const compareRelationTokens = (
     }
 
     //check if the attribute existe in the already processed attributes
-    if (!attributeExists(att)) {
+    if (!attributeExists(att) && !attributes.has(getArrayWrittenInfo(att).arrayName)) {
       return addDiagnosticToRelation(
         "att",
         line,
@@ -294,6 +324,10 @@ export const compareRelationTokens = (
 
     // the attribute and the value are not of the same type
     if (val.trim() !== "" && att.trim() !== "" && !isAttributeSameAsValue(att, val)) {
+      let attForGet = att.trim();
+      if (!attributes.has(att.trim())) {
+        attForGet = getArrayWrittenInfo(att.trim())!.arrayName;
+      }
       return addDiagnosticToRelation(
         "att",
         line,
@@ -304,12 +338,27 @@ export const compareRelationTokens = (
         att + " is not of type " + findValueType(val),
         "warning",
         0,
-        CHANGE_TYPE + ":" + findValueType(val) + ":" + attributes.get(att.trim())!.line + ":" + att
+        CHANGE_TYPE + ":" + findValueType(val) + ":" + attributes.get(attForGet)!.line + ":" + attForGet
       );
     }
+    const attPos = ParseSection.getPosition(el, att, 1);
+
+    let attTokens = [];
+    if (/(\[|\])/.test(att)) {
+      attTokens = parseArray(line, lineNumber, att)!;
+    } else {
+      attTokens = [{ offset: attPos, value: att, tokenType: "variable", nextState: isNextState }];
+    }
     return [
-      { offset: ParseSection.getPosition(el, att, 1), value: att, tokenType: "variable", nextState: isNextState },
-      { offset: ParseSection.getPosition(el, val, val.trim()===att?2:1), value: val, tokenType: !isNaN(+val) ? "number" : "macro" },
+      ...attTokens,
+      {
+        offset:
+          attPos +
+          att.length +
+          ParseSection.getPosition(el.slice(attPos + att.length), val, val.trim() === att ? 2 : 1),
+        value: val,
+        tokenType: !isNaN(+val) ? "number" : findTemporaryType(val)?"keyword":"macro",
+      },
     ];
   } else {
     // without exclamation
@@ -338,23 +387,40 @@ export const compareRelationTokens = (
             offset: ParseSection.getPosition(el, clearedOfSymbols.value, 1),
             value: clearedOfSymbols.value,
             tokenType: "variable",
-            nextState: new RegExp("keep\\s*\\(.*\\b"+clearedOfSymbols.value+"\\b.*\\)").test(line)||clearedOfSymbols.isNextState,
+            nextState:
+              new RegExp("keep\\s*\\(.*\\b" + clearedOfSymbols.value + "\\b.*\\)").test(line) ||
+              clearedOfSymbols.isNextState,
           },
         ];
       }
-    }
-    else {
-      if (defines.has(el.trim()))
-      {
-        return [{
-          offset: 0,
-          value: el.trim(),
-          tokenType: "function",
-          nextState: false
-        }];
+    } else {
+      if (defines.has(el.trim())) {
+        return [
+          {
+            offset: 0,
+            value: el.trim(),
+            tokenType: "function",
+            nextState: false,
+          },
+        ];
+      } else if ((tp = getArrayInStore(getArrayWrittenInfo(el.trim()).arrayName).type!.trim()) !== "") {
+        if (tp === "boolean") {return parseArray(line, lineNumber, el.trim());}
+        else {
+          const sc = ParseSection.getPosition(line, el.trim(), 1);
+          addDiagnostic(
+            lineNumber,
+            sc,
+            lineNumber,
+            sc + el.trim().length,
+            el.trim() + " must be a boolean in order to be alone in the condition",
+            "error",
+            NOT_YET_IMPLEMENTED + ":" + el.trim()
+          );
+          //TODO deal with arrays when they are in the keep tag
+          return [{offset:0,value:el.trim(),tokenType:"regexp",nextState:false}];
+        }
       }
     }
-   
   }
   return undefined;
 };
