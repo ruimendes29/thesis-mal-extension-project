@@ -1,8 +1,8 @@
 import { addDiagnostic, NOT_YET_IMPLEMENTED } from "../diagnostics/diagnostics";
-import { findTemporaryType, temporaryAttributes } from "./axiomParser";
-import { attributes, arrays, ranges, actions } from "./globalParserInfo";
+import {  temporaryAttributes } from "./axiomParser";
+import { attributes, arrays, currentInteractor } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
-import { findValueType, processExpressions } from "./relationParser";
+import { findTemporaryType, findValueType } from "./relations/typeFindes";
 
 /* From a given attribute declared as an array, get it's name and the number of arguments
 present when the array is being used in an axiom */
@@ -34,8 +34,8 @@ the dimensions and the type */
 export const getArrayInStore = (arrayName: string) => {
   let numberOfDimensions = 1;
   let type = "";
-  if (attributes.has(arrayName) && arrays.has(attributes.get(arrayName)!.type!)) {
-    let arrayType = arrays.get(attributes.get(arrayName)!.type!)!.type;
+  if (attributes.has(currentInteractor)&& attributes.get(currentInteractor)!.has(arrayName) && arrays.has(attributes.get(currentInteractor)!.get(arrayName)!.type!)) {
+    let arrayType = arrays.get(attributes.get(currentInteractor)!.get(arrayName)!.type!)!.type;
     while (arrays.has(arrayType)) {
       arrayType = arrays.get(arrayType)!.type;
       numberOfDimensions++;
@@ -48,7 +48,7 @@ export const getArrayInStore = (arrayName: string) => {
 const assignTokenType = (s: string) => {
   if (temporaryAttributes.map(el => el.value).includes(s)) {
     return "keyword";
-  } else if (attributes.has(s)) {
+  } else if (attributes.get(currentInteractor)!.has(s)) {
     return "variable";
   } else if (!isNaN(+s)) {
     return "number";
@@ -60,9 +60,9 @@ const assignTokenType = (s: string) => {
 const tokenAndDiag = (actionName: string, elemIndex: number, lineNumber: number, offset: number, s: string) => {
 
   if (
-    (attributes.has(s) && elemIndex === 0) ||
+    (attributes.get(currentInteractor)!.has(s) && elemIndex === 0) ||
     findTemporaryType(s)==="number" ||
-    (attributes.has(s) && findValueType(s) === "number") ||
+    (attributes.get(currentInteractor)!.has(s) && findValueType(s) === "number") ||
     !isNaN(+s)
   ) {
     return { offset: offset, value: s, tokenType: assignTokenType(s) };
@@ -114,9 +114,9 @@ export const parseArray = (
       for (let i = 0; i < separatedArray.length; i++) {
         const { offset: o, value: v } = separatedArray[i];
         if (!opRex.test(v)) {
-          if (attributes.has(v)) {
-            const preAtt = attributes.get(v)!;
-            attributes.set(v, { ...preAtt, used: true });
+          if (attributes.get(currentInteractor)!.has(v)) {
+            const preAtt = attributes.get(currentInteractor)!.get(v)!;
+            attributes.get(currentInteractor)!.set(v, { ...preAtt, used: true });
           }
           toRet.push(tokenAndDiag(separatedArray[0].value.trim(), i, lineNumber, o, v));
         } else {

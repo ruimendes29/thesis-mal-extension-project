@@ -1,5 +1,5 @@
 import { addDiagnostic, ALREADY_DEFINED, NOT_YET_IMPLEMENTED } from "../diagnostics/diagnostics";
-import { actions, actionsToAttributes, arrays, enums, IParsedToken, ranges } from "./globalParserInfo";
+import { actions, actionsToAttributes, arrays, currentInteractor, enums, IParsedToken, ranges } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 
 /* Method responsible for parsing the vis tag that some action might have and assign the 
@@ -22,14 +22,14 @@ const parseVis = (line: string, lineNumber: number, currentOffset: number) => {
   the current line to search only after the index of currentOffset as well as being aware
   of what offset previously existed to determine the start character of the tokens in the whole line
   and not only in the sliced one */
-  return parseActionSection.getTokens(line, lineNumber, currentOffset);
+  return parseActionSection.getTokens(line, lineNumber, 0);
 };
 
 /* Very similar to the method above, where only the findTokens expression is changed as well as the 
 tokens to separate the main match. */
 const parseAction = (line: string, lineNumber: number, currentOffset: number) => {
   let indexOfElement = 0;
-  const toFindTokens = /\s*[A-Za-z]+\w*\s*(\(((\s*\w+\s*),?)+\))?/;
+  const toFindTokens = /(?<=(\]\s*|^\s*))(?<!\[)\s*[A-Za-z]+\w*\s*(\(((\s*\w+\s*),?)+\))?(?!\])/;
   const toSeparateTokens = /(\&|\||\)|\(|\,)/;
   let actionName:string = "";
   const actionArguments:string[] = [];
@@ -37,12 +37,12 @@ const parseAction = (line: string, lineNumber: number, currentOffset: number) =>
   const parseActionSection: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
     if (indexOfElement === 0) {
       // if an element is found, add it to the actions map and return function as the token type
-      if (actions.has(el.trim())) {
+      if (actions.has(currentInteractor) && actions.get(currentInteractor)!.has(el.trim())) {
         addDiagnostic(
           lineNumber,
           sc,
           lineNumber,
-          sc + el.trim().length,
+          sc + el.length,
           el.trim() + " is already defined",
           "error",
           ALREADY_DEFINED + ":" + lineNumber + ":" + el.trim()
@@ -50,7 +50,8 @@ const parseAction = (line: string, lineNumber: number, currentOffset: number) =>
         indexOfElement++;
         return "regexp";
       } else {
-        actionsToAttributes.set(el.trim(), new Set<string>());
+        actionsToAttributes.set(currentInteractor,new Map());
+        actionsToAttributes.get(currentInteractor)!.set(el.trim(), new Set<string>());
         actionName = el.trim();
         indexOfElement++;
         return "function";
@@ -59,18 +60,21 @@ const parseAction = (line: string, lineNumber: number, currentOffset: number) =>
     else {
       indexOfElement++;
       const et = el.trim();
-      const stc = ParseSection.getPosition(line,et,1);
       if (enums.has(et) || ranges.has(et) || arrays.has(et) || et==="boolean" ||et==="number")
       {actionArguments.push(et);return "type";}
       else {
-        addDiagnostic(lineNumber,stc,lineNumber,stc+et.length,et+" is not a valid type","error",NOT_YET_IMPLEMENTED);
+        addDiagnostic(lineNumber,sc,lineNumber,sc+el.length,et+" is not a valid type","error",NOT_YET_IMPLEMENTED);
         return "regexp";
       }
     }
   });
-  const toReturnParseAction = parseActionSection.getTokens(line, lineNumber, currentOffset);
-  actions.set(actionName,{used:false,line:lineNumber,arguments:actionArguments});
-  return toReturnParseAction;
+  const toReturnParseAction = parseActionSection.getTokens(line, lineNumber, 0);
+  if (!actions.has(currentInteractor))
+  {
+    actions.set(currentInteractor,new Map());
+  }
+  actions.get(currentInteractor)!.set(actionName,{used:false,line:lineNumber,arguments:actionArguments});
+    return toReturnParseAction;
 };
 
 export const _parseActions = (

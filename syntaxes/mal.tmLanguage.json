@@ -118,7 +118,7 @@
     "components": {
       "begin": "interactor",
       "beginCaptures": { "0": { "name": "storage.interactor.mal" } },
-      "end": "interactor",
+      "end": "(?=interactor)",
       "patterns": [
         { "include": "$self" },
         {
@@ -126,7 +126,7 @@
           "beginCaptures": {
             "0": { "name": "entity.name.tag.attributes.mal" }
           },
-          "end": "(?=\\b((actions)|(axioms)|(test))\\b)",
+          "end": "(?=\\b((actions)|(axioms)|(test)|(interactor)|(aggregates))\\b)",
           "patterns": [
             { "include": "$self" },
             {
@@ -140,9 +140,20 @@
           ]
         },
         {
+          "begin": "aggregates",
+          "beginCaptures": { "0": { "name": "entity.name.tag.aggregates.mal" } },
+          "end": "(?=\\b((attributes)|(axioms)|(test)|(interactor)|(actions))\\b)",
+          "patterns": [
+            { "include": "$self" },
+            {
+              "name": "keyword.control.via.mal",
+              "match": "via"
+            }]
+        },
+        {
           "begin": "actions",
           "beginCaptures": { "0": { "name": "entity.name.tag.actions.mal" } },
-          "end": "(?=\\b((attributes)|(axioms)|(test))\\b)",
+          "end": "(?=\\b((attributes)|(axioms)|(test)|(interactor)|(aggregates))\\b)",
           "patterns": [
             { "include": "$self" },
             {
@@ -154,7 +165,7 @@
         {
           "begin": "axioms",
           "beginCaptures": { "0": { "name": "entity.name.tag.axioms.mal" } },
-          "end": "(?=\\b((attributes)|(actions)|(test))\\b)",
+          "end": "(?=\\b((attributes)|(actions)|(test)|(interactor)|(aggregates))\\b)",
           "patterns": [
             {
               "begin": "\\[",
@@ -194,7 +205,7 @@
         {
           "begin": "test",
           "beginCaptures": { "0": { "name": "entity.name.tag.test.mal" } },
-          "end": "test",
+          "end": "(?=((test)|(interactor)))",
           "patterns": [
             {
               "name": "entity.name.function.mal",

@@ -18,6 +18,7 @@ import { _parseActions } from "./actionsParser";
 import { _parseAttributes } from "./attributesParser";
 import { ParseSection } from "./ParseSection";
 import { checkIfUsed } from "./checkIfUsed";
+import { _parseIncludes } from "./includesParser";
 
 /* Simple method to check if a line is an expression or a simple line,
  by checking if it is a number,true or false */
@@ -175,6 +176,12 @@ export function _parseText(text: string): IParsedToken[] {
               break;
               case "attributes":
               if ((currentOffset = parseSpecificPart(_parseAttributes, r, line, i, currentOffset)!)) {
+              } else {
+                break;
+              }
+              break;
+              case "aggregates":
+              if ((currentOffset = parseSpecificPart(_parseIncludes, r, line, i, currentOffset)!)) {
               } else {
                 break;
               }

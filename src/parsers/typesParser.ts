@@ -2,7 +2,7 @@ import { types } from "util";
 import { addDiagnostic, ALREADY_DEFINED, NOT_YET_IMPLEMENTED } from "../diagnostics/diagnostics";
 import { arrays, defines, enums, IParsedToken, ranges } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
-import { separateRangeTokens } from "./relationParser";
+import { separateRangeTokens } from "./relations/relationParser";
 
 const getNumericalValue = (s: string): number | undefined => {
   if (!isNaN(+s)) {return +s;}
@@ -43,8 +43,7 @@ const parseArray = (line: string, lineNumber: number) => {
         }
         else
         {
-          const stc = ParseSection.getPosition(line,arrayType,1);
-          addDiagnostic(lineNumber,stc,lineNumber,stc+arrayType.length,"error",arrayType+" is not a valid type",NOT_YET_IMPLEMENTED);
+          addDiagnostic(lineNumber,sc,lineNumber,sc+el.length,"error",arrayType+" is not a valid type",NOT_YET_IMPLEMENTED);
         }
     }
     return "cantprint";
@@ -75,27 +74,28 @@ const parseEnumTypes = (line: string, lineNumber: number) => {
   let elementIndex = 0;
   let typeName = "";
   const parseEnums: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
+    const et=el.trim();
     if (elementIndex === 0) {
       elementIndex++;
-      if (enums.has(el) || ranges.has(el)) {
+      if (enums.has(et) || ranges.has(et)) {
         addDiagnostic(
           lineNumber,
           sc,
           lineNumber,
           sc + el.length,
-          el + " is already declared",
+          et + " is already declared",
           "warning",
-          ALREADY_DEFINED + ":" + lineNumber + ":" + el.trim()
+          ALREADY_DEFINED + ":" + lineNumber + ":" + et
         );
         return "function";
       } else {
-        typeName = el;
-        enums.set(el, { used: false, values: [] });
+        typeName = et;
+        enums.set(et, { used: false, values: [] });
         return "enum";
       }
     } else {
       elementIndex++;
-      enums.get(typeName)?.values.push(el);
+      enums.get(typeName)?.values.push(et);
       return "macro";
     }
   });

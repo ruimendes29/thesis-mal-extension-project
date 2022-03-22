@@ -1,7 +1,7 @@
 import { addDiagnosticToRelation, ALREADY_DEFINED} from "../diagnostics/diagnostics";
 import { defines, IParsedToken } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
-import { compareRelationTokens } from "./relationParser";
+import { compareRelationTokens } from "./relations/relationParser";
 
 const parseTokensForITokens = (
   toParseTokens: { value: string; tokenType: string }[],
@@ -29,13 +29,11 @@ const parseDefinesBeforeValue = (line: string, lineNumber: number) => {
   if (defines.has(beforeEquals.trim())) {
     const retFromDiag = addDiagnosticToRelation(
       "att",
-      line,
-      lineNumber,
-      line,
-      beforeEquals.trim(),
-      afterEquals.trim(),
+      {line:line,lineNumber:lineNumber,el:line},
+      beforeEquals,
+      afterEquals,
       beforeEquals.trim() + " is already defined!",
-      "warning",
+      "warning",0,line.indexOf("=")+1,
       0,
       ALREADY_DEFINED + ":" + lineNumber + ":" + beforeEquals.trim()
     );

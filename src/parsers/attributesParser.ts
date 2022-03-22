@@ -1,5 +1,5 @@
 import { addDiagnostic, ALREADY_DEFINED } from "../diagnostics/diagnostics";
-import { actions, attributes, IParsedToken } from "./globalParserInfo";
+import { actions, attributes, currentInteractor, IParsedToken } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 
 let attributesInLine: Array<string> = [];
@@ -13,7 +13,7 @@ const parseAttribute = (line: string, lineNumber: number,currentOffset: number) 
     toSeparateTokens,
     (el, sc) => {
       // if an element is found, add it to the actions map and return function as the token type
-    if (attributes.has(el.trim())) {
+    if (attributes.has(currentInteractor) && attributes.get(currentInteractor)!.has(el.trim())) {
       addDiagnostic(
         lineNumber,
         sc,
@@ -58,7 +58,11 @@ const parseType = (line: string, lineNumber: number,currentOffset: number) => {
       const type = el.trim();
       for (let att of attributesInLine)
       {
-        attributes.set(att,{used:false,type:type,line:lineNumber,alone: attributesInLine.length===1});
+        if (!attributes.has(currentInteractor))
+        {
+          attributes.set(currentInteractor,new Map());
+        }
+        attributes.get(currentInteractor)!.set(att,{used:false,type:type,line:lineNumber,alone: attributesInLine.length===1});
       }
       attributesInLine = [];
       return "type";

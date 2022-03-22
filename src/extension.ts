@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { Emojinfo } from "./codeActions/codeActionsProvider";
-import { provider1, provider2 } from "./codeCompletion/codeCompletionProvider";
+import { provider1, provider2, provider3 } from "./codeCompletion/codeCompletionProvider";
 import { commandHandler } from "./commands/commands";
 import { clearDiagnosticCollection } from "./diagnostics/diagnostics";
 import { clearStoredValues } from "./parsers/globalParserInfo";
@@ -50,7 +50,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(vscode.commands.registerCommand(command, commandHandler));
 
-  context.subscriptions.push(provider1,provider2);
+  context.subscriptions.push(provider1,provider2,provider3);
 
   context.subscriptions.push(diagnosticCollection);
 

@@ -10,11 +10,11 @@ exports.activate = exports.diagnosticCollection = void 0;
 const vscode = __webpack_require__(1);
 const codeActionsProvider_1 = __webpack_require__(2);
 const codeCompletionProvider_1 = __webpack_require__(6);
-const commands_1 = __webpack_require__(10);
+const commands_1 = __webpack_require__(12);
 const diagnostics_1 = __webpack_require__(3);
 const globalParserInfo_1 = __webpack_require__(4);
-const textParser_1 = __webpack_require__(11);
-const actionsDeterminism_1 = __webpack_require__(17);
+const textParser_1 = __webpack_require__(13);
+const actionsDeterminism_1 = __webpack_require__(19);
 const tokenTypes = new Map();
 const tokenModifiers = new Map();
 const legend = (function () {
@@ -50,7 +50,7 @@ exports.diagnosticCollection = vscode.languages.createDiagnosticCollection();
 function activate(context) {
     const command = 'mal.checkIfActionsAreDeterministic';
     context.subscriptions.push(vscode.commands.registerCommand(command, commands_1.commandHandler));
-    context.subscriptions.push(codeCompletionProvider_1.provider1, codeCompletionProvider_1.provider2);
+    context.subscriptions.push(codeCompletionProvider_1.provider1, codeCompletionProvider_1.provider2, codeCompletionProvider_1.provider3);
     context.subscriptions.push(exports.diagnosticCollection);
     vscode.window.onDidChangeActiveTextEditor(() => { (0, globalParserInfo_1.clearStoredValues)(); (0, diagnostics_1.clearDiagnosticCollection)(); });
     context.subscriptions.push(vscode.languages.registerCodeActionsProvider("mal", new codeActionsProvider_1.Emojinfo(), {
@@ -158,7 +158,7 @@ class Emojinfo {
         fix.edit = new vscode.WorkspaceEdit();
         const line = document.lineAt(lineToFix).text;
         const characterOfType = line.indexOf(":") + 2;
-        if (globalParserInfo_1.attributes.get(attribute).alone) {
+        if (globalParserInfo_1.attributes.get((0, globalParserInfo_1.getInteractorByLine)(lineToFix)).get(attribute).alone) {
             const oldTypeRange = new vscode.Range(new vscode.Position(lineToFix, characterOfType), new vscode.Position(lineToFix, line.indexOf("#") > 0 ? line.indexOf("#") : line.length));
             fix.edit.replace(document.uri, oldTypeRange, newType + " ");
         }
@@ -241,25 +241,27 @@ const addDiagnostic = (initialLineNumber, initialCharacter, finalLineNumber, fin
 exports.addDiagnostic = addDiagnostic;
 /* function responsible for adding diagnostics to the attributes when they are in the conditions
   if any given axiom */
-const addDiagnosticToRelation = (type, line, lineNumber, fullCondition, attribute, value, message, severity, offset, code) => {
+const addDiagnosticToRelation = (type, textInfo, attribute, value, message, severity, attOffset, valOffset, errorOffset, code) => {
     let stringToCompare = "";
+    let offsetToCompare = 0;
     if (type === "att") {
         stringToCompare = attribute;
+        offsetToCompare = attOffset;
     }
     else if (type === "val") {
         stringToCompare = value;
+        offsetToCompare = valOffset;
     }
-    const correctOffset = line.indexOf(fullCondition) + fullCondition.indexOf(stringToCompare) + offset;
-    (0, exports.addDiagnostic)(lineNumber, correctOffset, lineNumber, correctOffset + stringToCompare.length, message, severity, code);
-    const scOfValue = fullCondition.indexOf(attribute) + attribute.length;
+    (0, exports.addDiagnostic)(textInfo.lineNumber, errorOffset + offsetToCompare, textInfo.lineNumber, errorOffset + offsetToCompare + stringToCompare.length, message, severity, code);
+    const scOfValue = textInfo.el.indexOf(attribute) + attribute.length;
     return [
         {
-            offset: fullCondition.indexOf(attribute),
+            offset: attOffset,
             value: attribute,
             tokenType: stringToCompare === attribute ? "regexp" : "variable",
         },
         {
-            offset: scOfValue + fullCondition.slice(scOfValue).indexOf(value),
+            offset: valOffset,
             value: value,
             tokenType: stringToCompare === value ? "regexp" : "macro",
         },
@@ -274,11 +276,12 @@ exports.addDiagnosticToRelation = addDiagnosticToRelation;
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.clearStoredValues = exports.isInsideInteractor = exports.isSubSection = exports.updateSection = exports.actionsToAttributes = exports.arrays = exports.ranges = exports.enums = exports.defines = exports.actions = exports.attributes = exports.attributesStartingLine = exports.actionsStartingLine = exports.previousSection = exports.sections = void 0;
+exports.getInteractorByLine = exports.clearStoredValues = exports.isInsideInteractor = exports.isSubSection = exports.updateSection = exports.aggregates = exports.interactorLimits = exports.actionsToAttributes = exports.arrays = exports.ranges = exports.enums = exports.defines = exports.actions = exports.attributes = exports.currentInteractor = exports.attributesStartingLine = exports.actionsStartingLine = exports.previousSection = exports.sections = void 0;
 exports.sections = new Map();
 exports.previousSection = "";
 exports.actionsStartingLine = new Array();
 exports.attributesStartingLine = new Array();
+exports.currentInteractor = "";
 exports.attributes = new Map();
 exports.actions = new Map();
 exports.defines = new Map();
@@ -286,6 +289,8 @@ exports.enums = new Map();
 exports.ranges = new Map();
 exports.arrays = new Map();
 exports.actionsToAttributes = new Map();
+exports.interactorLimits = new Map();
+exports.aggregates = new Map();
 exports.sections.set("attributes", false);
 exports.sections.set("types", false);
 exports.sections.set("defines", false);
@@ -293,6 +298,7 @@ exports.sections.set("interactor", false);
 exports.sections.set("actions", false);
 exports.sections.set("axioms", false);
 exports.sections.set("test", false);
+exports.sections.set("aggregates", false);
 const updateSection = (line, lineNumber) => {
     if (line.trim() === "actions") {
         exports.actionsStartingLine.push(lineNumber);
@@ -302,7 +308,21 @@ const updateSection = (line, lineNumber) => {
     }
     let x;
     x = /^\s*interactor\s+[a-zA-Z]+[a-zA-Z\_0-9]*/.exec(line);
-    const trimmed = x ? "interactor" : line.trim();
+    let trimmed;
+    if (x) {
+        if (exports.currentInteractor !== "") {
+            exports.interactorLimits.set(exports.currentInteractor, {
+                start: exports.interactorLimits.get(exports.currentInteractor).start,
+                end: lineNumber - 1,
+            });
+        }
+        trimmed = "interactor";
+        exports.currentInteractor = x[0].split(" ").filter((el) => el.trim() !== "")[1];
+        exports.interactorLimits.set(exports.currentInteractor, { start: lineNumber, end: undefined });
+    }
+    else {
+        trimmed = line.trim();
+    }
     if (exports.sections.has(trimmed)) {
         exports.sections.forEach((value, key) => {
             if (value) {
@@ -319,7 +339,11 @@ const updateSection = (line, lineNumber) => {
 };
 exports.updateSection = updateSection;
 const isSubSection = (line) => {
-    if (line.trim() === "attributes" || line.trim() === "actions" || line.trim() === "axioms" || line.trim() === "test") {
+    if (line.trim() === "attributes" ||
+        line.trim() === "actions" ||
+        line.trim() === "axioms" ||
+        line.trim() === "test" ||
+        line.trim() === "aggregates") {
         return true;
     }
     else {
@@ -332,6 +356,7 @@ const isInsideInteractor = () => {
         exports.sections.get("attributes") ||
         exports.sections.get("actions") ||
         exports.sections.get("axioms") ||
+        exports.sections.get("aggregates") ||
         exports.sections.get("test"));
 };
 exports.isInsideInteractor = isInsideInteractor;
@@ -341,6 +366,7 @@ const clearStoredValues = () => {
     exports.actionsToAttributes.clear();
     exports.attributes.clear();
     exports.actions.clear();
+    exports.aggregates.clear();
     exports.defines.clear();
     exports.enums.clear();
     exports.attributes.clear();
@@ -349,6 +375,15 @@ const clearStoredValues = () => {
     });
 };
 exports.clearStoredValues = clearStoredValues;
+const getInteractorByLine = (lineNumber) => {
+    for (let x of exports.interactorLimits) {
+        if (x[1].start <= lineNumber && (x[1].end === undefined || x[1].end >= lineNumber)) {
+            return x[0];
+        }
+    }
+    return "error";
+};
+exports.getInteractorByLine = getInteractorByLine;
 
 
 /***/ }),
@@ -389,13 +424,14 @@ class ParseSection {
     getTokens(line, lineNumber, offset, aggregatedTokens, separateTokens) {
         let x;
         // check if any match can be found the sliced line with the findTokens RegExp
-        if ((x = this.findTokens.exec(line.slice(offset)))) {
+        if ((x = this.findTokens.exec(line))) {
             // In case there was a match:
             if (x) {
                 //alias for separationSymbols
                 let ss = this.separationSymbols;
                 // separate the matched line into de different elements through the separationSymbols
-                let separatedLine = x[0].trim().split(ss);
+                let offsetForEl = x.index;
+                let separatedLine = x[0].split(ss).map(el => { offsetForEl += el.length; return { value: el, offset: offsetForEl - el.length }; });
                 // to return the tokens found in the line
                 let tokens = [];
                 // map that holds as key the string correspondent to an element and as value the occurance number,
@@ -403,9 +439,10 @@ class ParseSection {
                 let mapTokens = new Map();
                 // loop through each element
                 separatedLine.forEach((el) => {
+                    const textInfo = { line: line, lineNumber: lineNumber, el: el.value };
                     // check if the element is not an operator or just spaces
-                    if (!ss.test(el.trim()) && el.trim() !== "") {
-                        const trimmedEl = el.trim();
+                    if (!ss.test(el.value.trim()) && el.value.trim() !== "") {
+                        const trimmedEl = el.value.trim();
                         const tokenForMap = trimmedEl[trimmedEl.length - 1] === "'"
                             ? trimmedEl.slice(0, trimmedEl.length - 1)
                             : trimmedEl.indexOf("=") > 0
@@ -415,30 +452,29 @@ class ParseSection {
                         if (!mapTokens.has(tokenForMap)) {
                             mapTokens.set(tokenForMap, 1);
                         }
-                        // find the next index to be considered while parsing the elements from the line
-                        let nextIndexLine = ParseSection.getPosition(line.slice(offset), tokenForMap, mapTokens.get(tokenForMap));
                         if (!aggregatedTokens) {
                             tokens.push({
                                 line: lineNumber,
-                                startCharacter: nextIndexLine + offset,
-                                length: trimmedEl.length,
+                                startCharacter: el.offset,
+                                length: el.value.length,
                                 // to had the token type we check if the element is in the attributes and is a boolean
-                                tokenType: this.tokenTypeCondition(trimmedEl, nextIndexLine + offset),
+                                tokenType: this.tokenTypeCondition(el.value, el.offset),
                                 tokenModifiers: [""],
                             });
                         }
                         else {
-                            const sepTokens = separateTokens(trimmedEl, line, lineNumber, offset);
+                            const sepTokens = separateTokens(textInfo, el.offset);
                             if (sepTokens !== undefined) {
                                 for (let t of sepTokens) {
-                                    this.tokenTypeCondition(t.value + ":" + t.nextState, nextIndexLine + offset);
+                                    this.tokenTypeCondition(t.value + ":" + t.nextState, el.offset);
                                     tokens.push({
                                         line: lineNumber,
-                                        startCharacter: nextIndexLine + offset + t.offset,
+                                        startCharacter: el.offset + t.offset,
                                         length: t.value.length,
                                         tokenType: t.tokenType,
                                         tokenModifiers: [""],
                                     });
+                                    ;
                                 }
                             }
                         }
@@ -463,16 +499,18 @@ exports.ParseSection = ParseSection;
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.provider2 = exports.provider1 = void 0;
+exports.provider3 = exports.provider2 = exports.provider1 = void 0;
 const vscode = __webpack_require__(1);
 const globalParserInfo_1 = __webpack_require__(4);
-const relationParser_1 = __webpack_require__(7);
+const typeFindes_1 = __webpack_require__(20);
 exports.provider1 = vscode.languages.registerCompletionItemProvider("mal", {
     provideCompletionItems(document, position, token, context) {
         // a simple completion item which inserts `Hello World!`
         const simpleCompletion = new vscode.CompletionItem("Hello World!");
-        const attributesCompletion = Array.from(globalParserInfo_1.attributes).map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Variable));
-        const actionsCompletion = Array.from(globalParserInfo_1.actions).map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Function));
+        const attributesCompletion = globalParserInfo_1.attributes.has((0, globalParserInfo_1.getInteractorByLine)(position.line)) ? Array.from(globalParserInfo_1.attributes.get((0, globalParserInfo_1.getInteractorByLine)(position.line)))
+            .map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Variable)) : [];
+        const actionsCompletion = globalParserInfo_1.actions.has((0, globalParserInfo_1.getInteractorByLine)(position.line)) ? Array.from(globalParserInfo_1.actions.get((0, globalParserInfo_1.getInteractorByLine)(position.line)))
+            .map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Function)) : [];
         const definesCompletion = Array.from(globalParserInfo_1.defines).map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Constant));
         // return all completion items as array
         return [...attributesCompletion, ...definesCompletion, ...actionsCompletion];
@@ -485,11 +523,14 @@ exports.provider2 = vscode.languages.registerCompletionItemProvider("mal", {
         let match;
         const linePrefix = document.lineAt(position).text.slice(0, position.character);
         if (linePrefix.charAt(linePrefix.length - 1) === "[") {
-            return Array.from(globalParserInfo_1.actions).map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Function));
+            return Array.from(globalParserInfo_1.actions.get((0, globalParserInfo_1.getInteractorByLine)(position.line))).map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Function));
         }
-        else if (linePrefix.charAt(linePrefix.length - 1) === "=" && (match = linePrefix.match(/(\w+)\s*\=/)) !== null) {
-            if (globalParserInfo_1.enums.has((0, relationParser_1.findValueType)(match[1]))) {
-                return globalParserInfo_1.enums.get((0, relationParser_1.findValueType)(match[1])).values.map(v => new vscode.CompletionItem(v, vscode.CompletionItemKind.EnumMember));
+        else if (linePrefix.charAt(linePrefix.length - 1) === "=" &&
+            (match = linePrefix.match(/(\w+)\s*\=/)) !== null) {
+            if (globalParserInfo_1.enums.has((0, typeFindes_1.findValueType)(match[1]))) {
+                return globalParserInfo_1.enums
+                    .get((0, typeFindes_1.findValueType)(match[1]))
+                    .values.map((v) => new vscode.CompletionItem(v, vscode.CompletionItemKind.EnumMember));
             }
             else {
                 return undefined;
@@ -501,6 +542,47 @@ exports.provider2 = vscode.languages.registerCompletionItemProvider("mal", {
     },
 }, "[", "=" // triggered whenever a '.' is being typed
 );
+exports.provider3 = vscode.languages.registerCompletionItemProvider("mal", {
+    provideCompletionItems(document, position) {
+        // get all text until the `position` and check if it reads `console.`
+        // and if so then complete if `log`, `warn`, and `error`
+        let match;
+        const linePrefix = document.lineAt(position).text.slice(0, position.character);
+        if (linePrefix.charAt(linePrefix.length - 1) === ".") {
+            let c = "r";
+            let includeToCheckArray = [];
+            let i = linePrefix.length - 1;
+            while (i > 0) {
+                c = linePrefix.charAt(--i);
+                if (/\w/.test(c)) {
+                    includeToCheckArray.unshift(c);
+                }
+                else {
+                    break;
+                }
+            }
+            if (globalParserInfo_1.aggregates.has(includeToCheckArray.join("").trim())) {
+                let { included, current } = globalParserInfo_1.aggregates.get(includeToCheckArray.join("").trim());
+                if (current === (0, globalParserInfo_1.getInteractorByLine)(position.line)) {
+                    return [
+                        ...Array.from(globalParserInfo_1.actions.get(included)).map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Function)),
+                        ...Array.from(globalParserInfo_1.attributes.get(included)).map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Variable)),
+                    ];
+                }
+                else {
+                    return undefined;
+                }
+            }
+            else {
+                return undefined;
+            }
+        }
+        else {
+            return undefined;
+        }
+    },
+}, "." // triggered whenever a '.' is being typed
+);
 
 
 /***/ }),
@@ -509,55 +591,17 @@ exports.provider2 = vscode.languages.registerCompletionItemProvider("mal", {
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.compareRelationTokens = exports.processExpressions = exports.separateRangeTokens = exports.findValueType = void 0;
+exports.compareRelationTokens = exports.removeExclamation = exports.processExpressions = exports.separateRangeTokens = void 0;
 const diagnostics_1 = __webpack_require__(3);
 const arrayRelations_1 = __webpack_require__(8);
-const axiomParser_1 = __webpack_require__(9);
 const globalParserInfo_1 = __webpack_require__(4);
-const ParseSection_1 = __webpack_require__(5);
+const includesParser_1 = __webpack_require__(10);
+const relationErrors_1 = __webpack_require__(11);
+const typeFindes_1 = __webpack_require__(20);
 const attributeExists = (attribute) => {
-    return (globalParserInfo_1.attributes.has(attribute) ||
-        (attribute.charAt(attribute.length - 1) === "'" && globalParserInfo_1.attributes.has(attribute.substring(0, attribute.length - 1))));
-};
-const findValueType = (value) => {
-    const correctValue = value[value.length - 1] === "'" ? value.slice(0, value.length - 1) : value;
-    if (value === "true" || value === "false") {
-        return "boolean";
-    }
-    else if (!isNaN(+value) && value !== "") {
-        // check if value is a number
-        return "number";
-    }
-    else if (globalParserInfo_1.defines.has(value)) {
-        return globalParserInfo_1.defines.get(value).type;
-    }
-    else if (globalParserInfo_1.attributes.has(value) && globalParserInfo_1.ranges.has(globalParserInfo_1.attributes.get(value).type)) {
-        return "number";
-    }
-    else if (globalParserInfo_1.attributes.has(correctValue)) {
-        return globalParserInfo_1.attributes.get(correctValue).type;
-    }
-    else {
-        for (var [k, v] of globalParserInfo_1.enums) {
-            if (v.values.includes(value)) {
-                return k;
-            }
-        }
-    }
-    return (0, axiomParser_1.findTemporaryType)(value.trim());
-};
-exports.findValueType = findValueType;
-const isAttributeSameAsValue = (attribute, value) => {
-    if (attribute.includes("]") || attribute.includes("[")) {
-        const { arrayName } = (0, arrayRelations_1.getArrayWrittenInfo)(attribute);
-        const { type } = (0, arrayRelations_1.getArrayInStore)(arrayName);
-        return type === (0, exports.findValueType)(value);
-    }
-    else {
-        return (globalParserInfo_1.attributes.has(attribute) &&
-            (globalParserInfo_1.attributes.get(attribute).type === (0, exports.findValueType)(value) ||
-                (globalParserInfo_1.ranges.has(globalParserInfo_1.attributes.get(attribute).type) && (0, exports.findValueType)(value) === "number")));
-    }
+    return ((globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) && globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(attribute)) ||
+        (attribute.charAt(attribute.length - 1) === "'" &&
+            globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(attribute.substring(0, attribute.length - 1))));
 };
 const parseRangeInput = (preV) => {
     let v;
@@ -574,16 +618,16 @@ const parseRangeInput = (preV) => {
     }
     return { value: +v, isANumber: isANumber };
 };
-const separateRangeTokens = (el, line, lineNumber, offset) => {
+const separateRangeTokens = (textInfo, offset) => {
     let indexOfOp = 0;
-    const afterAndBefore = el.split("=");
+    const afterAndBefore = textInfo.el.split("=");
     if ((indexOfOp = afterAndBefore[1].search(/\.\./)) > 0) {
-        const min = afterAndBefore[1].slice(0, indexOfOp).trim();
-        const max = afterAndBefore[1].slice(indexOfOp + 2).trim();
-        const minimum = parseRangeInput(min);
-        const maximum = parseRangeInput(max);
+        const min = afterAndBefore[1].slice(0, indexOfOp);
+        const max = afterAndBefore[1].slice(indexOfOp + 2);
+        const minimum = parseRangeInput(min.trim());
+        const maximum = parseRangeInput(max.trim());
         if (minimum.value >= maximum.value) {
-            return (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, afterAndBefore[1], min, max, minimum.value + " is equal or greater than " + maximum.value, "warning", offset, diagnostics_1.NOT_YET_IMPLEMENTED + ":" + lineNumber);
+            return (0, diagnostics_1.addDiagnosticToRelation)("att", { ...textInfo, el: afterAndBefore[1] }, min.trim(), max.trim(), minimum.value + " is equal or greater than " + maximum.value, "warning", 0, indexOfOp + 2, offset, diagnostics_1.NOT_YET_IMPLEMENTED + ":" + textInfo.lineNumber);
         }
         globalParserInfo_1.ranges.set(afterAndBefore[0].trim(), {
             used: false,
@@ -592,12 +636,12 @@ const separateRangeTokens = (el, line, lineNumber, offset) => {
         });
         return [
             {
-                offset: el.indexOf(min),
+                offset: textInfo.el.indexOf(min),
                 value: min,
                 tokenType: minimum.isANumber ? "number" : "variable",
             },
             {
-                offset: el.indexOf(max),
+                offset: textInfo.el.indexOf(max),
                 value: max,
                 tokenType: maximum.isANumber ? "number" : "variable",
             },
@@ -606,59 +650,58 @@ const separateRangeTokens = (el, line, lineNumber, offset) => {
     return undefined;
 };
 exports.separateRangeTokens = separateRangeTokens;
-const processExpressions = (line, lineNumber, el, att, val, implies, isNextState) => {
+const processExpressions = (textInfo, att, val, implies, isNextState) => {
     const specialChars = /(\+|\!|\-|\&|\*|\,|\)|\(|\/|\||\>|\<)/;
-    const splittedValue = val.split(specialChars);
+    let offsetForSplitted = 0;
+    const splittedValue = val
+        .split(specialChars)
+        .map((el) => {
+        offsetForSplitted += el.length;
+        return { value: el, offset: offsetForSplitted - el.length };
+    })
+        .filter((el) => el.value.trim() !== "" && !specialChars.test(el.value));
     let currentType = "";
     let i = 0;
-    let offsetForToks = el.indexOf(val);
     let toks = [];
     if (att.trim() === "" || val.trim() === "") {
         return undefined;
     }
-    if ((isAttributeSameAsValue(att, splittedValue[0].trim()) && splittedValue.length > 1) || implies) {
+    if (((0, typeFindes_1.isAttributeSameAsValue)(att, splittedValue[0].value.trim()) && splittedValue.length > 1) || implies) {
         toks.push({
-            offset: el.indexOf(att),
+            offset: 0,
             value: att,
             tokenType: "variable",
             nextState: isNextState,
         });
         for (i = 0; i < splittedValue.length; i++) {
-            const trimmedV = splittedValue[i].trim();
-            if (trimmedV.match(specialChars) !== null) {
-                offsetForToks += splittedValue[i].length;
+            const trimmedV = splittedValue[i].value.trim();
+            if (splittedValue[i].value.includes("=")) {
+                const fromCompare = (0, exports.compareRelationTokens)({ ...textInfo, el: splittedValue[i].value }, splittedValue[i].offset);
+                if (fromCompare !== undefined) {
+                    for (let x of fromCompare) {
+                        toks.push({
+                            offset: splittedValue[i].offset + x.offset,
+                            value: x.value,
+                            tokenType: x.tokenType,
+                        });
+                    }
+                }
             }
             else {
-                if (splittedValue[i].indexOf("=") > 0) {
-                    const fromCompare = (0, exports.compareRelationTokens)(splittedValue[i], line, lineNumber, offsetForToks - splittedValue[i].length);
-                    if (fromCompare !== undefined) {
-                        for (let x of fromCompare) {
-                            toks.push({
-                                offset: offsetForToks + x.offset,
-                                value: x.value,
-                                tokenType: x.tokenType,
-                            });
-                        }
-                    }
+                if (i === 0) {
+                    currentType = (0, typeFindes_1.findValueType)(trimmedV);
                 }
                 else {
-                    if (i === 0) {
-                        currentType = (0, exports.findValueType)(trimmedV);
-                        offsetForToks += splittedValue[i].length;
+                    const newType = (0, typeFindes_1.findValueType)(trimmedV);
+                    if (currentType !== newType) {
+                        break;
                     }
-                    else {
-                        const newType = (0, exports.findValueType)(trimmedV);
-                        offsetForToks += splittedValue[i].length;
-                        if (currentType !== newType) {
-                            break;
-                        }
-                    }
-                    toks.push({
-                        offset: offsetForToks - splittedValue[i].length,
-                        value: trimmedV,
-                        tokenType: !isNaN(+trimmedV) ? "number" : (0, axiomParser_1.findTemporaryType)(trimmedV) ? "keyword" : "macro",
-                    });
                 }
+                toks.push({
+                    offset: splittedValue[i].offset,
+                    value: splittedValue[i].value,
+                    tokenType: !isNaN(+trimmedV) ? splittedValue[i].value : (0, typeFindes_1.findTemporaryType)(trimmedV) ? "keyword" : "macro",
+                });
             }
         }
         if (i === splittedValue.length) {
@@ -682,138 +725,129 @@ const removeExclamation = (att) => {
     }
     return { value: ret, isNextState: nextState };
 };
-const hasSquareBrackets = (s) => {
-    return s.includes("]") || s.includes("[");
+exports.removeExclamation = removeExclamation;
+const updateAttributeUsage = (att) => {
+    if (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) && globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(att.trim())) {
+        const attAux = globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(att);
+        globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).set(att, { ...attAux, used: true });
+    }
 };
-const compareRelationTokens = (el, line, lineNumber, offset) => {
+const compareRelationTokens = (textInfo, offset) => {
     let tp;
     let indexOfOp;
-    if (el === "keep") {
-        return [{ offset: 0, value: el, tokenType: "keyword" }];
+    const comparationSymbols = /(\<\s*\=|\>\s*\=|(?<!\-)\s*\>|\<\s*(?!\-)|\=|\!\s*\=)/;
+    if (textInfo.el === "keep") {
+        return [{ offset: 0, value: textInfo.el, tokenType: "keyword" }];
     }
     // Check if there is any symbol that might indicate a relation
-    if ((indexOfOp = el.match(/(\<\s*\=|\>\s*\=|\=|\>|\<|\<?\s*\-\s*\>)/)) !== null) {
-        //separate the attribute and the value
-        const preAtt = el.slice(0, el.indexOf(indexOfOp[0])).trim();
-        // take out the ' that simbolizes the next state
-        let { value: att, isNextState } = removeExclamation(preAtt);
-        if (globalParserInfo_1.attributes.has(att.trim())) {
-            const attAux = globalParserInfo_1.attributes.get(att);
-            globalParserInfo_1.attributes.set(att, { used: true, alone: attAux.alone, line: attAux.line, type: attAux.type });
-        }
-        //get the value
-        let val = el.slice(el.indexOf(indexOfOp[0]) + indexOfOp[0].length).trim();
-        //examine when the exclamation point appears in front of the value
-        if (val.charAt(0) === "!") {
-            const tempVal = val.slice(1);
-            if ((0, exports.findValueType)(tempVal) === "boolean") {
-                val = tempVal;
+    if ((indexOfOp = textInfo.el.match(comparationSymbols)) !== null) {
+        let offsetForComparation = 0;
+        const separated = textInfo.el
+            .split(comparationSymbols)
+            .map((el) => {
+            offsetForComparation += el.length;
+            return { value: el, offset: offsetForComparation - el.length };
+        })
+            .filter((el) => !comparationSymbols.test(el.value.trim()) && el.value.trim() !== "");
+        if (separated.length === 2) {
+            //separate the attribute and the value
+            //const preAtt = textInfo.el.slice(0, textInfo.el.indexOf(indexOfOp[0])).trim();
+            const preAtt = separated[0];
+            // take out the ' that simbolizes the next state in case it exists, and if so
+            // set the nextState to true
+            let { value: att, isNextState } = (0, exports.removeExclamation)(preAtt.value.trim());
+            // set the used flag to true of the attribute being used
+            updateAttributeUsage(att);
+            //get the value
+            const preVal = separated[1];
+            let { value: val } = (0, exports.removeExclamation)(preVal.value.trim());
+            let expressionsParsed;
+            //process multiple expressions when connected i.e. var1' = var2 + 4 * var3[2]
+            expressionsParsed = (0, exports.processExpressions)(textInfo, att, val, textInfo.el.includes("->"), isNextState);
+            if (expressionsParsed !== undefined) {
+                return expressionsParsed;
             }
-        }
-        att = removeExclamation(att).value;
-        // if the type of the value can not be found
-        let isAtt;
-        if ((isAtt =
-            (hasSquareBrackets(att) && (0, arrayRelations_1.isDeclaredButIsNotAnArray)(att.trim())) ||
-                (hasSquareBrackets(val) && (0, arrayRelations_1.isDeclaredButIsNotAnArray)(val.trim())))) {
-            return (0, diagnostics_1.addDiagnosticToRelation)(isAtt ? "att" : "val", line, lineNumber, el, att, val, (isAtt ? att : val) + " is not an array", "error", 0, diagnostics_1.NOT_YET_IMPLEMENTED + ":" + lineNumber);
-        }
-        if (/\<?\s*\-\s*\>/.test(indexOfOp[0])) {
-            //process multiple expressions when connected
-            const expressionsParsedx = (0, exports.processExpressions)(line, lineNumber, el, removeExclamation(att).value, val, true, removeExclamation(att).isNextState);
-            if (expressionsParsedx !== undefined) {
-                return expressionsParsedx;
+            /*
+          IsUsedAsAnArrayButIsNot - Checks if either the value or the attribute are being used as an array when they are not declared as such
+          isValueInvalid - Checks if the type of the value can not be found
+           */
+            let errors;
+            if ((errors = (0, relationErrors_1.processErrors)(textInfo, offset, preAtt, preVal, [
+                relationErrors_1.isUsedAsAnArrayButIsNot,
+                relationErrors_1.isValueInvalid,
+                relationErrors_1.isAttributeNotDefined,
+                relationErrors_1.isAttributeSameTypeAsValue,
+            ]))) {
+                return errors;
             }
-        }
-        //process multiple expressions when connected
-        const expressionsParsed = (0, exports.processExpressions)(line, lineNumber, el, att, val, false, isNextState);
-        if (expressionsParsed !== undefined) {
-            return expressionsParsed;
-        }
-        // if the type of the value can not be found
-        if (val.trim() !== "" && (0, exports.findValueType)(val) === undefined) {
-            return (0, diagnostics_1.addDiagnosticToRelation)("val", line, lineNumber, el, att, val, val + " is not a valid value", "error", 0, diagnostics_1.NOT_YET_IMPLEMENTED + ":" + lineNumber);
-        }
-        //check if the attribute existe in the already processed attributes
-        if (!attributeExists(att) && !globalParserInfo_1.attributes.has((0, arrayRelations_1.getArrayWrittenInfo)(att).arrayName)) {
-            return (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, el, att, val, att + " is not defined", "error", 0, diagnostics_1.DEFINE_ATTRIBUTE + ":" + (0, exports.findValueType)(val) + ":" + att);
-        }
-        // if the value is a boolean and starts with the negation symbol, that we can take that char off
-        if (val.trim()[0] === "!" && (0, exports.findValueType)(val.slice(val.indexOf("!") + 1).trim()) === "boolean") {
-            val = val.slice(val.indexOf("!") + 1).trim();
-        }
-        // the attribute and the value are not of the same type
-        if (val.trim() !== "" && att.trim() !== "" && !isAttributeSameAsValue(att, val)) {
-            let attForGet = att.trim();
-            if (!globalParserInfo_1.attributes.has(att.trim())) {
-                attForGet = (0, arrayRelations_1.getArrayWrittenInfo)(att.trim()).arrayName;
+            let agValues;
+            if ((agValues = (0, includesParser_1.parseAggregatesValue)(textInfo, offset, preAtt))) {
+                return agValues.tokens.map((x) => {
+                    return { ...x, offset: preAtt.offset + x.offset };
+                });
             }
-            return (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, el, att, val, att + " is not of type " + (0, exports.findValueType)(val), "warning", 0, diagnostics_1.CHANGE_TYPE + ":" + (0, exports.findValueType)(val) + ":" + globalParserInfo_1.attributes.get(attForGet).line + ":" + attForGet);
+            let attTokens = [];
+            if (/(\[|\])/.test(att)) {
+                attTokens = (0, arrayRelations_1.parseArray)(textInfo.line, textInfo.lineNumber, att);
+            }
+            else {
+                attTokens = [{ offset: preAtt.offset, value: preAtt.value, tokenType: "variable", nextState: isNextState }];
+            }
+            return [
+                ...attTokens,
+                {
+                    offset: preVal.offset,
+                    value: preVal.value,
+                    tokenType: !isNaN(+val) ? "number" : (0, typeFindes_1.findTemporaryType)(val) ? "keyword" : "macro",
+                },
+            ];
         }
-        const attPos = ParseSection_1.ParseSection.getPosition(el, att, 1);
-        let attTokens = [];
-        if (/(\[|\])/.test(att)) {
-            attTokens = (0, arrayRelations_1.parseArray)(line, lineNumber, att);
-        }
-        else {
-            attTokens = [{ offset: attPos, value: att, tokenType: "variable", nextState: isNextState }];
-        }
-        return [
-            ...attTokens,
-            {
-                offset: attPos +
-                    att.length +
-                    ParseSection_1.ParseSection.getPosition(el.slice(attPos + att.length), val, val.trim() === att ? 2 : 1),
-                value: val,
-                tokenType: !isNaN(+val) ? "number" : (0, axiomParser_1.findTemporaryType)(val) ? "keyword" : "macro",
-            },
-        ];
     }
     else {
         // without exclamation
-        const clearedOfSymbols = removeExclamation(el);
-        if (globalParserInfo_1.attributes.has(clearedOfSymbols.value)) {
-            if (clearedOfSymbols.value !== el.trim() && globalParserInfo_1.attributes.get(clearedOfSymbols.value)?.type !== "boolean") {
-                (0, diagnostics_1.addDiagnostic)(lineNumber, ParseSection_1.ParseSection.getPosition(line, el, 1), lineNumber, ParseSection_1.ParseSection.getPosition(line, el, 1) + el.length, clearedOfSymbols.value + " is not a boolean", "error", diagnostics_1.CHANGE_TYPE +
+        const clearedOfSymbols = (0, exports.removeExclamation)(textInfo.el.trim());
+        if (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) && globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(clearedOfSymbols.value)) {
+            if (clearedOfSymbols.value !== textInfo.el.trim() &&
+                globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(clearedOfSymbols.value)?.type !== "boolean") {
+                (0, diagnostics_1.addDiagnostic)(textInfo.lineNumber, offset, textInfo.lineNumber, offset + textInfo.el.length, clearedOfSymbols.value + " is not a boolean", "error", diagnostics_1.CHANGE_TYPE +
                     ":" +
                     "boolean" +
                     ":" +
-                    globalParserInfo_1.attributes.get(clearedOfSymbols.value.trim()).line +
+                    globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(clearedOfSymbols.value.trim()).line +
                     ":" +
                     clearedOfSymbols.value);
             }
             else {
                 return [
                     {
-                        offset: ParseSection_1.ParseSection.getPosition(el, clearedOfSymbols.value, 1),
-                        value: clearedOfSymbols.value,
+                        offset: 0,
+                        value: textInfo.el,
                         tokenType: "variable",
-                        nextState: new RegExp("keep\\s*\\(.*\\b" + clearedOfSymbols.value + "\\b.*\\)").test(line) ||
+                        nextState: new RegExp("keep\\s*\\(.*\\b" + clearedOfSymbols.value + "\\b.*\\)").test(textInfo.line) ||
                             clearedOfSymbols.isNextState,
                     },
                 ];
             }
         }
         else {
-            if (globalParserInfo_1.defines.has(el.trim())) {
+            if (globalParserInfo_1.defines.has(textInfo.el.trim())) {
                 return [
                     {
                         offset: 0,
-                        value: el.trim(),
+                        value: textInfo.el,
                         tokenType: "function",
                         nextState: false,
                     },
                 ];
             }
-            else if ((tp = (0, arrayRelations_1.getArrayInStore)((0, arrayRelations_1.getArrayWrittenInfo)(el.trim()).arrayName).type.trim()) !== "") {
+            else if ((tp = (0, arrayRelations_1.getArrayInStore)((0, arrayRelations_1.getArrayWrittenInfo)(textInfo.el.trim()).arrayName).type.trim()) !== "") {
                 if (tp === "boolean") {
-                    return (0, arrayRelations_1.parseArray)(line, lineNumber, el.trim());
+                    return (0, arrayRelations_1.parseArray)(textInfo.line, textInfo.lineNumber, textInfo.el.trim());
                 }
                 else {
-                    const sc = ParseSection_1.ParseSection.getPosition(line, el.trim(), 1);
-                    (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.trim().length, el.trim() + " must be a boolean in order to be alone in the condition", "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + el.trim());
+                    (0, diagnostics_1.addDiagnostic)(textInfo.lineNumber, 0, textInfo.lineNumber, textInfo.el.trim().length, textInfo.el.trim() + " must be a boolean in order to be alone in the condition", "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + textInfo.el.trim());
                     //TODO deal with arrays when they are in the keep tag
-                    return [{ offset: 0, value: el.trim(), tokenType: "regexp", nextState: false }];
+                    return [{ offset: 0, value: textInfo.el, tokenType: "regexp", nextState: false }];
                 }
             }
         }
@@ -834,7 +868,7 @@ const diagnostics_1 = __webpack_require__(3);
 const axiomParser_1 = __webpack_require__(9);
 const globalParserInfo_1 = __webpack_require__(4);
 const ParseSection_1 = __webpack_require__(5);
-const relationParser_1 = __webpack_require__(7);
+const typeFindes_1 = __webpack_require__(20);
 /* From a given attribute declared as an array, get it's name and the number of arguments
 present when the array is being used in an axiom */
 const getArrayWrittenInfo = (arrayUsage) => {
@@ -865,8 +899,8 @@ the dimensions and the type */
 const getArrayInStore = (arrayName) => {
     let numberOfDimensions = 1;
     let type = "";
-    if (globalParserInfo_1.attributes.has(arrayName) && globalParserInfo_1.arrays.has(globalParserInfo_1.attributes.get(arrayName).type)) {
-        let arrayType = globalParserInfo_1.arrays.get(globalParserInfo_1.attributes.get(arrayName).type).type;
+    if (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) && globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(arrayName) && globalParserInfo_1.arrays.has(globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(arrayName).type)) {
+        let arrayType = globalParserInfo_1.arrays.get(globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(arrayName).type).type;
         while (globalParserInfo_1.arrays.has(arrayType)) {
             arrayType = globalParserInfo_1.arrays.get(arrayType).type;
             numberOfDimensions++;
@@ -880,7 +914,7 @@ const assignTokenType = (s) => {
     if (axiomParser_1.temporaryAttributes.map(el => el.value).includes(s)) {
         return "keyword";
     }
-    else if (globalParserInfo_1.attributes.has(s)) {
+    else if (globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(s)) {
         return "variable";
     }
     else if (!isNaN(+s)) {
@@ -891,9 +925,9 @@ const assignTokenType = (s) => {
     }
 };
 const tokenAndDiag = (actionName, elemIndex, lineNumber, offset, s) => {
-    if ((globalParserInfo_1.attributes.has(s) && elemIndex === 0) ||
-        (0, axiomParser_1.findTemporaryType)(s) === "number" ||
-        (globalParserInfo_1.attributes.has(s) && (0, relationParser_1.findValueType)(s) === "number") ||
+    if ((globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(s) && elemIndex === 0) ||
+        (0, typeFindes_1.findTemporaryType)(s) === "number" ||
+        (globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(s) && (0, typeFindes_1.findValueType)(s) === "number") ||
         !isNaN(+s)) {
         return { offset: offset, value: s, tokenType: assignTokenType(s) };
     }
@@ -925,9 +959,9 @@ const parseArray = (line, lineNumber, element) => {
             for (let i = 0; i < separatedArray.length; i++) {
                 const { offset: o, value: v } = separatedArray[i];
                 if (!opRex.test(v)) {
-                    if (globalParserInfo_1.attributes.has(v)) {
-                        const preAtt = globalParserInfo_1.attributes.get(v);
-                        globalParserInfo_1.attributes.set(v, { ...preAtt, used: true });
+                    if (globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(v)) {
+                        const preAtt = globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(v);
+                        globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).set(v, { ...preAtt, used: true });
                     }
                     toRet.push(tokenAndDiag(separatedArray[0].value.trim(), i, lineNumber, o, v));
                 }
@@ -961,30 +995,30 @@ exports.parseArray = parseArray;
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports._parseAxioms = exports.findTemporaryType = exports.temporaryAttributes = exports.triggerAction = void 0;
+exports._parseAxioms = exports.temporaryAttributes = exports.triggerAction = void 0;
 const diagnostics_1 = __webpack_require__(3);
 const globalParserInfo_1 = __webpack_require__(4);
+const includesParser_1 = __webpack_require__(10);
 const ParseSection_1 = __webpack_require__(5);
 const relationParser_1 = __webpack_require__(7);
 exports.triggerAction = [];
 const setOfAttributesAttended = new Set();
 exports.temporaryAttributes = [];
-let afterConditionsOffset = 0;
 const parseConditions = (line, lineNumber) => {
     const toFindTokens = /^.*(?=\s*\<?\-\>\s*\[)/;
     const toSeparateTokens = /(\&|\||\)|\(|\!)/;
     const parseConditionsSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-        afterConditionsOffset = sc + el.length;
         return "cantprint";
     });
     return parseConditionsSection.getTokens(line, lineNumber, 0, true, relationParser_1.compareRelationTokens);
 };
 const parseActionWithArguments = (line, lineNumber, action, numberOfArgs, startingChar) => {
     const rx = /(\)|\(|\,)/;
+    const rx2 = new RegExp(action + "\\(\\s*(\\w*\\s*,?\\s*)*\\)");
     const slicedLine = line.slice(startingChar + action.length);
     const args = slicedLine.slice(0, slicedLine.indexOf(")") + 1);
     const splitedArgs = args.split(rx).filter((el) => !rx.test(el) && el.trim() !== "");
-    if (splitedArgs.length !== numberOfArgs) {
+    if (rx2.test(line) && splitedArgs.length !== numberOfArgs) {
         (0, diagnostics_1.addDiagnostic)(lineNumber, startingChar, lineNumber, startingChar + action.length, action + " doest not have the right amount of arguments", "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + action);
         return false;
     }
@@ -992,52 +1026,60 @@ const parseActionWithArguments = (line, lineNumber, action, numberOfArgs, starti
         return true;
     }
 };
-const findTemporaryType = (s) => {
-    let ta = undefined;
-    for (let i = 0; i < exports.temporaryAttributes.length; i++) {
-        if (exports.temporaryAttributes[i].value === s) {
-            const args = globalParserInfo_1.actions.get(exports.temporaryAttributes[i].action).arguments;
-            ta = args[exports.temporaryAttributes[i].index];
-            console.log(ta);
-            if (globalParserInfo_1.ranges.has(ta) || globalParserInfo_1.attributes.has(ta) && globalParserInfo_1.attributes.get(ta).type === "number") {
-                return "number";
-            }
-            else {
-                return "ta";
-            }
-        }
+const parseTemporaryArgument = (lineNumber, sc, el, currentAction, actionArgumentIndex) => {
+    const correctType = globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).get(currentAction).arguments[actionArgumentIndex];
+    if (el.charAt(0) === "_") {
+        exports.temporaryAttributes.push({ action: currentAction, value: el, index: actionArgumentIndex });
+        return "keyword";
     }
-    return undefined;
+    else if (globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(el.trim()) &&
+        globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(el.trim()).type === correctType) {
+        return "variable";
+    }
+    else {
+        (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " needs to start with an underscore (_) or be an attribute with type " + correctType, "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + el);
+        return "regexp";
+    }
 };
-exports.findTemporaryType = findTemporaryType;
 const parseTriggerAction = (line, lineNumber) => {
     let numberOfArgumentsInAction = 0;
     let actionArgumentIndex = 0;
     let currentAction = "";
+    let isIncluded = false;
+    let includedInteractor = "";
+    let actionsInIncluded;
     const toFindTokens = /((\<?\s*\-\>\s*)|^\s*)\[[^\[]+\]/;
-    const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\]|\,)/;
+    const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\]|\,|\.)/;
     const parseTriggerActions = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-        if (numberOfArgumentsInAction > 0) {
-            const correctType = globalParserInfo_1.actions.get(currentAction).arguments[actionArgumentIndex];
-            numberOfArgumentsInAction--;
-            actionArgumentIndex++;
-            if (el.charAt(0) === "_") {
-                exports.temporaryAttributes.push({ action: currentAction, value: el, index: actionArgumentIndex - 1 });
-                return "keyword";
-            }
-            else if (globalParserInfo_1.attributes.has(el.trim()) &&
-                globalParserInfo_1.attributes.get(el.trim()).type ===
-                    correctType) {
-                console.log(globalParserInfo_1.actions);
+        if (isIncluded) {
+            if ((0, includesParser_1.isIncludedDinamically)(includedInteractor, el.trim())) {
+                includedInteractor = globalParserInfo_1.aggregates.get(el.trim()).included;
+                actionsInIncluded = globalParserInfo_1.actions.get(includedInteractor);
                 return "variable";
             }
-            else {
-                (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " needs to start with an underscore (_) or be an attribute with type " + correctType, "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + el);
-                return "regexp";
+            isIncluded = false;
+            if (actionsInIncluded.has(el.trim())) {
+                currentAction = el.trim();
+                exports.triggerAction.push(includedInteractor + ":" + el.trim());
+                return "function";
             }
+            (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is not an action from " + includedInteractor, "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + el);
+            return "regexp";
         }
-        else if (globalParserInfo_1.actions.has(el)) {
-            const prevAction = globalParserInfo_1.actions.get(el);
+        else if (numberOfArgumentsInAction > 0) {
+            numberOfArgumentsInAction--;
+            const toRet = parseTemporaryArgument(lineNumber, sc, el, currentAction, actionArgumentIndex);
+            actionArgumentIndex++;
+            return toRet;
+        }
+        else if (globalParserInfo_1.aggregates.has(el.trim()) && globalParserInfo_1.aggregates.get(el.trim()).current === globalParserInfo_1.currentInteractor) {
+            isIncluded = true;
+            includedInteractor = globalParserInfo_1.aggregates.get(el.trim()).included;
+            actionsInIncluded = globalParserInfo_1.actions.get(includedInteractor);
+            return "variable";
+        }
+        else if (globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).has(el.trim())) {
+            const prevAction = globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).get(el.trim());
             if (!parseActionWithArguments(line, lineNumber, el, prevAction.arguments.length, sc)) {
                 return "regexp";
             }
@@ -1045,38 +1087,22 @@ const parseTriggerAction = (line, lineNumber) => {
                 numberOfArgumentsInAction = prevAction.arguments.length;
             }
             currentAction = el.trim();
-            exports.triggerAction.push(el);
-            globalParserInfo_1.actions.set(el, { used: true, line: prevAction.line, arguments: prevAction.arguments });
+            exports.triggerAction.push(currentAction);
+            globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).set(currentAction, { ...prevAction, used: true });
             return "function";
         }
         else {
             (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error", diagnostics_1.DECLARE_ACTION + ":" + el);
-            return "variable";
+            return "regexp";
         }
     });
     return parseTriggerActions.getTokens(line, lineNumber, line.search(toFindTokens));
 };
-const parsePer = (line, lineNumber) => {
-    const toFindTokens = /(?<=^\s*per\s*\().+(?=\))/;
-    const toSeparateTokens = /(\(|\)|\||\&|\!)/;
-    const parsePers = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-        if (globalParserInfo_1.actions.has(el)) {
-            const prevAction = globalParserInfo_1.actions.get(el);
-            globalParserInfo_1.actions.set(el, { used: true, line: prevAction.line, arguments: prevAction.arguments });
-            return "function";
-        }
-        else {
-            (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error", diagnostics_1.DECLARE_ACTION + ":" + el);
-            return "variable";
-        }
-    });
-    return parsePers.getTokens(line, lineNumber, 0);
-};
 const parseNextState = (line, lineNumber) => {
-    const toFindTokens = /(?<=((?<=(\-\s*\>.*|^\s*\[.*))\]|^per\s*\(.*\)\s*\<?\-\>)).*/;
+    const toFindTokens = /(?<=((?<=(\-\s*\>.*|^\s*\[.*))\]|^\s*per\s*\(.*\)\s*\<?\-\>)).*/;
     const toSeparateTokens = /(\&|\||\)|\(|\,)/;
     let isInKeep = false;
-    const parseConditionsSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
+    const parseNextStateSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         const isNextState = el.split(":")[1] === "true";
         if (el.split(":")[0] === "keep") {
             isInKeep = true;
@@ -1087,25 +1113,13 @@ const parseNextState = (line, lineNumber) => {
         }
         return "cantprint";
     });
-    const perRegex = /^\s*per\s*\(\s*\w*\s*\)\s*\-\s*\>/;
-    const startBySquareBrackets = afterConditionsOffset + line.slice(afterConditionsOffset).indexOf("]");
-    const correctOffset = startBySquareBrackets > 0
-        ? startBySquareBrackets
-        : line.match(perRegex) !== null
-            ? line.match(perRegex)[0].length
-            : 0;
-    return parseConditionsSection.getTokens(line, lineNumber, correctOffset, true, relationParser_1.compareRelationTokens);
+    return parseNextStateSection.getTokens(line, lineNumber, 0, true, relationParser_1.compareRelationTokens);
 };
 const _parseAxioms = (line, lineNumber) => {
     let currentOffset = 0;
     let toRetTokens = [];
     let size = 0;
-    const sectionsToParseParsers = [
-        parseTriggerAction,
-        parseConditions,
-        parsePer,
-        parseNextState,
-    ];
+    const sectionsToParseParsers = [parseTriggerAction, parseConditions, parseNextState];
     const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
     exports.triggerAction = [];
     setOfAttributesAttended.clear();
@@ -1118,10 +1132,15 @@ const _parseAxioms = (line, lineNumber) => {
         }
         if (setOfAttributesAttended.size > 0) {
             for (let act of exports.triggerAction) {
-                if (!globalParserInfo_1.actionsToAttributes.has(act)) {
-                    globalParserInfo_1.actionsToAttributes.set(act, new Set());
+                if (!globalParserInfo_1.actionsToAttributes.has(globalParserInfo_1.currentInteractor)) {
+                    globalParserInfo_1.actionsToAttributes.set(globalParserInfo_1.currentInteractor, new Map());
                 }
-                globalParserInfo_1.actionsToAttributes.set(act, new Set([...globalParserInfo_1.actionsToAttributes.get(act), ...setOfAttributesAttended]));
+                if (!globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).has(act)) {
+                    globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).set(act, new Set());
+                }
+                globalParserInfo_1.actionsToAttributes
+                    .get(globalParserInfo_1.currentInteractor)
+                    .set(act, new Set([...globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).get(act), ...setOfAttributesAttended]));
             }
         }
     }
@@ -1137,6 +1156,219 @@ exports._parseAxioms = _parseAxioms;
 
 /***/ }),
 /* 10 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports._parseIncludes = exports.isIncludedDinamically = exports.parseAggregatesValue = void 0;
+const diagnostics_1 = __webpack_require__(3);
+const globalParserInfo_1 = __webpack_require__(4);
+const ParseSection_1 = __webpack_require__(5);
+const relationParser_1 = __webpack_require__(7);
+const parseAggregatesValue = (textInfo, offset, val) => {
+    let offsetPoints = 0;
+    const splitByPoints = val.value
+        .split(/(\.)/)
+        .map((el) => {
+        offsetPoints += el.length;
+        return { value: el, offset: offsetPoints - el.length };
+    })
+        .filter((el) => el.value.trim() !== "" && !el.value.includes("."));
+    let current = globalParserInfo_1.currentInteractor;
+    const toks = [];
+    let typeToRet = "";
+    if (splitByPoints.length > 1) {
+        for (let x of splitByPoints) {
+            const xt = x.value.trim();
+            if (globalParserInfo_1.aggregates.has(xt) && globalParserInfo_1.aggregates.get(xt).current === current) {
+                current = globalParserInfo_1.aggregates.get(xt).included;
+                toks.push({ offset: x.offset, value: x.value, tokenType: "variable" });
+            }
+            else if (globalParserInfo_1.attributes.has(current) && globalParserInfo_1.attributes.get(current).has((0, relationParser_1.removeExclamation)(xt).value)) {
+                toks.push({ offset: x.offset, value: x.value, tokenType: "variable" });
+                typeToRet = globalParserInfo_1.attributes.get(current).get((0, relationParser_1.removeExclamation)(xt).value).type;
+                break;
+            }
+            else {
+                (0, diagnostics_1.addDiagnostic)(textInfo.lineNumber, offset + x.offset, textInfo.lineNumber, offset + x.offset + x.value.length, xt + " is not aggregated", "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + xt);
+                toks.push({ offset: x.offset, value: x.value, tokenType: "regexp" });
+                typeToRet = undefined;
+                break;
+            }
+        }
+        return { tokens: toks, type: typeToRet };
+    }
+    return undefined;
+};
+exports.parseAggregatesValue = parseAggregatesValue;
+const isIncludedDinamically = (interactorToCheck, includedToCheck) => {
+    let current = includedToCheck;
+    let interactor = interactorToCheck;
+    if (globalParserInfo_1.aggregates.has(current) && globalParserInfo_1.aggregates.get(current).current === interactor) {
+        return true;
+    }
+    else {
+        return false;
+    }
+};
+exports.isIncludedDinamically = isIncludedDinamically;
+const parseInclude = (line, lineNumber) => {
+    let elIndex = 0;
+    let intName = "";
+    const toFindTokens = /^\s*[a-zA-Z]+\w*\s+via\s+[a-zA-Z]+\w*/;
+    const toSeparateTokens = /(\s|via)/;
+    const parseConditionsSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
+        if (elIndex === 0) {
+            intName = el.trim();
+            elIndex++;
+            return "macro";
+        }
+        else {
+            globalParserInfo_1.aggregates.set(el.trim(), { current: globalParserInfo_1.currentInteractor, included: intName });
+            return "variable";
+        }
+    });
+    return parseConditionsSection.getTokens(line, lineNumber, 0);
+};
+const _parseIncludes = (line, lineNumber) => {
+    let currentOffset = 0;
+    let toRetTokens = [];
+    let size = 0;
+    const sectionsToParseParsers = [parseInclude];
+    const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
+    for (const parser of sectionsToParseParsers) {
+        const matchedPiece = parser(lineWithoutComments, lineNumber);
+        if (matchedPiece && matchedPiece.size > 0) {
+            toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
+            size += matchedPiece.size;
+            currentOffset += matchedPiece.size;
+        }
+    }
+    if (size === 0) {
+        return undefined;
+    }
+    else {
+        return { tokens: toRetTokens, size: size };
+    }
+};
+exports._parseIncludes = _parseIncludes;
+
+
+/***/ }),
+/* 11 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.isAttributeSameTypeAsValue = exports.isAttributeNotDefined = exports.isUsedAsAnArrayButIsNot = exports.isValueInvalid = exports.processErrors = void 0;
+const diagnostics_1 = __webpack_require__(3);
+const arrayRelations_1 = __webpack_require__(8);
+const axiomParser_1 = __webpack_require__(9);
+const globalParserInfo_1 = __webpack_require__(4);
+const includesParser_1 = __webpack_require__(10);
+const relationParser_1 = __webpack_require__(7);
+const typeFindes_1 = __webpack_require__(20);
+const hasSquareBrackets = (s) => {
+    return s.includes("]") || s.includes("[");
+};
+const attributeExists = (textInfo, offset, att) => {
+    const attvt = (0, relationParser_1.removeExclamation)(att.value.trim()).value;
+    return ((globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) && globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(attvt)) ||
+        (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) &&
+            globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has((0, arrayRelations_1.getArrayWrittenInfo)(attvt).arrayName)) ||
+        axiomParser_1.temporaryAttributes.map((el) => el.value).includes(attvt) ||
+        ((0, includesParser_1.parseAggregatesValue)(textInfo, offset, att) !== undefined &&
+            (0, includesParser_1.parseAggregatesValue)(textInfo, offset, att).type !== undefined));
+};
+const processErrors = (textInfo, offset, att, val, exceptionsErrors) => {
+    for (let parseError of exceptionsErrors) {
+        let errorFound;
+        if ((errorFound = parseError(textInfo, offset, att, val))) {
+            return errorFound;
+        }
+    }
+    return undefined;
+};
+exports.processErrors = processErrors;
+const isValueInvalid = (textInfo, offset, att, val) => {
+    const valt = (0, relationParser_1.removeExclamation)(val.value.trim()).value;
+    if (valt !== "" && (0, typeFindes_1.findValueType)(valt) === undefined) {
+        return (0, diagnostics_1.addDiagnosticToRelation)("val", textInfo, att.value, val.value, valt + " is not a valid value", "error", att.offset, val.offset, offset, diagnostics_1.NOT_YET_IMPLEMENTED + ":" + textInfo.lineNumber);
+    }
+    return undefined;
+};
+exports.isValueInvalid = isValueInvalid;
+const isUsedAsAnArrayButIsNot = (textInfo, offset, att, val) => {
+    const attt = (0, relationParser_1.removeExclamation)(att.value.trim()).value;
+    const valt = (0, relationParser_1.removeExclamation)(val.value.trim()).value;
+    let isAtt;
+    if ((isAtt =
+        (hasSquareBrackets(attt) && (0, arrayRelations_1.isDeclaredButIsNotAnArray)(attt)) ||
+            (hasSquareBrackets(valt) && (0, arrayRelations_1.isDeclaredButIsNotAnArray)(valt)))) {
+        return (0, diagnostics_1.addDiagnosticToRelation)(isAtt ? "att" : "val", textInfo, att.value, val.value, (isAtt ? attt : valt) + " is not an array", "error", att.offset, val.offset, offset, diagnostics_1.NOT_YET_IMPLEMENTED + ":" + textInfo.lineNumber);
+    }
+    return undefined;
+};
+exports.isUsedAsAnArrayButIsNot = isUsedAsAnArrayButIsNot;
+const isAttributeNotDefined = (textInfo, offset, att, val) => {
+    const attt = (0, relationParser_1.removeExclamation)(att.value.trim()).value;
+    const valt = (0, relationParser_1.removeExclamation)(val.value.trim()).value;
+    //check if the attribute exists in the already processed attributes
+    if (!attributeExists(textInfo, offset, att)) {
+        return (0, diagnostics_1.addDiagnosticToRelation)("att", textInfo, att.value, val.value, attt + " is not defined", "error", att.offset, val.offset, offset, diagnostics_1.DEFINE_ATTRIBUTE + ":" + (0, typeFindes_1.findValueType)(valt) + ":" + attt);
+    }
+    else {
+        return undefined;
+    }
+};
+exports.isAttributeNotDefined = isAttributeNotDefined;
+const getLineWhereAttIsDefined = (att) => {
+    if (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) && globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(att)) {
+        return { value: att, line: globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(att).line };
+    }
+    else if (att.includes(".")) {
+        const sPoints = att.split(".");
+        let current = globalParserInfo_1.currentInteractor;
+        for (let i = 0; i < sPoints.length; i++) {
+            const tsp = sPoints[i].trim();
+            if (globalParserInfo_1.aggregates.has(tsp) && globalParserInfo_1.aggregates.get(tsp).current === current) {
+                current = globalParserInfo_1.aggregates.get(tsp).included;
+            }
+            else if (globalParserInfo_1.attributes.has(current) && globalParserInfo_1.attributes.get(current).has(tsp)) {
+                return { value: tsp, line: globalParserInfo_1.attributes.get(current).get(tsp).line };
+            }
+        }
+    }
+    else {
+        return undefined;
+    }
+};
+const isAttributeSameTypeAsValue = (textInfo, offset, att, val) => {
+    const { value: valt } = (0, relationParser_1.removeExclamation)(val.value.trim());
+    const { value: attt } = (0, relationParser_1.removeExclamation)(att.value.trim());
+    if (valt !== "" && attt !== "" && !(0, typeFindes_1.isAttributeSameAsValue)(attt, valt)) {
+        let attForGet = attt;
+        if (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) && !globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(attt)) {
+            attForGet = (0, arrayRelations_1.getArrayWrittenInfo)(attt).arrayName;
+        }
+        const { value: attValue, line: lineN } = getLineWhereAttIsDefined(attt);
+        return (0, diagnostics_1.addDiagnosticToRelation)("att", textInfo, att.value, val.value, attt + " is not of type " + (0, typeFindes_1.findValueType)(valt), "warning", att.offset, val.offset, offset, diagnostics_1.CHANGE_TYPE +
+            ":" +
+            (0, typeFindes_1.findValueType)(valt) +
+            ":" +
+            lineN +
+            ":" +
+            attValue);
+    }
+    else {
+        return undefined;
+    }
+};
+exports.isAttributeSameTypeAsValue = isAttributeSameTypeAsValue;
+
+
+/***/ }),
+/* 12 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
@@ -1167,20 +1399,21 @@ exports.commandHandler = commandHandler;
 
 
 /***/ }),
-/* 11 */
+/* 13 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports._parseText = void 0;
 const axiomParser_1 = __webpack_require__(9);
-const definesParser_1 = __webpack_require__(12);
+const definesParser_1 = __webpack_require__(14);
 const globalParserInfo_1 = __webpack_require__(4);
 const diagnostics_1 = __webpack_require__(3);
-const typesParser_1 = __webpack_require__(13);
-const actionsParser_1 = __webpack_require__(14);
-const attributesParser_1 = __webpack_require__(15);
-const checkIfUsed_1 = __webpack_require__(16);
+const typesParser_1 = __webpack_require__(15);
+const actionsParser_1 = __webpack_require__(16);
+const attributesParser_1 = __webpack_require__(17);
+const checkIfUsed_1 = __webpack_require__(18);
+const includesParser_1 = __webpack_require__(10);
 /* Simple method to check if a line is an expression or a simple line,
  by checking if it is a number,true or false */
 const isNotAnExpression = (line) => {
@@ -1327,6 +1560,13 @@ function _parseText(text) {
                                 break;
                             }
                             break;
+                        case "aggregates":
+                            if ((currentOffset = parseSpecificPart(includesParser_1._parseIncludes, r, line, i, currentOffset))) {
+                            }
+                            else {
+                                break;
+                            }
+                            break;
                         default: break;
                     }
                     break;
@@ -1341,7 +1581,7 @@ exports._parseText = _parseText;
 
 
 /***/ }),
-/* 12 */
+/* 14 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
@@ -1370,7 +1610,7 @@ const parseDefinesBeforeValue = (line, lineNumber) => {
     const beforeEquals = line.slice(0, line.indexOf("="));
     const afterEquals = line.slice(line.indexOf("=") + 1, line.length);
     if (globalParserInfo_1.defines.has(beforeEquals.trim())) {
-        const retFromDiag = (0, diagnostics_1.addDiagnosticToRelation)("att", line, lineNumber, line, beforeEquals.trim(), afterEquals.trim(), beforeEquals.trim() + " is already defined!", "warning", 0, diagnostics_1.ALREADY_DEFINED + ":" + lineNumber + ":" + beforeEquals.trim());
+        const retFromDiag = (0, diagnostics_1.addDiagnosticToRelation)("att", { line: line, lineNumber: lineNumber, el: line }, beforeEquals, afterEquals, beforeEquals.trim() + " is already defined!", "warning", 0, line.indexOf("=") + 1, 0, diagnostics_1.ALREADY_DEFINED + ":" + lineNumber + ":" + beforeEquals.trim());
         return parseTokensForITokens(retFromDiag, lineNumber, line);
     }
     else {
@@ -1427,7 +1667,7 @@ exports._parseDefines = _parseDefines;
 
 
 /***/ }),
-/* 13 */
+/* 15 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
@@ -1475,8 +1715,7 @@ const parseArray = (line, lineNumber) => {
                     return "type";
                 }
                 else {
-                    const stc = ParseSection_1.ParseSection.getPosition(line, arrayType, 1);
-                    (0, diagnostics_1.addDiagnostic)(lineNumber, stc, lineNumber, stc + arrayType.length, "error", arrayType + " is not a valid type", diagnostics_1.NOT_YET_IMPLEMENTED);
+                    (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, "error", arrayType + " is not a valid type", diagnostics_1.NOT_YET_IMPLEMENTED);
                 }
         }
         return "cantprint";
@@ -1502,21 +1741,22 @@ const parseEnumTypes = (line, lineNumber) => {
     let elementIndex = 0;
     let typeName = "";
     const parseEnums = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
+        const et = el.trim();
         if (elementIndex === 0) {
             elementIndex++;
-            if (globalParserInfo_1.enums.has(el) || globalParserInfo_1.ranges.has(el)) {
-                (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is already declared", "warning", diagnostics_1.ALREADY_DEFINED + ":" + lineNumber + ":" + el.trim());
+            if (globalParserInfo_1.enums.has(et) || globalParserInfo_1.ranges.has(et)) {
+                (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, et + " is already declared", "warning", diagnostics_1.ALREADY_DEFINED + ":" + lineNumber + ":" + et);
                 return "function";
             }
             else {
-                typeName = el;
-                globalParserInfo_1.enums.set(el, { used: false, values: [] });
+                typeName = et;
+                globalParserInfo_1.enums.set(et, { used: false, values: [] });
                 return "enum";
             }
         }
         else {
             elementIndex++;
-            globalParserInfo_1.enums.get(typeName)?.values.push(el);
+            globalParserInfo_1.enums.get(typeName)?.values.push(et);
             return "macro";
         }
     });
@@ -1549,7 +1789,7 @@ exports._parseTypes = _parseTypes;
 
 
 /***/ }),
-/* 14 */
+/* 16 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
@@ -1574,26 +1814,27 @@ const parseVis = (line, lineNumber, currentOffset) => {
     the current line to search only after the index of currentOffset as well as being aware
     of what offset previously existed to determine the start character of the tokens in the whole line
     and not only in the sliced one */
-    return parseActionSection.getTokens(line, lineNumber, currentOffset);
+    return parseActionSection.getTokens(line, lineNumber, 0);
 };
 /* Very similar to the method above, where only the findTokens expression is changed as well as the
 tokens to separate the main match. */
 const parseAction = (line, lineNumber, currentOffset) => {
     let indexOfElement = 0;
-    const toFindTokens = /\s*[A-Za-z]+\w*\s*(\(((\s*\w+\s*),?)+\))?/;
+    const toFindTokens = /(?<=(\]\s*|^\s*))(?<!\[)\s*[A-Za-z]+\w*\s*(\(((\s*\w+\s*),?)+\))?(?!\])/;
     const toSeparateTokens = /(\&|\||\)|\(|\,)/;
     let actionName = "";
     const actionArguments = [];
     const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         if (indexOfElement === 0) {
             // if an element is found, add it to the actions map and return function as the token type
-            if (globalParserInfo_1.actions.has(el.trim())) {
-                (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.trim().length, el.trim() + " is already defined", "error", diagnostics_1.ALREADY_DEFINED + ":" + lineNumber + ":" + el.trim());
+            if (globalParserInfo_1.actions.has(globalParserInfo_1.currentInteractor) && globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).has(el.trim())) {
+                (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el.trim() + " is already defined", "error", diagnostics_1.ALREADY_DEFINED + ":" + lineNumber + ":" + el.trim());
                 indexOfElement++;
                 return "regexp";
             }
             else {
-                globalParserInfo_1.actionsToAttributes.set(el.trim(), new Set());
+                globalParserInfo_1.actionsToAttributes.set(globalParserInfo_1.currentInteractor, new Map());
+                globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).set(el.trim(), new Set());
                 actionName = el.trim();
                 indexOfElement++;
                 return "function";
@@ -1602,19 +1843,21 @@ const parseAction = (line, lineNumber, currentOffset) => {
         else {
             indexOfElement++;
             const et = el.trim();
-            const stc = ParseSection_1.ParseSection.getPosition(line, et, 1);
             if (globalParserInfo_1.enums.has(et) || globalParserInfo_1.ranges.has(et) || globalParserInfo_1.arrays.has(et) || et === "boolean" || et === "number") {
                 actionArguments.push(et);
                 return "type";
             }
             else {
-                (0, diagnostics_1.addDiagnostic)(lineNumber, stc, lineNumber, stc + et.length, et + " is not a valid type", "error", diagnostics_1.NOT_YET_IMPLEMENTED);
+                (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, et + " is not a valid type", "error", diagnostics_1.NOT_YET_IMPLEMENTED);
                 return "regexp";
             }
         }
     });
-    const toReturnParseAction = parseActionSection.getTokens(line, lineNumber, currentOffset);
-    globalParserInfo_1.actions.set(actionName, { used: false, line: lineNumber, arguments: actionArguments });
+    const toReturnParseAction = parseActionSection.getTokens(line, lineNumber, 0);
+    if (!globalParserInfo_1.actions.has(globalParserInfo_1.currentInteractor)) {
+        globalParserInfo_1.actions.set(globalParserInfo_1.currentInteractor, new Map());
+    }
+    globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).set(actionName, { used: false, line: lineNumber, arguments: actionArguments });
     return toReturnParseAction;
 };
 const _parseActions = (line, lineNumber) => {
@@ -1649,7 +1892,7 @@ exports._parseActions = _parseActions;
 
 
 /***/ }),
-/* 15 */
+/* 17 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
@@ -1664,7 +1907,7 @@ const parseAttribute = (line, lineNumber, currentOffset) => {
     const toSeparateTokens = /(\,)/;
     const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         // if an element is found, add it to the actions map and return function as the token type
-        if (globalParserInfo_1.attributes.has(el.trim())) {
+        if (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) && globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(el.trim())) {
             (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.trim().length, el.trim() + " is already defined", "error", diagnostics_1.ALREADY_DEFINED + ":" + lineNumber + ":" + el.trim());
             return "regexp";
         }
@@ -1689,7 +1932,10 @@ const parseType = (line, lineNumber, currentOffset) => {
     const parseActionSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         const type = el.trim();
         for (let att of attributesInLine) {
-            globalParserInfo_1.attributes.set(att, { used: false, type: type, line: lineNumber, alone: attributesInLine.length === 1 });
+            if (!globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor)) {
+                globalParserInfo_1.attributes.set(globalParserInfo_1.currentInteractor, new Map());
+            }
+            globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).set(att, { used: false, type: type, line: lineNumber, alone: attributesInLine.length === 1 });
         }
         attributesInLine = [];
         return "type";
@@ -1732,7 +1978,7 @@ exports._parseAttributes = _parseAttributes;
 
 
 /***/ }),
-/* 16 */
+/* 18 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
@@ -1749,18 +1995,24 @@ const notUsed = (lines, variable, info) => {
     }
 };
 const checkIfUsed = (lines) => {
-    for (let x of globalParserInfo_1.actions) {
-        notUsed(lines, x[0], { used: x[1].used, line: x[1].line });
-    }
-    for (let x of globalParserInfo_1.attributes) {
-        notUsed(lines, x[0], { used: x[1].used, line: x[1].line });
+    for (let y of globalParserInfo_1.interactorLimits) {
+        if (globalParserInfo_1.actions.has(y[0])) {
+            for (let x of globalParserInfo_1.actions.get(y[0])) {
+                notUsed(lines, x[0], { used: x[1].used, line: x[1].line });
+            }
+        }
+        if (globalParserInfo_1.attributes.has(y[0])) {
+            for (let x of globalParserInfo_1.attributes.get(y[0])) {
+                notUsed(lines, x[0], { used: x[1].used, line: x[1].line });
+            }
+        }
     }
 };
 exports.checkIfUsed = checkIfUsed;
 
 
 /***/ }),
-/* 17 */
+/* 19 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
@@ -1849,6 +2101,130 @@ function getNonce() {
     }
     return text;
 }
+
+
+/***/ }),
+/* 20 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.isAttributeSameAsValue = exports.findValueType = exports.findTemporaryType = exports.findAggregatedValueType = void 0;
+const arrayRelations_1 = __webpack_require__(8);
+const axiomParser_1 = __webpack_require__(9);
+const globalParserInfo_1 = __webpack_require__(4);
+const findAggregatedValueType = (s) => {
+    let offsetPoints = 0;
+    const splitByPoints = s
+        .split(/(\.)/)
+        .map((el) => {
+        offsetPoints += el.length;
+        return { value: el, offset: offsetPoints - el.length };
+    })
+        .filter((el) => el.value.trim() !== "" && !el.value.includes("."));
+    let current = globalParserInfo_1.currentInteractor;
+    let typeToRet = "";
+    if (splitByPoints.length > 1) {
+        for (let x of splitByPoints) {
+            const xt = x.value.trim();
+            if (globalParserInfo_1.aggregates.has(xt) && globalParserInfo_1.aggregates.get(xt).current === current) {
+                current = globalParserInfo_1.aggregates.get(xt).included;
+            }
+            else if (globalParserInfo_1.attributes.has(current) && globalParserInfo_1.attributes.get(current).has(xt)) {
+                typeToRet = globalParserInfo_1.attributes.get(current).get(xt).type;
+                break;
+            }
+            else {
+                typeToRet = undefined;
+                break;
+            }
+        }
+        return typeToRet;
+    }
+    return undefined;
+};
+exports.findAggregatedValueType = findAggregatedValueType;
+const findTemporaryType = (s) => {
+    let ta = undefined;
+    for (let i = 0; i < axiomParser_1.temporaryAttributes.length; i++) {
+        if (axiomParser_1.temporaryAttributes[i].value === s) {
+            const args = globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).get(axiomParser_1.temporaryAttributes[i].action).arguments;
+            ta = args[axiomParser_1.temporaryAttributes[i].index];
+            if (globalParserInfo_1.ranges.has(ta) ||
+                (globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(ta) && globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(ta).type === "number")) {
+                return "number";
+            }
+            else {
+                return ta;
+            }
+        }
+    }
+    return undefined;
+};
+exports.findTemporaryType = findTemporaryType;
+const findValueType = (value) => {
+    const correctValue = value[value.length - 1] === "'" ? value.slice(0, value.length - 1) : value;
+    if (value === "true" || value === "false") {
+        return "boolean";
+    }
+    else if (!isNaN(+value) && value !== "") {
+        // check if value is a number
+        return "number";
+    }
+    else if (globalParserInfo_1.defines.has(value)) {
+        return globalParserInfo_1.defines.get(value).type;
+    }
+    else if (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) &&
+        globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(value) &&
+        globalParserInfo_1.ranges.has(globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(value).type)) {
+        return "number";
+    }
+    else if (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) && globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(correctValue)) {
+        return globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(correctValue).type;
+    }
+    else {
+        for (var [k, v] of globalParserInfo_1.enums) {
+            if (v.values.includes(value)) {
+                return k;
+            }
+        }
+    }
+    return (0, exports.findTemporaryType)(value.trim());
+};
+exports.findValueType = findValueType;
+const isAttributeSameAsValue = (attribute, value) => {
+    if (attribute.includes(".")) {
+        const aggAttType = (0, exports.findAggregatedValueType)(attribute);
+        let aggValType;
+        if (value.includes(".")) {
+            aggValType = (0, exports.findAggregatedValueType)(value);
+        }
+        else {
+            aggValType = (0, exports.findValueType)(value);
+        }
+        if (aggAttType && aggValType) {
+            return aggAttType === aggValType;
+        }
+        else {
+            return false;
+        }
+    }
+    else if (attribute.charAt(0) === "_") {
+        return (axiomParser_1.temporaryAttributes.map((el) => el.value).includes(attribute) && (0, exports.findValueType)(attribute) === (0, exports.findValueType)(value));
+    }
+    else if (attribute.includes("]") || attribute.includes("[")) {
+        const { arrayName } = (0, arrayRelations_1.getArrayWrittenInfo)(attribute);
+        const { type } = (0, arrayRelations_1.getArrayInStore)(arrayName);
+        return type === (0, exports.findValueType)(value);
+    }
+    else {
+        return (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) &&
+            globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(attribute) &&
+            (globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(attribute).type === (0, exports.findValueType)(value) ||
+                (globalParserInfo_1.ranges.has(globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(attribute).type) && (0, exports.findValueType)(value) === "number")));
+    }
+};
+exports.isAttributeSameAsValue = isAttributeSameAsValue;
 
 
 /***/ })

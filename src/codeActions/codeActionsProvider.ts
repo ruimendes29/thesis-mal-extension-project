@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { ALREADY_DEFINED, CHANGE_TYPE, DECLARE_ACTION, DEFINE_ATTRIBUTE } from "../diagnostics/diagnostics";
-import { actionsStartingLine, attributes, attributesStartingLine } from "../parsers/globalParserInfo";
+import { actionsStartingLine, attributes, attributesStartingLine, getInteractorByLine } from "../parsers/globalParserInfo";
 import { ParseSection } from "../parsers/ParseSection";
 
 const COMMAND = "mal.command";
@@ -67,7 +67,7 @@ export class Emojinfo implements vscode.CodeActionProvider {
     fix.edit = new vscode.WorkspaceEdit();
     const line = document.lineAt(lineToFix).text;
     const characterOfType = line.indexOf(":") + 2;
-    if (attributes.get(attribute)!.alone) {
+    if (attributes.get(getInteractorByLine(lineToFix))!.get(attribute)!.alone) {
       const oldTypeRange = new vscode.Range(
         new vscode.Position(lineToFix, characterOfType),
         new vscode.Position(lineToFix, line.indexOf("#") > 0 ? line.indexOf("#") : line.length)

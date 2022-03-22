@@ -66,41 +66,43 @@ export const addDiagnostic = (
   if any given axiom */
 export const addDiagnosticToRelation = (
   type: string,
-  line: string,
-  lineNumber: number,
-  fullCondition: string,
+  textInfo: { line: string; lineNumber: number; el: string },
   attribute: string,
   value: string,
   message: string,
   severity: string,
-  offset: number,
+  attOffset: number,
+  valOffset: number,
+  errorOffset: number,
   code: string
 ) => {
   let stringToCompare = "";
+  let offsetToCompare=0;
   if (type === "att") {
     stringToCompare = attribute;
+    offsetToCompare=attOffset;
   } else if (type === "val") {
     stringToCompare = value;
+    offsetToCompare=valOffset;
   }
-  const correctOffset = line.indexOf(fullCondition) + fullCondition.indexOf(stringToCompare) + offset;
   addDiagnostic(
-    lineNumber,
-    correctOffset,
-    lineNumber,
-    correctOffset+stringToCompare.length,
+    textInfo.lineNumber,
+    errorOffset+offsetToCompare,
+    textInfo.lineNumber,
+    errorOffset +offsetToCompare+ stringToCompare.length,
     message,
     severity,
     code
   );
-  const scOfValue = fullCondition.indexOf(attribute) + attribute.length;
+  const scOfValue = textInfo.el.indexOf(attribute) + attribute.length;
   return [
     {
-      offset: fullCondition.indexOf(attribute),
+      offset: attOffset,
       value: attribute,
       tokenType: stringToCompare === attribute ? "regexp" : "variable",
     },
     {
-      offset:  scOfValue+ fullCondition.slice(scOfValue).indexOf(value),
+      offset: valOffset,
       value: value,
       tokenType: stringToCompare === value ? "regexp" : "macro",
     },
