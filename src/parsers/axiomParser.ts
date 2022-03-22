@@ -65,7 +65,6 @@ const parseTemporaryArgument = (
   actionArgumentIndex: number,
   interactor:string
 ): string => {
-  console.log(currentAction);
   const correctType = actions.get(interactor)!.get(currentAction)!.arguments[actionArgumentIndex];
   if (el.charAt(0) === "_") {
     temporaryAttributes.push({ action: currentAction, value: el, index: actionArgumentIndex });

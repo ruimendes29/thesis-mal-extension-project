@@ -892,7 +892,6 @@ const parseActionWithArguments = (line, lineNumber, action, numberOfArgs, starti
     }
 };
 const parseTemporaryArgument = (lineNumber, sc, el, currentAction, actionArgumentIndex, interactor) => {
-    console.log(currentAction);
     const correctType = globalParserInfo_1.actions.get(interactor).get(currentAction).arguments[actionArgumentIndex];
     if (el.charAt(0) === "_") {
         exports.temporaryAttributes.push({ action: currentAction, value: el, index: actionArgumentIndex });
@@ -1056,14 +1055,16 @@ const parseAggregatesValue = (textInfo, offset, val) => {
     let current = globalParserInfo_1.currentInteractor;
     const toks = [];
     let typeToRet = "";
+    let i = 0;
     if (splitByPoints.length > 1) {
         for (let x of splitByPoints) {
-            const xt = x.value.trim();
+            const xt = i === 0 ? ((0, relationParser_1.removeExclamation)(x.value.trim()).value) : (x.value.trim());
+            i++;
             if (globalParserInfo_1.aggregates.has(xt) && globalParserInfo_1.aggregates.get(xt).current === current) {
                 current = globalParserInfo_1.aggregates.get(xt).included;
                 toks.push({ offset: x.offset, value: x.value, tokenType: "variable" });
             }
-            else if (globalParserInfo_1.attributes.has(current) && globalParserInfo_1.attributes.get(current).has((0, relationParser_1.removeExclamation)(xt).value)) {
+            else if (globalParserInfo_1.attributes.has(current) && globalParserInfo_1.attributes.get(current).has((0, relationParser_1.removeExclamation)(xt.trim()).value)) {
                 toks.push({ offset: x.offset, value: x.value, tokenType: "variable" });
                 typeToRet = globalParserInfo_1.attributes.get(current).get((0, relationParser_1.removeExclamation)(xt).value).type;
                 break;
@@ -1075,7 +1076,12 @@ const parseAggregatesValue = (textInfo, offset, val) => {
                 break;
             }
         }
-        return { tokens: toks, type: typeToRet };
+        return {
+            tokens: toks,
+            type: typeToRet,
+            lastInteractor: current,
+            attributeName: splitByPoints[splitByPoints.length - 1].value,
+        };
     }
     return undefined;
 };
@@ -1274,10 +1280,11 @@ const removeExclamation = (att) => {
     return { value: ret, isNextState: nextState };
 };
 exports.removeExclamation = removeExclamation;
-const updateAttributeUsage = (att) => {
-    if (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) && globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(att.trim())) {
-        const attAux = globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(att);
-        globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).set(att, { ...attAux, used: true });
+const updateAttributeUsage = (att, interactor) => {
+    const attCleared = (0, exports.removeExclamation)(att.trim()).value;
+    if (globalParserInfo_1.attributes.has(interactor) && globalParserInfo_1.attributes.get(interactor).has(attCleared.trim())) {
+        const attAux = globalParserInfo_1.attributes.get(interactor).get(attCleared);
+        globalParserInfo_1.attributes.get(interactor).set(attCleared, { ...attAux, used: true });
     }
 };
 const compareRelationTokens = (textInfo, offset) => {
@@ -1304,8 +1311,6 @@ const compareRelationTokens = (textInfo, offset) => {
             // take out the ' that simbolizes the next state in case it exists, and if so
             // set the nextState to true
             let { value: att, isNextState } = (0, exports.removeExclamation)(preAtt.value.trim());
-            // set the used flag to true of the attribute being used
-            updateAttributeUsage(att);
             //get the value
             const preVal = separated[1];
             let { value: val } = (0, exports.removeExclamation)(preVal.value.trim());
@@ -1330,9 +1335,20 @@ const compareRelationTokens = (textInfo, offset) => {
             }
             let agValues;
             if ((agValues = (0, includesParser_1.parseAggregatesValue)(textInfo, offset, preAtt))) {
-                return agValues.tokens.map((x) => {
-                    return { ...x, offset: preAtt.offset + x.offset };
-                });
+                updateAttributeUsage(agValues.attributeName.trim(), agValues.lastInteractor.trim());
+                return [
+                    ...agValues.tokens.map((x) => {
+                        return { ...x, offset: preAtt.offset + x.offset };
+                    }),
+                    {
+                        offset: preVal.offset,
+                        value: preVal.value,
+                        tokenType: !isNaN(+val) ? "number" : (0, typeFindes_1.findTemporaryType)(val) ? "keyword" : "macro",
+                    },
+                ];
+            }
+            else {
+                updateAttributeUsage(att, globalParserInfo_1.currentInteractor);
             }
             let attTokens = [];
             if (/(\[|\])/.test(att)) {
@@ -1354,7 +1370,35 @@ const compareRelationTokens = (textInfo, offset) => {
     else {
         // without exclamation
         const clearedOfSymbols = (0, exports.removeExclamation)(textInfo.el.trim());
-        if (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) && globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(clearedOfSymbols.value)) {
+        let agValues;
+        let preAtt = { value: textInfo.el, offset: 0 };
+        if ((agValues = (0, includesParser_1.parseAggregatesValue)(textInfo, offset, preAtt))) {
+            if (clearedOfSymbols.value !== textInfo.el.trim()) {
+                if (agValues.type === "boolean") {
+                    updateAttributeUsage(agValues.attributeName.trim(), agValues.lastInteractor.trim());
+                    return agValues.tokens.map((x) => {
+                        return { ...x, offset: preAtt.offset + x.offset };
+                    });
+                }
+                else {
+                    const clearedValue = (0, exports.removeExclamation)(agValues.attributeName.trim()).value;
+                    console.log(agValues);
+                    console.log(clearedValue);
+                    console.log(globalParserInfo_1.attributes.get((0, exports.removeExclamation)(agValues.lastInteractor).value));
+                    console.log(textInfo.lineNumber);
+                    if (globalParserInfo_1.attributes.get((0, exports.removeExclamation)(agValues.lastInteractor).value).has(clearedValue)) {
+                        (0, diagnostics_1.addDiagnostic)(textInfo.lineNumber, offset, textInfo.lineNumber, offset + textInfo.el.length, clearedOfSymbols.value + " is not a boolean", "error", diagnostics_1.CHANGE_TYPE +
+                            ":" +
+                            "boolean" +
+                            ":" +
+                            globalParserInfo_1.attributes.get((0, exports.removeExclamation)(agValues.lastInteractor).value).get(clearedValue).line +
+                            ":" +
+                            clearedValue);
+                    }
+                }
+            }
+        }
+        else if (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) && globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(clearedOfSymbols.value)) {
             if (clearedOfSymbols.value !== textInfo.el.trim() &&
                 globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(clearedOfSymbols.value)?.type !== "boolean") {
                 (0, diagnostics_1.addDiagnostic)(textInfo.lineNumber, offset, textInfo.lineNumber, offset + textInfo.el.length, clearedOfSymbols.value + " is not a boolean", "error", diagnostics_1.CHANGE_TYPE +
@@ -1366,6 +1410,7 @@ const compareRelationTokens = (textInfo, offset) => {
                     clearedOfSymbols.value);
             }
             else {
+                updateAttributeUsage(textInfo.el.trim(), globalParserInfo_1.currentInteractor);
                 return [
                     {
                         offset: 0,

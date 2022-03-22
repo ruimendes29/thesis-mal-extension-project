@@ -7,7 +7,14 @@ export const parseAggregatesValue = (
   textInfo: { line: string; lineNumber: number; el: string },
   offset: number,
   val: { value: string; offset: number }
-): { tokens: { offset: number; value: string; tokenType: string }[]; type: string | undefined } | undefined => {
+):
+  | {
+      tokens: { offset: number; value: string; tokenType: string }[];
+      type: string | undefined;
+      lastInteractor: string;
+      attributeName: string;
+    }
+  | undefined => {
   let offsetPoints = 0;
   const splitByPoints = val.value
     .split(/(\.)/)
@@ -19,17 +26,19 @@ export const parseAggregatesValue = (
   let current = currentInteractor;
   const toks = [];
   let typeToRet: string | undefined = "";
+  let i=0;
   if (splitByPoints.length > 1) {
     for (let x of splitByPoints) {
-      const xt = x.value.trim();
+      const xt = i===0?(removeExclamation(x.value.trim()).value):(x.value.trim());
+      i++;
       if (aggregates.has(xt) && aggregates.get(xt)!.current === current) {
         current = aggregates.get(xt)!.included;
         toks.push({ offset: x.offset, value: x.value, tokenType: "variable" });
-      } else if (attributes.has(current) && attributes.get(current)!.has(removeExclamation(xt).value)) {
+      } else if (attributes.has(current) && attributes.get(current)!.has(removeExclamation(xt.trim()).value)) {
         toks.push({ offset: x.offset, value: x.value, tokenType: "variable" });
         typeToRet = attributes.get(current)!.get(removeExclamation(xt).value)!.type;
         break;
-      }  else {
+      } else {
         addDiagnostic(
           textInfo.lineNumber,
           offset + x.offset,
@@ -44,7 +53,12 @@ export const parseAggregatesValue = (
         break;
       }
     }
-    return { tokens: toks, type: typeToRet };
+    return {
+      tokens: toks,
+      type: typeToRet,
+      lastInteractor: current,
+      attributeName: splitByPoints[splitByPoints.length - 1].value,
+    };
   }
 
   return undefined;

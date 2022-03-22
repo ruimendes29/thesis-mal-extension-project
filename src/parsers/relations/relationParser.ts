@@ -108,7 +108,7 @@ export const processExpressions = (
   if (att.trim() === "" || val.trim() === "") {
     return undefined;
   }
-  if ((isAttributeSameAsValue( att, splittedValue[0].value.trim()) && splittedValue.length > 1) || implies) {
+  if ((isAttributeSameAsValue(att, splittedValue[0].value.trim()) && splittedValue.length > 1) || implies) {
     toks.push({
       offset: 0,
       value: att,
@@ -165,10 +165,11 @@ export const removeExclamation = (att: string) => {
   return { value: ret, isNextState: nextState };
 };
 
-const updateAttributeUsage = (att: string) => {
-  if (attributes.has(currentInteractor) && attributes.get(currentInteractor)!.has(att.trim())) {
-    const attAux = attributes.get(currentInteractor)!.get(att)!;
-    attributes.get(currentInteractor)!.set(att, { ...attAux, used: true });
+const updateAttributeUsage = (att: string, interactor: string) => {
+  const attCleared = removeExclamation(att.trim()).value;
+  if (attributes.has(interactor) && attributes.get(interactor)!.has(attCleared.trim())) {
+    const attAux = attributes.get(interactor)!.get(attCleared)!;
+    attributes.get(interactor)!.set(attCleared, { ...attAux, used: true });
   }
 };
 
@@ -201,9 +202,6 @@ export const compareRelationTokens = (
       // set the nextState to true
       let { value: att, isNextState } = removeExclamation(preAtt.value.trim());
 
-      // set the used flag to true of the attribute being used
-      updateAttributeUsage(att);
-
       //get the value
       const preVal = separated[1];
       let { value: val } = removeExclamation(preVal.value.trim());
@@ -233,9 +231,19 @@ export const compareRelationTokens = (
 
       let agValues;
       if ((agValues = parseAggregatesValue(textInfo, offset, preAtt))) {
-        return agValues.tokens.map((x) => {
-          return { ...x, offset: preAtt.offset + x.offset };
-        });
+        updateAttributeUsage(agValues.attributeName.trim(), agValues.lastInteractor.trim());
+        return [
+          ...agValues.tokens.map((x) => {
+            return { ...x, offset: preAtt.offset + x.offset };
+          }),
+          {
+            offset: preVal.offset,
+            value: preVal.value,
+            tokenType: !isNaN(+val) ? "number" : findTemporaryType(val) ? "keyword" : "macro",
+          },
+        ];
+      } else {
+        updateAttributeUsage(att, currentInteractor);
       }
 
       let attTokens = [];
@@ -256,8 +264,42 @@ export const compareRelationTokens = (
   } else {
     // without exclamation
     const clearedOfSymbols = removeExclamation(textInfo.el.trim());
+    let agValues;
+    let preAtt = { value: textInfo.el, offset: 0 };
+    if ((agValues = parseAggregatesValue(textInfo, offset, preAtt))) {
+      if (clearedOfSymbols.value !== textInfo.el.trim()) {
+        if (agValues.type === "boolean") {
+          updateAttributeUsage(agValues.attributeName.trim(), agValues.lastInteractor.trim());
+          return agValues.tokens.map((x) => {
+            return { ...x, offset: preAtt.offset + x.offset };
+          });
+        } else {
+          const clearedValue = removeExclamation(agValues.attributeName.trim()).value;
+          console.log(agValues);
+          console.log(clearedValue);
+          console.log(attributes.get(removeExclamation(agValues.lastInteractor).value)!);
+          console.log(textInfo.lineNumber);
 
-    if (attributes.has(currentInteractor) && attributes.get(currentInteractor)!.has(clearedOfSymbols.value)) {
+          if (attributes.get(removeExclamation(agValues.lastInteractor).value)!.has(clearedValue)) {
+            addDiagnostic(
+              textInfo.lineNumber,
+              offset,
+              textInfo.lineNumber,
+              offset + textInfo.el.length,
+              clearedOfSymbols.value + " is not a boolean",
+              "error",
+              CHANGE_TYPE +
+                ":" +
+                "boolean" +
+                ":" +
+                attributes.get(removeExclamation(agValues.lastInteractor).value)!.get(clearedValue)!.line +
+                ":" +
+                clearedValue
+            );
+          }
+        }
+      }
+    } else if (attributes.has(currentInteractor) && attributes.get(currentInteractor)!.has(clearedOfSymbols.value)) {
       if (
         clearedOfSymbols.value !== textInfo.el.trim() &&
         attributes.get(currentInteractor)!.get(clearedOfSymbols.value)?.type !== "boolean"
@@ -278,6 +320,7 @@ export const compareRelationTokens = (
             clearedOfSymbols.value
         );
       } else {
+        updateAttributeUsage(textInfo.el.trim(), currentInteractor);
         return [
           {
             offset: 0,
