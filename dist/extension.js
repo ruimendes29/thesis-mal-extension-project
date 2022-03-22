@@ -10,11 +10,11 @@ exports.activate = exports.diagnosticCollection = void 0;
 const vscode = __webpack_require__(1);
 const codeActionsProvider_1 = __webpack_require__(2);
 const codeCompletionProvider_1 = __webpack_require__(6);
-const commands_1 = __webpack_require__(12);
+const commands_1 = __webpack_require__(13);
 const diagnostics_1 = __webpack_require__(3);
 const globalParserInfo_1 = __webpack_require__(4);
-const textParser_1 = __webpack_require__(13);
-const actionsDeterminism_1 = __webpack_require__(19);
+const textParser_1 = __webpack_require__(14);
+const actionsDeterminism_1 = __webpack_require__(20);
 const tokenTypes = new Map();
 const tokenModifiers = new Map();
 const legend = (function () {
@@ -502,18 +502,23 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.provider3 = exports.provider2 = exports.provider1 = void 0;
 const vscode = __webpack_require__(1);
 const globalParserInfo_1 = __webpack_require__(4);
-const typeFindes_1 = __webpack_require__(20);
+const typeFindes_1 = __webpack_require__(7);
 exports.provider1 = vscode.languages.registerCompletionItemProvider("mal", {
     provideCompletionItems(document, position, token, context) {
         // a simple completion item which inserts `Hello World!`
         const simpleCompletion = new vscode.CompletionItem("Hello World!");
-        const attributesCompletion = globalParserInfo_1.attributes.has((0, globalParserInfo_1.getInteractorByLine)(position.line)) ? Array.from(globalParserInfo_1.attributes.get((0, globalParserInfo_1.getInteractorByLine)(position.line)))
-            .map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Variable)) : [];
-        const actionsCompletion = globalParserInfo_1.actions.has((0, globalParserInfo_1.getInteractorByLine)(position.line)) ? Array.from(globalParserInfo_1.actions.get((0, globalParserInfo_1.getInteractorByLine)(position.line)))
-            .map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Function)) : [];
+        const attributesCompletion = globalParserInfo_1.attributes.has((0, globalParserInfo_1.getInteractorByLine)(position.line))
+            ? Array.from(globalParserInfo_1.attributes.get((0, globalParserInfo_1.getInteractorByLine)(position.line))).map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Variable))
+            : [];
+        const actionsCompletion = globalParserInfo_1.actions.has((0, globalParserInfo_1.getInteractorByLine)(position.line))
+            ? Array.from(globalParserInfo_1.actions.get((0, globalParserInfo_1.getInteractorByLine)(position.line))).map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Function))
+            : [];
         const definesCompletion = Array.from(globalParserInfo_1.defines).map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Constant));
+        const aggregatesCompletion = Array.from(globalParserInfo_1.aggregates)
+            .filter(([key, value]) => value.current === (0, globalParserInfo_1.getInteractorByLine)(position.line))
+            .map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Interface));
         // return all completion items as array
-        return [...attributesCompletion, ...definesCompletion, ...actionsCompletion];
+        return [...attributesCompletion, ...definesCompletion, ...actionsCompletion, ...aggregatesCompletion];
     },
 });
 exports.provider2 = vscode.languages.registerCompletionItemProvider("mal", {
@@ -548,34 +553,42 @@ exports.provider3 = vscode.languages.registerCompletionItemProvider("mal", {
         // and if so then complete if `log`, `warn`, and `error`
         let match;
         const linePrefix = document.lineAt(position).text.slice(0, position.character);
+        const result = [];
         if (linePrefix.charAt(linePrefix.length - 1) === ".") {
-            let c = "r";
-            let includeToCheckArray = [];
-            let i = linePrefix.length - 1;
-            while (i > 0) {
-                c = linePrefix.charAt(--i);
-                if (/\w/.test(c)) {
-                    includeToCheckArray.unshift(c);
+            const lineSep = linePrefix
+                .split(/(\.)/)
+                .map((el) => el.split(/([^\w]+)/))
+                .flat()
+                .filter((el) => el.trim() !== "");
+            let toTake = false;
+            for (let i = lineSep.length - 1; i >= 0; i--) {
+                if (lineSep[i].trim() === ".") {
+                    toTake = true;
+                }
+                else {
+                    if (!toTake) {
+                        break;
+                    }
+                    result.unshift(lineSep[i]);
+                    toTake = false;
+                }
+            }
+            let current = (0, globalParserInfo_1.getInteractorByLine)(position.line);
+            for (let aggregated of result) {
+                if (globalParserInfo_1.aggregates.has(aggregated) && globalParserInfo_1.aggregates.get(aggregated).current === current) {
+                    current = globalParserInfo_1.aggregates.get(aggregated).included;
                 }
                 else {
                     break;
                 }
             }
-            if (globalParserInfo_1.aggregates.has(includeToCheckArray.join("").trim())) {
-                let { included, current } = globalParserInfo_1.aggregates.get(includeToCheckArray.join("").trim());
-                if (current === (0, globalParserInfo_1.getInteractorByLine)(position.line)) {
-                    return [
-                        ...Array.from(globalParserInfo_1.actions.get(included)).map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Function)),
-                        ...Array.from(globalParserInfo_1.attributes.get(included)).map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Variable)),
-                    ];
-                }
-                else {
-                    return undefined;
-                }
-            }
-            else {
-                return undefined;
-            }
+            return [
+                ...Array.from(globalParserInfo_1.aggregates)
+                    .filter(([key, value]) => value.current === current)
+                    .map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Interface)),
+                ...Array.from(globalParserInfo_1.actions.get(current)).map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Function)),
+                ...Array.from(globalParserInfo_1.attributes.get(current)).map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Variable)),
+            ];
         }
         else {
             return undefined;
@@ -591,13 +604,534 @@ exports.provider3 = vscode.languages.registerCompletionItemProvider("mal", {
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.isAttributeSameAsValue = exports.findValueType = exports.findTemporaryType = exports.findAggregatedValueType = void 0;
+const arrayRelations_1 = __webpack_require__(8);
+const axiomParser_1 = __webpack_require__(9);
+const globalParserInfo_1 = __webpack_require__(4);
+const findAggregatedValueType = (s) => {
+    let offsetPoints = 0;
+    const splitByPoints = s
+        .split(/(\.)/)
+        .map((el) => {
+        offsetPoints += el.length;
+        return { value: el, offset: offsetPoints - el.length };
+    })
+        .filter((el) => el.value.trim() !== "" && !el.value.includes("."));
+    let current = globalParserInfo_1.currentInteractor;
+    let typeToRet = "";
+    if (splitByPoints.length > 1) {
+        for (let x of splitByPoints) {
+            const xt = x.value.trim();
+            if (globalParserInfo_1.aggregates.has(xt) && globalParserInfo_1.aggregates.get(xt).current === current) {
+                current = globalParserInfo_1.aggregates.get(xt).included;
+            }
+            else if (globalParserInfo_1.attributes.has(current) && globalParserInfo_1.attributes.get(current).has(xt)) {
+                typeToRet = globalParserInfo_1.attributes.get(current).get(xt).type;
+                break;
+            }
+            else {
+                typeToRet = undefined;
+                break;
+            }
+        }
+        return typeToRet;
+    }
+    return undefined;
+};
+exports.findAggregatedValueType = findAggregatedValueType;
+const findTemporaryType = (s) => {
+    let ta = undefined;
+    for (let i = 0; i < axiomParser_1.temporaryAttributes.length; i++) {
+        if (axiomParser_1.temporaryAttributes[i].value === s) {
+            const args = globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).get(axiomParser_1.temporaryAttributes[i].action).arguments;
+            ta = args[axiomParser_1.temporaryAttributes[i].index];
+            if (globalParserInfo_1.ranges.has(ta) ||
+                (globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(ta) && globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(ta).type === "number")) {
+                return "number";
+            }
+            else {
+                return ta;
+            }
+        }
+    }
+    return undefined;
+};
+exports.findTemporaryType = findTemporaryType;
+const findValueType = (value) => {
+    const correctValue = value[value.length - 1] === "'" ? value.slice(0, value.length - 1) : value;
+    if (value === "true" || value === "false") {
+        return "boolean";
+    }
+    else if (!isNaN(+value) && value !== "") {
+        // check if value is a number
+        return "number";
+    }
+    else if (globalParserInfo_1.defines.has(value)) {
+        return globalParserInfo_1.defines.get(value).type;
+    }
+    else if (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) &&
+        globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(value) &&
+        globalParserInfo_1.ranges.has(globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(value).type)) {
+        return "number";
+    }
+    else if (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) && globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(correctValue)) {
+        return globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(correctValue).type;
+    }
+    else {
+        for (var [k, v] of globalParserInfo_1.enums) {
+            if (v.values.includes(value)) {
+                return k;
+            }
+        }
+    }
+    return (0, exports.findTemporaryType)(value.trim());
+};
+exports.findValueType = findValueType;
+const isAttributeSameAsValue = (attribute, value) => {
+    if (attribute.includes(".")) {
+        const aggAttType = (0, exports.findAggregatedValueType)(attribute);
+        let aggValType;
+        if (value.includes(".")) {
+            aggValType = (0, exports.findAggregatedValueType)(value);
+        }
+        else {
+            aggValType = (0, exports.findValueType)(value);
+        }
+        if (aggAttType && aggValType) {
+            return aggAttType === aggValType;
+        }
+        else {
+            return false;
+        }
+    }
+    else if (attribute.charAt(0) === "_") {
+        return (axiomParser_1.temporaryAttributes.map((el) => el.value).includes(attribute) && (0, exports.findValueType)(attribute) === (0, exports.findValueType)(value));
+    }
+    else if (attribute.includes("]") || attribute.includes("[")) {
+        const { arrayName } = (0, arrayRelations_1.getArrayWrittenInfo)(attribute);
+        const { type } = (0, arrayRelations_1.getArrayInStore)(arrayName);
+        return type === (0, exports.findValueType)(value);
+    }
+    else {
+        return (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) &&
+            globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(attribute) &&
+            (globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(attribute).type === (0, exports.findValueType)(value) ||
+                (globalParserInfo_1.ranges.has(globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(attribute).type) && (0, exports.findValueType)(value) === "number")));
+    }
+};
+exports.isAttributeSameAsValue = isAttributeSameAsValue;
+
+
+/***/ }),
+/* 8 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.parseArray = exports.getArrayInStore = exports.isDeclaredButIsNotAnArray = exports.getArrayWrittenInfo = void 0;
+const diagnostics_1 = __webpack_require__(3);
+const axiomParser_1 = __webpack_require__(9);
+const globalParserInfo_1 = __webpack_require__(4);
+const ParseSection_1 = __webpack_require__(5);
+const typeFindes_1 = __webpack_require__(7);
+/* From a given attribute declared as an array, get it's name and the number of arguments
+present when the array is being used in an axiom */
+const getArrayWrittenInfo = (arrayUsage) => {
+    let openBrackets = 0;
+    let numberOfArguments = 0;
+    for (let c of arrayUsage.split("")) {
+        if (c === "[") {
+            openBrackets++;
+        }
+        if (c === "]" && openBrackets > 0) {
+            numberOfArguments++;
+            openBrackets--;
+        }
+    }
+    return {
+        arrayName: arrayUsage.slice(0, arrayUsage.indexOf("[")).trim(),
+        numberOfArguments: numberOfArguments,
+    };
+};
+exports.getArrayWrittenInfo = getArrayWrittenInfo;
+const isDeclaredButIsNotAnArray = (arrayName) => {
+    return (0, exports.getArrayInStore)((0, exports.getArrayWrittenInfo)(arrayName).arrayName).type === "";
+};
+exports.isDeclaredButIsNotAnArray = isDeclaredButIsNotAnArray;
+/* From an attribute declared as an array, get the information present about
+that type of array from the data structures present in the extension, in this case
+the dimensions and the type */
+const getArrayInStore = (arrayName) => {
+    let numberOfDimensions = 1;
+    let type = "";
+    if (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) && globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(arrayName) && globalParserInfo_1.arrays.has(globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(arrayName).type)) {
+        let arrayType = globalParserInfo_1.arrays.get(globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(arrayName).type).type;
+        while (globalParserInfo_1.arrays.has(arrayType)) {
+            arrayType = globalParserInfo_1.arrays.get(arrayType).type;
+            numberOfDimensions++;
+        }
+        type = arrayType;
+    }
+    return { dimensions: numberOfDimensions, type: type };
+};
+exports.getArrayInStore = getArrayInStore;
+const assignTokenType = (s) => {
+    if (axiomParser_1.temporaryAttributes.map(el => el.value).includes(s)) {
+        return "keyword";
+    }
+    else if (globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(s)) {
+        return "variable";
+    }
+    else if (!isNaN(+s)) {
+        return "number";
+    }
+    else {
+        return "nothing";
+    }
+};
+const tokenAndDiag = (actionName, elemIndex, lineNumber, offset, s) => {
+    if ((globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(s) && elemIndex === 0) ||
+        (0, typeFindes_1.findTemporaryType)(s) === "number" ||
+        (globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(s) && (0, typeFindes_1.findValueType)(s) === "number") ||
+        !isNaN(+s)) {
+        return { offset: offset, value: s, tokenType: assignTokenType(s) };
+    }
+    else {
+        (0, diagnostics_1.addDiagnostic)(lineNumber, offset, lineNumber, offset + s.length, s + " must be of type number", "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + s);
+        return { offset: offset, value: s, tokenType: "regexp" };
+    }
+};
+const parseArray = (line, lineNumber, element) => {
+    if (element.includes("[") && element.includes("]")) {
+        const { arrayName, numberOfArguments } = (0, exports.getArrayWrittenInfo)(element);
+        const { dimensions, type } = (0, exports.getArrayInStore)(arrayName);
+        if (dimensions !== numberOfArguments) {
+            const sc = ParseSection_1.ParseSection.getPosition(line, element, 1);
+            (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + element.length, arrayName + " does not have the right amount of arguments", "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + arrayName);
+            return [{ offset: sc, value: element, tokenType: "regexp" }];
+        }
+        else {
+            let offsetForArgs = 0;
+            let toRet = [];
+            const opRex = /(\+|\-|\*|\/|\(|\))/;
+            const separatedArray = element
+                .split(/(\[|\])/)
+                .map((el) => {
+                offsetForArgs += el.length;
+                return { value: el, offset: offsetForArgs - el.length };
+            })
+                .filter((el) => !(el.value.trim() === "]" || el.value.trim() === "[" || el.value.trim() === ""));
+            for (let i = 0; i < separatedArray.length; i++) {
+                const { offset: o, value: v } = separatedArray[i];
+                if (!opRex.test(v)) {
+                    if (globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(v)) {
+                        const preAtt = globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(v);
+                        globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).set(v, { ...preAtt, used: true });
+                    }
+                    toRet.push(tokenAndDiag(separatedArray[0].value.trim(), i, lineNumber, o, v));
+                }
+                else {
+                    let offToks = o;
+                    toRet.push(...v
+                        .split(opRex)
+                        .map((el) => {
+                        offToks += el.length;
+                        if (opRex.test(el.trim())) {
+                            return { offset: 0, tokenType: "regexp", value: "" };
+                        }
+                        else {
+                            return tokenAndDiag(separatedArray[0].value.trim(), i, lineNumber, offToks - el.length, el);
+                        }
+                    })
+                        .filter((el) => el.value.trim().length > 0));
+                }
+            }
+            return toRet;
+        }
+    }
+    return undefined;
+};
+exports.parseArray = parseArray;
+
+
+/***/ }),
+/* 9 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports._parseAxioms = exports.temporaryAttributes = exports.triggerAction = void 0;
+const diagnostics_1 = __webpack_require__(3);
+const globalParserInfo_1 = __webpack_require__(4);
+const includesParser_1 = __webpack_require__(10);
+const ParseSection_1 = __webpack_require__(5);
+const relationParser_1 = __webpack_require__(11);
+exports.triggerAction = [];
+const setOfAttributesAttended = new Set();
+exports.temporaryAttributes = [];
+const parseConditions = (line, lineNumber) => {
+    const toFindTokens = /^.*(?=\s*\<?\-\>\s*\[)/;
+    const toSeparateTokens = /(\&|\||\)|\(|\!)/;
+    const parseConditionsSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
+        return "cantprint";
+    });
+    return parseConditionsSection.getTokens(line, lineNumber, 0, true, relationParser_1.compareRelationTokens);
+};
+const parseActionWithArguments = (line, lineNumber, action, numberOfArgs, startingChar) => {
+    const rx = /(\)|\(|\,)/;
+    const rx2 = new RegExp(action + "\\(\\s*(\\w*\\s*,?\\s*)*\\)");
+    const slicedLine = line.slice(startingChar + action.length);
+    const args = slicedLine.slice(0, slicedLine.indexOf(")") + 1);
+    const splitedArgs = args.split(rx).filter((el) => !rx.test(el) && el.trim() !== "");
+    if (rx2.test(line) && splitedArgs.length !== numberOfArgs) {
+        (0, diagnostics_1.addDiagnostic)(lineNumber, startingChar, lineNumber, startingChar + action.length, action + " doest not have the right amount of arguments", "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + action);
+        return false;
+    }
+    else {
+        return true;
+    }
+};
+const parseTemporaryArgument = (lineNumber, sc, el, currentAction, actionArgumentIndex) => {
+    const correctType = globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).get(currentAction).arguments[actionArgumentIndex];
+    if (el.charAt(0) === "_") {
+        exports.temporaryAttributes.push({ action: currentAction, value: el, index: actionArgumentIndex });
+        return "keyword";
+    }
+    else if (globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(el.trim()) &&
+        globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(el.trim()).type === correctType) {
+        return "variable";
+    }
+    else {
+        (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " needs to start with an underscore (_) or be an attribute with type " + correctType, "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + el);
+        return "regexp";
+    }
+};
+const parseTriggerAction = (line, lineNumber) => {
+    let numberOfArgumentsInAction = 0;
+    let actionArgumentIndex = 0;
+    let currentAction = "";
+    let isIncluded = false;
+    let includedInteractor = "";
+    let actionsInIncluded;
+    const toFindTokens = /((\<?\s*\-\>\s*)|^\s*)\[[^\[]+\]/;
+    const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\]|\,|\.)/;
+    const parseTriggerActions = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
+        if (isIncluded) {
+            if ((0, includesParser_1.isIncludedDinamically)(includedInteractor, el.trim())) {
+                includedInteractor = globalParserInfo_1.aggregates.get(el.trim()).included;
+                actionsInIncluded = globalParserInfo_1.actions.get(includedInteractor);
+                return "variable";
+            }
+            isIncluded = false;
+            if (actionsInIncluded.has(el.trim())) {
+                currentAction = el.trim();
+                exports.triggerAction.push(includedInteractor + ":" + el.trim());
+                return "function";
+            }
+            (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is not an action from " + includedInteractor, "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + el);
+            return "regexp";
+        }
+        else if (numberOfArgumentsInAction > 0) {
+            numberOfArgumentsInAction--;
+            const toRet = parseTemporaryArgument(lineNumber, sc, el, currentAction, actionArgumentIndex);
+            actionArgumentIndex++;
+            return toRet;
+        }
+        else if (globalParserInfo_1.aggregates.has(el.trim()) && globalParserInfo_1.aggregates.get(el.trim()).current === globalParserInfo_1.currentInteractor) {
+            isIncluded = true;
+            includedInteractor = globalParserInfo_1.aggregates.get(el.trim()).included;
+            actionsInIncluded = globalParserInfo_1.actions.get(includedInteractor);
+            return "variable";
+        }
+        else if (globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).has(el.trim())) {
+            const prevAction = globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).get(el.trim());
+            if (!parseActionWithArguments(line, lineNumber, el, prevAction.arguments.length, sc)) {
+                return "regexp";
+            }
+            else {
+                numberOfArgumentsInAction = prevAction.arguments.length;
+            }
+            currentAction = el.trim();
+            exports.triggerAction.push(currentAction);
+            globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).set(currentAction, { ...prevAction, used: true });
+            return "function";
+        }
+        else {
+            (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error", diagnostics_1.DECLARE_ACTION + ":" + el);
+            return "regexp";
+        }
+    });
+    return parseTriggerActions.getTokens(line, lineNumber, line.search(toFindTokens));
+};
+const parseNextState = (line, lineNumber) => {
+    const toFindTokens = /(?<=((?<=(\-\s*\>.*|^\s*\[.*))\]|^\s*per\s*\(.*\)\s*\<?\-\>)).*/;
+    const toSeparateTokens = /(\&|\||\)|\(|\,)/;
+    let isInKeep = false;
+    const parseNextStateSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
+        const isNextState = el.split(":")[1] === "true";
+        if (el.split(":")[0] === "keep") {
+            isInKeep = true;
+            return "";
+        }
+        if (isInKeep || isNextState) {
+            setOfAttributesAttended.add(el.split(":")[0]);
+        }
+        return "cantprint";
+    });
+    return parseNextStateSection.getTokens(line, lineNumber, 0, true, relationParser_1.compareRelationTokens);
+};
+const _parseAxioms = (line, lineNumber) => {
+    let currentOffset = 0;
+    let toRetTokens = [];
+    let size = 0;
+    const sectionsToParseParsers = [parseTriggerAction, parseConditions, parseNextState];
+    const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
+    exports.triggerAction = [];
+    setOfAttributesAttended.clear();
+    for (const parser of sectionsToParseParsers) {
+        const matchedPiece = parser(lineWithoutComments, lineNumber);
+        if (matchedPiece && matchedPiece.size > 0) {
+            toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
+            size += matchedPiece.size;
+            currentOffset += matchedPiece.size;
+        }
+        if (setOfAttributesAttended.size > 0) {
+            for (let act of exports.triggerAction) {
+                if (!globalParserInfo_1.actionsToAttributes.has(globalParserInfo_1.currentInteractor)) {
+                    globalParserInfo_1.actionsToAttributes.set(globalParserInfo_1.currentInteractor, new Map());
+                }
+                if (!globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).has(act)) {
+                    globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).set(act, new Set());
+                }
+                globalParserInfo_1.actionsToAttributes
+                    .get(globalParserInfo_1.currentInteractor)
+                    .set(act, new Set([...globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).get(act), ...setOfAttributesAttended]));
+            }
+        }
+    }
+    if (size === 0) {
+        return undefined;
+    }
+    else {
+        return { tokens: toRetTokens, size: size };
+    }
+};
+exports._parseAxioms = _parseAxioms;
+
+
+/***/ }),
+/* 10 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports._parseIncludes = exports.isIncludedDinamically = exports.parseAggregatesValue = void 0;
+const diagnostics_1 = __webpack_require__(3);
+const globalParserInfo_1 = __webpack_require__(4);
+const ParseSection_1 = __webpack_require__(5);
+const relationParser_1 = __webpack_require__(11);
+const parseAggregatesValue = (textInfo, offset, val) => {
+    let offsetPoints = 0;
+    const splitByPoints = val.value
+        .split(/(\.)/)
+        .map((el) => {
+        offsetPoints += el.length;
+        return { value: el, offset: offsetPoints - el.length };
+    })
+        .filter((el) => el.value.trim() !== "" && !el.value.includes("."));
+    let current = globalParserInfo_1.currentInteractor;
+    const toks = [];
+    let typeToRet = "";
+    if (splitByPoints.length > 1) {
+        for (let x of splitByPoints) {
+            const xt = x.value.trim();
+            if (globalParserInfo_1.aggregates.has(xt) && globalParserInfo_1.aggregates.get(xt).current === current) {
+                current = globalParserInfo_1.aggregates.get(xt).included;
+                toks.push({ offset: x.offset, value: x.value, tokenType: "variable" });
+            }
+            else if (globalParserInfo_1.attributes.has(current) && globalParserInfo_1.attributes.get(current).has((0, relationParser_1.removeExclamation)(xt).value)) {
+                toks.push({ offset: x.offset, value: x.value, tokenType: "variable" });
+                typeToRet = globalParserInfo_1.attributes.get(current).get((0, relationParser_1.removeExclamation)(xt).value).type;
+                break;
+            }
+            else {
+                (0, diagnostics_1.addDiagnostic)(textInfo.lineNumber, offset + x.offset, textInfo.lineNumber, offset + x.offset + x.value.length, xt + " is not aggregated", "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + xt);
+                toks.push({ offset: x.offset, value: x.value, tokenType: "regexp" });
+                typeToRet = undefined;
+                break;
+            }
+        }
+        return { tokens: toks, type: typeToRet };
+    }
+    return undefined;
+};
+exports.parseAggregatesValue = parseAggregatesValue;
+const isIncludedDinamically = (interactorToCheck, includedToCheck) => {
+    let current = includedToCheck;
+    let interactor = interactorToCheck;
+    if (globalParserInfo_1.aggregates.has(current) && globalParserInfo_1.aggregates.get(current).current === interactor) {
+        return true;
+    }
+    else {
+        return false;
+    }
+};
+exports.isIncludedDinamically = isIncludedDinamically;
+const parseInclude = (line, lineNumber) => {
+    let elIndex = 0;
+    let intName = "";
+    const toFindTokens = /^\s*[a-zA-Z]+\w*\s+via\s+[a-zA-Z]+\w*/;
+    const toSeparateTokens = /(\s|via)/;
+    const parseConditionsSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
+        if (elIndex === 0) {
+            intName = el.trim();
+            elIndex++;
+            return "macro";
+        }
+        else {
+            globalParserInfo_1.aggregates.set(el.trim(), { current: globalParserInfo_1.currentInteractor, included: intName });
+            return "variable";
+        }
+    });
+    return parseConditionsSection.getTokens(line, lineNumber, 0);
+};
+const _parseIncludes = (line, lineNumber) => {
+    let currentOffset = 0;
+    let toRetTokens = [];
+    let size = 0;
+    const sectionsToParseParsers = [parseInclude];
+    const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
+    for (const parser of sectionsToParseParsers) {
+        const matchedPiece = parser(lineWithoutComments, lineNumber);
+        if (matchedPiece && matchedPiece.size > 0) {
+            toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
+            size += matchedPiece.size;
+            currentOffset += matchedPiece.size;
+        }
+    }
+    if (size === 0) {
+        return undefined;
+    }
+    else {
+        return { tokens: toRetTokens, size: size };
+    }
+};
+exports._parseIncludes = _parseIncludes;
+
+
+/***/ }),
+/* 11 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.compareRelationTokens = exports.removeExclamation = exports.processExpressions = exports.separateRangeTokens = void 0;
 const diagnostics_1 = __webpack_require__(3);
 const arrayRelations_1 = __webpack_require__(8);
 const globalParserInfo_1 = __webpack_require__(4);
 const includesParser_1 = __webpack_require__(10);
-const relationErrors_1 = __webpack_require__(11);
-const typeFindes_1 = __webpack_require__(20);
+const relationErrors_1 = __webpack_require__(12);
+const typeFindes_1 = __webpack_require__(7);
 const attributeExists = (attribute) => {
     return ((globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) && globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(attribute)) ||
         (attribute.charAt(attribute.length - 1) === "'" &&
@@ -858,404 +1392,7 @@ exports.compareRelationTokens = compareRelationTokens;
 
 
 /***/ }),
-/* 8 */
-/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
-
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.parseArray = exports.getArrayInStore = exports.isDeclaredButIsNotAnArray = exports.getArrayWrittenInfo = void 0;
-const diagnostics_1 = __webpack_require__(3);
-const axiomParser_1 = __webpack_require__(9);
-const globalParserInfo_1 = __webpack_require__(4);
-const ParseSection_1 = __webpack_require__(5);
-const typeFindes_1 = __webpack_require__(20);
-/* From a given attribute declared as an array, get it's name and the number of arguments
-present when the array is being used in an axiom */
-const getArrayWrittenInfo = (arrayUsage) => {
-    let openBrackets = 0;
-    let numberOfArguments = 0;
-    for (let c of arrayUsage.split("")) {
-        if (c === "[") {
-            openBrackets++;
-        }
-        if (c === "]" && openBrackets > 0) {
-            numberOfArguments++;
-            openBrackets--;
-        }
-    }
-    return {
-        arrayName: arrayUsage.slice(0, arrayUsage.indexOf("[")).trim(),
-        numberOfArguments: numberOfArguments,
-    };
-};
-exports.getArrayWrittenInfo = getArrayWrittenInfo;
-const isDeclaredButIsNotAnArray = (arrayName) => {
-    return (0, exports.getArrayInStore)((0, exports.getArrayWrittenInfo)(arrayName).arrayName).type === "";
-};
-exports.isDeclaredButIsNotAnArray = isDeclaredButIsNotAnArray;
-/* From an attribute declared as an array, get the information present about
-that type of array from the data structures present in the extension, in this case
-the dimensions and the type */
-const getArrayInStore = (arrayName) => {
-    let numberOfDimensions = 1;
-    let type = "";
-    if (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) && globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(arrayName) && globalParserInfo_1.arrays.has(globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(arrayName).type)) {
-        let arrayType = globalParserInfo_1.arrays.get(globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(arrayName).type).type;
-        while (globalParserInfo_1.arrays.has(arrayType)) {
-            arrayType = globalParserInfo_1.arrays.get(arrayType).type;
-            numberOfDimensions++;
-        }
-        type = arrayType;
-    }
-    return { dimensions: numberOfDimensions, type: type };
-};
-exports.getArrayInStore = getArrayInStore;
-const assignTokenType = (s) => {
-    if (axiomParser_1.temporaryAttributes.map(el => el.value).includes(s)) {
-        return "keyword";
-    }
-    else if (globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(s)) {
-        return "variable";
-    }
-    else if (!isNaN(+s)) {
-        return "number";
-    }
-    else {
-        return "nothing";
-    }
-};
-const tokenAndDiag = (actionName, elemIndex, lineNumber, offset, s) => {
-    if ((globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(s) && elemIndex === 0) ||
-        (0, typeFindes_1.findTemporaryType)(s) === "number" ||
-        (globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(s) && (0, typeFindes_1.findValueType)(s) === "number") ||
-        !isNaN(+s)) {
-        return { offset: offset, value: s, tokenType: assignTokenType(s) };
-    }
-    else {
-        (0, diagnostics_1.addDiagnostic)(lineNumber, offset, lineNumber, offset + s.length, s + " must be of type number", "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + s);
-        return { offset: offset, value: s, tokenType: "regexp" };
-    }
-};
-const parseArray = (line, lineNumber, element) => {
-    if (element.includes("[") && element.includes("]")) {
-        const { arrayName, numberOfArguments } = (0, exports.getArrayWrittenInfo)(element);
-        const { dimensions, type } = (0, exports.getArrayInStore)(arrayName);
-        if (dimensions !== numberOfArguments) {
-            const sc = ParseSection_1.ParseSection.getPosition(line, element, 1);
-            (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + element.length, arrayName + " does not have the right amount of arguments", "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + arrayName);
-            return [{ offset: sc, value: element, tokenType: "regexp" }];
-        }
-        else {
-            let offsetForArgs = 0;
-            let toRet = [];
-            const opRex = /(\+|\-|\*|\/|\(|\))/;
-            const separatedArray = element
-                .split(/(\[|\])/)
-                .map((el) => {
-                offsetForArgs += el.length;
-                return { value: el, offset: offsetForArgs - el.length };
-            })
-                .filter((el) => !(el.value.trim() === "]" || el.value.trim() === "[" || el.value.trim() === ""));
-            for (let i = 0; i < separatedArray.length; i++) {
-                const { offset: o, value: v } = separatedArray[i];
-                if (!opRex.test(v)) {
-                    if (globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(v)) {
-                        const preAtt = globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(v);
-                        globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).set(v, { ...preAtt, used: true });
-                    }
-                    toRet.push(tokenAndDiag(separatedArray[0].value.trim(), i, lineNumber, o, v));
-                }
-                else {
-                    let offToks = o;
-                    toRet.push(...v
-                        .split(opRex)
-                        .map((el) => {
-                        offToks += el.length;
-                        if (opRex.test(el.trim())) {
-                            return { offset: 0, tokenType: "regexp", value: "" };
-                        }
-                        else {
-                            return tokenAndDiag(separatedArray[0].value.trim(), i, lineNumber, offToks - el.length, el);
-                        }
-                    })
-                        .filter((el) => el.value.trim().length > 0));
-                }
-            }
-            return toRet;
-        }
-    }
-    return undefined;
-};
-exports.parseArray = parseArray;
-
-
-/***/ }),
-/* 9 */
-/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
-
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports._parseAxioms = exports.temporaryAttributes = exports.triggerAction = void 0;
-const diagnostics_1 = __webpack_require__(3);
-const globalParserInfo_1 = __webpack_require__(4);
-const includesParser_1 = __webpack_require__(10);
-const ParseSection_1 = __webpack_require__(5);
-const relationParser_1 = __webpack_require__(7);
-exports.triggerAction = [];
-const setOfAttributesAttended = new Set();
-exports.temporaryAttributes = [];
-const parseConditions = (line, lineNumber) => {
-    const toFindTokens = /^.*(?=\s*\<?\-\>\s*\[)/;
-    const toSeparateTokens = /(\&|\||\)|\(|\!)/;
-    const parseConditionsSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-        return "cantprint";
-    });
-    return parseConditionsSection.getTokens(line, lineNumber, 0, true, relationParser_1.compareRelationTokens);
-};
-const parseActionWithArguments = (line, lineNumber, action, numberOfArgs, startingChar) => {
-    const rx = /(\)|\(|\,)/;
-    const rx2 = new RegExp(action + "\\(\\s*(\\w*\\s*,?\\s*)*\\)");
-    const slicedLine = line.slice(startingChar + action.length);
-    const args = slicedLine.slice(0, slicedLine.indexOf(")") + 1);
-    const splitedArgs = args.split(rx).filter((el) => !rx.test(el) && el.trim() !== "");
-    if (rx2.test(line) && splitedArgs.length !== numberOfArgs) {
-        (0, diagnostics_1.addDiagnostic)(lineNumber, startingChar, lineNumber, startingChar + action.length, action + " doest not have the right amount of arguments", "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + action);
-        return false;
-    }
-    else {
-        return true;
-    }
-};
-const parseTemporaryArgument = (lineNumber, sc, el, currentAction, actionArgumentIndex) => {
-    const correctType = globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).get(currentAction).arguments[actionArgumentIndex];
-    if (el.charAt(0) === "_") {
-        exports.temporaryAttributes.push({ action: currentAction, value: el, index: actionArgumentIndex });
-        return "keyword";
-    }
-    else if (globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(el.trim()) &&
-        globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(el.trim()).type === correctType) {
-        return "variable";
-    }
-    else {
-        (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " needs to start with an underscore (_) or be an attribute with type " + correctType, "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + el);
-        return "regexp";
-    }
-};
-const parseTriggerAction = (line, lineNumber) => {
-    let numberOfArgumentsInAction = 0;
-    let actionArgumentIndex = 0;
-    let currentAction = "";
-    let isIncluded = false;
-    let includedInteractor = "";
-    let actionsInIncluded;
-    const toFindTokens = /((\<?\s*\-\>\s*)|^\s*)\[[^\[]+\]/;
-    const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\]|\,|\.)/;
-    const parseTriggerActions = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-        if (isIncluded) {
-            if ((0, includesParser_1.isIncludedDinamically)(includedInteractor, el.trim())) {
-                includedInteractor = globalParserInfo_1.aggregates.get(el.trim()).included;
-                actionsInIncluded = globalParserInfo_1.actions.get(includedInteractor);
-                return "variable";
-            }
-            isIncluded = false;
-            if (actionsInIncluded.has(el.trim())) {
-                currentAction = el.trim();
-                exports.triggerAction.push(includedInteractor + ":" + el.trim());
-                return "function";
-            }
-            (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is not an action from " + includedInteractor, "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + el);
-            return "regexp";
-        }
-        else if (numberOfArgumentsInAction > 0) {
-            numberOfArgumentsInAction--;
-            const toRet = parseTemporaryArgument(lineNumber, sc, el, currentAction, actionArgumentIndex);
-            actionArgumentIndex++;
-            return toRet;
-        }
-        else if (globalParserInfo_1.aggregates.has(el.trim()) && globalParserInfo_1.aggregates.get(el.trim()).current === globalParserInfo_1.currentInteractor) {
-            isIncluded = true;
-            includedInteractor = globalParserInfo_1.aggregates.get(el.trim()).included;
-            actionsInIncluded = globalParserInfo_1.actions.get(includedInteractor);
-            return "variable";
-        }
-        else if (globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).has(el.trim())) {
-            const prevAction = globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).get(el.trim());
-            if (!parseActionWithArguments(line, lineNumber, el, prevAction.arguments.length, sc)) {
-                return "regexp";
-            }
-            else {
-                numberOfArgumentsInAction = prevAction.arguments.length;
-            }
-            currentAction = el.trim();
-            exports.triggerAction.push(currentAction);
-            globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).set(currentAction, { ...prevAction, used: true });
-            return "function";
-        }
-        else {
-            (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error", diagnostics_1.DECLARE_ACTION + ":" + el);
-            return "regexp";
-        }
-    });
-    return parseTriggerActions.getTokens(line, lineNumber, line.search(toFindTokens));
-};
-const parseNextState = (line, lineNumber) => {
-    const toFindTokens = /(?<=((?<=(\-\s*\>.*|^\s*\[.*))\]|^\s*per\s*\(.*\)\s*\<?\-\>)).*/;
-    const toSeparateTokens = /(\&|\||\)|\(|\,)/;
-    let isInKeep = false;
-    const parseNextStateSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-        const isNextState = el.split(":")[1] === "true";
-        if (el.split(":")[0] === "keep") {
-            isInKeep = true;
-            return "";
-        }
-        if (isInKeep || isNextState) {
-            setOfAttributesAttended.add(el.split(":")[0]);
-        }
-        return "cantprint";
-    });
-    return parseNextStateSection.getTokens(line, lineNumber, 0, true, relationParser_1.compareRelationTokens);
-};
-const _parseAxioms = (line, lineNumber) => {
-    let currentOffset = 0;
-    let toRetTokens = [];
-    let size = 0;
-    const sectionsToParseParsers = [parseTriggerAction, parseConditions, parseNextState];
-    const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
-    exports.triggerAction = [];
-    setOfAttributesAttended.clear();
-    for (const parser of sectionsToParseParsers) {
-        const matchedPiece = parser(lineWithoutComments, lineNumber);
-        if (matchedPiece && matchedPiece.size > 0) {
-            toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
-            size += matchedPiece.size;
-            currentOffset += matchedPiece.size;
-        }
-        if (setOfAttributesAttended.size > 0) {
-            for (let act of exports.triggerAction) {
-                if (!globalParserInfo_1.actionsToAttributes.has(globalParserInfo_1.currentInteractor)) {
-                    globalParserInfo_1.actionsToAttributes.set(globalParserInfo_1.currentInteractor, new Map());
-                }
-                if (!globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).has(act)) {
-                    globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).set(act, new Set());
-                }
-                globalParserInfo_1.actionsToAttributes
-                    .get(globalParserInfo_1.currentInteractor)
-                    .set(act, new Set([...globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).get(act), ...setOfAttributesAttended]));
-            }
-        }
-    }
-    if (size === 0) {
-        return undefined;
-    }
-    else {
-        return { tokens: toRetTokens, size: size };
-    }
-};
-exports._parseAxioms = _parseAxioms;
-
-
-/***/ }),
-/* 10 */
-/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
-
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports._parseIncludes = exports.isIncludedDinamically = exports.parseAggregatesValue = void 0;
-const diagnostics_1 = __webpack_require__(3);
-const globalParserInfo_1 = __webpack_require__(4);
-const ParseSection_1 = __webpack_require__(5);
-const relationParser_1 = __webpack_require__(7);
-const parseAggregatesValue = (textInfo, offset, val) => {
-    let offsetPoints = 0;
-    const splitByPoints = val.value
-        .split(/(\.)/)
-        .map((el) => {
-        offsetPoints += el.length;
-        return { value: el, offset: offsetPoints - el.length };
-    })
-        .filter((el) => el.value.trim() !== "" && !el.value.includes("."));
-    let current = globalParserInfo_1.currentInteractor;
-    const toks = [];
-    let typeToRet = "";
-    if (splitByPoints.length > 1) {
-        for (let x of splitByPoints) {
-            const xt = x.value.trim();
-            if (globalParserInfo_1.aggregates.has(xt) && globalParserInfo_1.aggregates.get(xt).current === current) {
-                current = globalParserInfo_1.aggregates.get(xt).included;
-                toks.push({ offset: x.offset, value: x.value, tokenType: "variable" });
-            }
-            else if (globalParserInfo_1.attributes.has(current) && globalParserInfo_1.attributes.get(current).has((0, relationParser_1.removeExclamation)(xt).value)) {
-                toks.push({ offset: x.offset, value: x.value, tokenType: "variable" });
-                typeToRet = globalParserInfo_1.attributes.get(current).get((0, relationParser_1.removeExclamation)(xt).value).type;
-                break;
-            }
-            else {
-                (0, diagnostics_1.addDiagnostic)(textInfo.lineNumber, offset + x.offset, textInfo.lineNumber, offset + x.offset + x.value.length, xt + " is not aggregated", "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + xt);
-                toks.push({ offset: x.offset, value: x.value, tokenType: "regexp" });
-                typeToRet = undefined;
-                break;
-            }
-        }
-        return { tokens: toks, type: typeToRet };
-    }
-    return undefined;
-};
-exports.parseAggregatesValue = parseAggregatesValue;
-const isIncludedDinamically = (interactorToCheck, includedToCheck) => {
-    let current = includedToCheck;
-    let interactor = interactorToCheck;
-    if (globalParserInfo_1.aggregates.has(current) && globalParserInfo_1.aggregates.get(current).current === interactor) {
-        return true;
-    }
-    else {
-        return false;
-    }
-};
-exports.isIncludedDinamically = isIncludedDinamically;
-const parseInclude = (line, lineNumber) => {
-    let elIndex = 0;
-    let intName = "";
-    const toFindTokens = /^\s*[a-zA-Z]+\w*\s+via\s+[a-zA-Z]+\w*/;
-    const toSeparateTokens = /(\s|via)/;
-    const parseConditionsSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-        if (elIndex === 0) {
-            intName = el.trim();
-            elIndex++;
-            return "macro";
-        }
-        else {
-            globalParserInfo_1.aggregates.set(el.trim(), { current: globalParserInfo_1.currentInteractor, included: intName });
-            return "variable";
-        }
-    });
-    return parseConditionsSection.getTokens(line, lineNumber, 0);
-};
-const _parseIncludes = (line, lineNumber) => {
-    let currentOffset = 0;
-    let toRetTokens = [];
-    let size = 0;
-    const sectionsToParseParsers = [parseInclude];
-    const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
-    for (const parser of sectionsToParseParsers) {
-        const matchedPiece = parser(lineWithoutComments, lineNumber);
-        if (matchedPiece && matchedPiece.size > 0) {
-            toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
-            size += matchedPiece.size;
-            currentOffset += matchedPiece.size;
-        }
-    }
-    if (size === 0) {
-        return undefined;
-    }
-    else {
-        return { tokens: toRetTokens, size: size };
-    }
-};
-exports._parseIncludes = _parseIncludes;
-
-
-/***/ }),
-/* 11 */
+/* 12 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
@@ -1266,8 +1403,8 @@ const arrayRelations_1 = __webpack_require__(8);
 const axiomParser_1 = __webpack_require__(9);
 const globalParserInfo_1 = __webpack_require__(4);
 const includesParser_1 = __webpack_require__(10);
-const relationParser_1 = __webpack_require__(7);
-const typeFindes_1 = __webpack_require__(20);
+const relationParser_1 = __webpack_require__(11);
+const typeFindes_1 = __webpack_require__(7);
 const hasSquareBrackets = (s) => {
     return s.includes("]") || s.includes("[");
 };
@@ -1368,7 +1505,7 @@ exports.isAttributeSameTypeAsValue = isAttributeSameTypeAsValue;
 
 
 /***/ }),
-/* 12 */
+/* 13 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
@@ -1399,20 +1536,20 @@ exports.commandHandler = commandHandler;
 
 
 /***/ }),
-/* 13 */
+/* 14 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports._parseText = void 0;
 const axiomParser_1 = __webpack_require__(9);
-const definesParser_1 = __webpack_require__(14);
+const definesParser_1 = __webpack_require__(15);
 const globalParserInfo_1 = __webpack_require__(4);
 const diagnostics_1 = __webpack_require__(3);
-const typesParser_1 = __webpack_require__(15);
-const actionsParser_1 = __webpack_require__(16);
-const attributesParser_1 = __webpack_require__(17);
-const checkIfUsed_1 = __webpack_require__(18);
+const typesParser_1 = __webpack_require__(16);
+const actionsParser_1 = __webpack_require__(17);
+const attributesParser_1 = __webpack_require__(18);
+const checkIfUsed_1 = __webpack_require__(19);
 const includesParser_1 = __webpack_require__(10);
 /* Simple method to check if a line is an expression or a simple line,
  by checking if it is a number,true or false */
@@ -1581,7 +1718,7 @@ exports._parseText = _parseText;
 
 
 /***/ }),
-/* 14 */
+/* 15 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
@@ -1590,7 +1727,7 @@ exports._parseDefines = void 0;
 const diagnostics_1 = __webpack_require__(3);
 const globalParserInfo_1 = __webpack_require__(4);
 const ParseSection_1 = __webpack_require__(5);
-const relationParser_1 = __webpack_require__(7);
+const relationParser_1 = __webpack_require__(11);
 const parseTokensForITokens = (toParseTokens, lineNumber, line) => {
     const tokens = [];
     if (toParseTokens !== undefined) {
@@ -1667,7 +1804,7 @@ exports._parseDefines = _parseDefines;
 
 
 /***/ }),
-/* 15 */
+/* 16 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
@@ -1676,7 +1813,7 @@ exports._parseTypes = void 0;
 const diagnostics_1 = __webpack_require__(3);
 const globalParserInfo_1 = __webpack_require__(4);
 const ParseSection_1 = __webpack_require__(5);
-const relationParser_1 = __webpack_require__(7);
+const relationParser_1 = __webpack_require__(11);
 const getNumericalValue = (s) => {
     if (!isNaN(+s)) {
         return +s;
@@ -1789,7 +1926,7 @@ exports._parseTypes = _parseTypes;
 
 
 /***/ }),
-/* 16 */
+/* 17 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
@@ -1892,7 +2029,7 @@ exports._parseActions = _parseActions;
 
 
 /***/ }),
-/* 17 */
+/* 18 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
@@ -1978,7 +2115,7 @@ exports._parseAttributes = _parseAttributes;
 
 
 /***/ }),
-/* 18 */
+/* 19 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
@@ -2012,7 +2149,7 @@ exports.checkIfUsed = checkIfUsed;
 
 
 /***/ }),
-/* 19 */
+/* 20 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
@@ -2101,130 +2238,6 @@ function getNonce() {
     }
     return text;
 }
-
-
-/***/ }),
-/* 20 */
-/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
-
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.isAttributeSameAsValue = exports.findValueType = exports.findTemporaryType = exports.findAggregatedValueType = void 0;
-const arrayRelations_1 = __webpack_require__(8);
-const axiomParser_1 = __webpack_require__(9);
-const globalParserInfo_1 = __webpack_require__(4);
-const findAggregatedValueType = (s) => {
-    let offsetPoints = 0;
-    const splitByPoints = s
-        .split(/(\.)/)
-        .map((el) => {
-        offsetPoints += el.length;
-        return { value: el, offset: offsetPoints - el.length };
-    })
-        .filter((el) => el.value.trim() !== "" && !el.value.includes("."));
-    let current = globalParserInfo_1.currentInteractor;
-    let typeToRet = "";
-    if (splitByPoints.length > 1) {
-        for (let x of splitByPoints) {
-            const xt = x.value.trim();
-            if (globalParserInfo_1.aggregates.has(xt) && globalParserInfo_1.aggregates.get(xt).current === current) {
-                current = globalParserInfo_1.aggregates.get(xt).included;
-            }
-            else if (globalParserInfo_1.attributes.has(current) && globalParserInfo_1.attributes.get(current).has(xt)) {
-                typeToRet = globalParserInfo_1.attributes.get(current).get(xt).type;
-                break;
-            }
-            else {
-                typeToRet = undefined;
-                break;
-            }
-        }
-        return typeToRet;
-    }
-    return undefined;
-};
-exports.findAggregatedValueType = findAggregatedValueType;
-const findTemporaryType = (s) => {
-    let ta = undefined;
-    for (let i = 0; i < axiomParser_1.temporaryAttributes.length; i++) {
-        if (axiomParser_1.temporaryAttributes[i].value === s) {
-            const args = globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).get(axiomParser_1.temporaryAttributes[i].action).arguments;
-            ta = args[axiomParser_1.temporaryAttributes[i].index];
-            if (globalParserInfo_1.ranges.has(ta) ||
-                (globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(ta) && globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(ta).type === "number")) {
-                return "number";
-            }
-            else {
-                return ta;
-            }
-        }
-    }
-    return undefined;
-};
-exports.findTemporaryType = findTemporaryType;
-const findValueType = (value) => {
-    const correctValue = value[value.length - 1] === "'" ? value.slice(0, value.length - 1) : value;
-    if (value === "true" || value === "false") {
-        return "boolean";
-    }
-    else if (!isNaN(+value) && value !== "") {
-        // check if value is a number
-        return "number";
-    }
-    else if (globalParserInfo_1.defines.has(value)) {
-        return globalParserInfo_1.defines.get(value).type;
-    }
-    else if (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) &&
-        globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(value) &&
-        globalParserInfo_1.ranges.has(globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(value).type)) {
-        return "number";
-    }
-    else if (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) && globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(correctValue)) {
-        return globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(correctValue).type;
-    }
-    else {
-        for (var [k, v] of globalParserInfo_1.enums) {
-            if (v.values.includes(value)) {
-                return k;
-            }
-        }
-    }
-    return (0, exports.findTemporaryType)(value.trim());
-};
-exports.findValueType = findValueType;
-const isAttributeSameAsValue = (attribute, value) => {
-    if (attribute.includes(".")) {
-        const aggAttType = (0, exports.findAggregatedValueType)(attribute);
-        let aggValType;
-        if (value.includes(".")) {
-            aggValType = (0, exports.findAggregatedValueType)(value);
-        }
-        else {
-            aggValType = (0, exports.findValueType)(value);
-        }
-        if (aggAttType && aggValType) {
-            return aggAttType === aggValType;
-        }
-        else {
-            return false;
-        }
-    }
-    else if (attribute.charAt(0) === "_") {
-        return (axiomParser_1.temporaryAttributes.map((el) => el.value).includes(attribute) && (0, exports.findValueType)(attribute) === (0, exports.findValueType)(value));
-    }
-    else if (attribute.includes("]") || attribute.includes("[")) {
-        const { arrayName } = (0, arrayRelations_1.getArrayWrittenInfo)(attribute);
-        const { type } = (0, arrayRelations_1.getArrayInStore)(arrayName);
-        return type === (0, exports.findValueType)(value);
-    }
-    else {
-        return (globalParserInfo_1.attributes.has(globalParserInfo_1.currentInteractor) &&
-            globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(attribute) &&
-            (globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(attribute).type === (0, exports.findValueType)(value) ||
-                (globalParserInfo_1.ranges.has(globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(attribute).type) && (0, exports.findValueType)(value) === "number")));
-    }
-};
-exports.isAttributeSameAsValue = isAttributeSameAsValue;
 
 
 /***/ })
