@@ -62,15 +62,17 @@ const parseTemporaryArgument = (
   sc: number,
   el: string,
   currentAction: string,
-  actionArgumentIndex: number
+  actionArgumentIndex: number,
+  interactor:string
 ): string => {
-  const correctType = actions.get(currentInteractor)!.get(currentAction)!.arguments[actionArgumentIndex];
+  console.log(currentAction);
+  const correctType = actions.get(interactor)!.get(currentAction)!.arguments[actionArgumentIndex];
   if (el.charAt(0) === "_") {
     temporaryAttributes.push({ action: currentAction, value: el, index: actionArgumentIndex });
     return "keyword";
   } else if (
-    attributes.get(currentInteractor)!.has(el.trim()) &&
-    attributes.get(currentInteractor)!.get(el.trim())!.type === correctType
+    attributes.get(interactor)!.has(el.trim()) &&
+    attributes.get(interactor)!.get(el.trim())!.type === correctType
   ) {
     return "variable";
   } else {
@@ -87,12 +89,30 @@ const parseTemporaryArgument = (
   }
 };
 
+const submitAction = (textInfo:{el:string,line:string,lineNumber:number},interactor:string,sc:number) => {
+  let isOkay = true;
+  let numberOfArgumentsInAction = 0;
+  const {el,line,lineNumber} = {...textInfo};
+  const prevAction = actions.get(interactor)!.get(el.trim())!;
+  if (!parseActionWithArguments(line, lineNumber, el, prevAction.arguments.length, sc)) {
+    isOkay=false;
+  } else {
+    numberOfArgumentsInAction = prevAction.arguments.length;
+  }
+  const currentAction = el.trim();
+  triggerAction.push(interactor + ":" + el.trim());
+  actions.get(interactor)!.set(currentAction, { ...prevAction, used: true });
+  return {numberOfArgumentsInAction:numberOfArgumentsInAction,tokenType:isOkay?"function":"regexp",currentAction:currentAction};
+
+};
+
 const parseTriggerAction = (line: string, lineNumber: number) => {
   let numberOfArgumentsInAction = 0;
   let actionArgumentIndex = 0;
   let currentAction = "";
   let isIncluded = false;
   let includedInteractor = "";
+  let interactorForTemps = currentInteractor;
   let actionsInIncluded: Map<string, { used: boolean; line: number; arguments: string[] }>;
   const toFindTokens = /((\<?\s*\-\>\s*)|^\s*)\[[^\[]+\]/;
   const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\]|\,|\.)/;
@@ -106,9 +126,11 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
       }
       isIncluded = false;
       if (actionsInIncluded.has(el.trim())) {
-        currentAction = el.trim();
-        triggerAction.push(includedInteractor + ":" + el.trim());
-        return "function";
+        const {numberOfArgumentsInAction:naia,tokenType,currentAction:ca} = {...submitAction({el:el,line:line,lineNumber:lineNumber},includedInteractor,sc)};
+        numberOfArgumentsInAction = naia;
+        currentAction=ca;
+        interactorForTemps = includedInteractor;
+        return tokenType;
       }
       addDiagnostic(
         lineNumber,
@@ -122,7 +144,7 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
       return "regexp";
     } else if (numberOfArgumentsInAction > 0) {
       numberOfArgumentsInAction--;
-      const toRet = parseTemporaryArgument(lineNumber, sc, el, currentAction, actionArgumentIndex);
+      const toRet = parseTemporaryArgument(lineNumber, sc, el, currentAction, actionArgumentIndex,interactorForTemps);
       actionArgumentIndex++;
       return toRet;
     } else if (aggregates.has(el.trim()) && aggregates.get(el.trim())!.current === currentInteractor) {
@@ -131,16 +153,11 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
       actionsInIncluded = actions.get(includedInteractor)!;
       return "variable";
     } else if (actions.get(currentInteractor)!.has(el.trim())) {
-      const prevAction = actions.get(currentInteractor)!.get(el.trim())!;
-      if (!parseActionWithArguments(line, lineNumber, el, prevAction.arguments.length, sc)) {
-        return "regexp";
-      } else {
-        numberOfArgumentsInAction = prevAction.arguments.length;
-      }
-      currentAction = el.trim();
-      triggerAction.push(currentAction);
-      actions.get(currentInteractor)!.set(currentAction, { ...prevAction, used: true });
-      return "function";
+      const {numberOfArgumentsInAction:naia,tokenType,currentAction:ca} = {...submitAction({el:el,line:line,lineNumber:lineNumber},currentInteractor,sc)};
+      interactorForTemps = currentInteractor;  
+      numberOfArgumentsInAction = naia;
+        currentAction=ca;
+        return tokenType;
     } else {
       addDiagnostic(
         lineNumber,

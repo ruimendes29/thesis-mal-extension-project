@@ -891,14 +891,15 @@ const parseActionWithArguments = (line, lineNumber, action, numberOfArgs, starti
         return true;
     }
 };
-const parseTemporaryArgument = (lineNumber, sc, el, currentAction, actionArgumentIndex) => {
-    const correctType = globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).get(currentAction).arguments[actionArgumentIndex];
+const parseTemporaryArgument = (lineNumber, sc, el, currentAction, actionArgumentIndex, interactor) => {
+    console.log(currentAction);
+    const correctType = globalParserInfo_1.actions.get(interactor).get(currentAction).arguments[actionArgumentIndex];
     if (el.charAt(0) === "_") {
         exports.temporaryAttributes.push({ action: currentAction, value: el, index: actionArgumentIndex });
         return "keyword";
     }
-    else if (globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).has(el.trim()) &&
-        globalParserInfo_1.attributes.get(globalParserInfo_1.currentInteractor).get(el.trim()).type === correctType) {
+    else if (globalParserInfo_1.attributes.get(interactor).has(el.trim()) &&
+        globalParserInfo_1.attributes.get(interactor).get(el.trim()).type === correctType) {
         return "variable";
     }
     else {
@@ -906,12 +907,29 @@ const parseTemporaryArgument = (lineNumber, sc, el, currentAction, actionArgumen
         return "regexp";
     }
 };
+const submitAction = (textInfo, interactor, sc) => {
+    let isOkay = true;
+    let numberOfArgumentsInAction = 0;
+    const { el, line, lineNumber } = { ...textInfo };
+    const prevAction = globalParserInfo_1.actions.get(interactor).get(el.trim());
+    if (!parseActionWithArguments(line, lineNumber, el, prevAction.arguments.length, sc)) {
+        isOkay = false;
+    }
+    else {
+        numberOfArgumentsInAction = prevAction.arguments.length;
+    }
+    const currentAction = el.trim();
+    exports.triggerAction.push(interactor + ":" + el.trim());
+    globalParserInfo_1.actions.get(interactor).set(currentAction, { ...prevAction, used: true });
+    return { numberOfArgumentsInAction: numberOfArgumentsInAction, tokenType: isOkay ? "function" : "regexp", currentAction: currentAction };
+};
 const parseTriggerAction = (line, lineNumber) => {
     let numberOfArgumentsInAction = 0;
     let actionArgumentIndex = 0;
     let currentAction = "";
     let isIncluded = false;
     let includedInteractor = "";
+    let interactorForTemps = globalParserInfo_1.currentInteractor;
     let actionsInIncluded;
     const toFindTokens = /((\<?\s*\-\>\s*)|^\s*)\[[^\[]+\]/;
     const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\]|\,|\.)/;
@@ -924,16 +942,18 @@ const parseTriggerAction = (line, lineNumber) => {
             }
             isIncluded = false;
             if (actionsInIncluded.has(el.trim())) {
-                currentAction = el.trim();
-                exports.triggerAction.push(includedInteractor + ":" + el.trim());
-                return "function";
+                const { numberOfArgumentsInAction: naia, tokenType, currentAction: ca } = { ...submitAction({ el: el, line: line, lineNumber: lineNumber }, includedInteractor, sc) };
+                numberOfArgumentsInAction = naia;
+                currentAction = ca;
+                interactorForTemps = includedInteractor;
+                return tokenType;
             }
             (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is not an action from " + includedInteractor, "error", diagnostics_1.NOT_YET_IMPLEMENTED + ":" + el);
             return "regexp";
         }
         else if (numberOfArgumentsInAction > 0) {
             numberOfArgumentsInAction--;
-            const toRet = parseTemporaryArgument(lineNumber, sc, el, currentAction, actionArgumentIndex);
+            const toRet = parseTemporaryArgument(lineNumber, sc, el, currentAction, actionArgumentIndex, interactorForTemps);
             actionArgumentIndex++;
             return toRet;
         }
@@ -944,17 +964,11 @@ const parseTriggerAction = (line, lineNumber) => {
             return "variable";
         }
         else if (globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).has(el.trim())) {
-            const prevAction = globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).get(el.trim());
-            if (!parseActionWithArguments(line, lineNumber, el, prevAction.arguments.length, sc)) {
-                return "regexp";
-            }
-            else {
-                numberOfArgumentsInAction = prevAction.arguments.length;
-            }
-            currentAction = el.trim();
-            exports.triggerAction.push(currentAction);
-            globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).set(currentAction, { ...prevAction, used: true });
-            return "function";
+            const { numberOfArgumentsInAction: naia, tokenType, currentAction: ca } = { ...submitAction({ el: el, line: line, lineNumber: lineNumber }, globalParserInfo_1.currentInteractor, sc) };
+            interactorForTemps = globalParserInfo_1.currentInteractor;
+            numberOfArgumentsInAction = naia;
+            currentAction = ca;
+            return tokenType;
         }
         else {
             (0, diagnostics_1.addDiagnostic)(lineNumber, sc, lineNumber, sc + el.length, el + " is not declared as an action", "error", diagnostics_1.DECLARE_ACTION + ":" + el);
