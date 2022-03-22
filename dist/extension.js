@@ -965,7 +965,7 @@ const parseTriggerAction = (line, lineNumber) => {
 };
 const parseNextState = (line, lineNumber) => {
     const toFindTokens = /(?<=((?<=(\-\s*\>.*|^\s*\[.*))\]|^\s*per\s*\(.*\)\s*\<?\-\>)).*/;
-    const toSeparateTokens = /(\&|\||\)|\(|\,)/;
+    const toSeparateTokens = /(\&|\||\)|\(|\,|\<?\s*\-\s*\>)/;
     let isInKeep = false;
     const parseNextStateSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
         const isNextState = el.split(":")[1] === "true";
