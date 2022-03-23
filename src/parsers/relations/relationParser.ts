@@ -176,7 +176,7 @@ const updateAttributeUsage = (att: string, interactor: string) => {
 export const compareRelationTokens = (
   textInfo: { line: string; lineNumber: number; el: string },
   offset: number
-): { offset: number; value: string; tokenType: string; nextState?: boolean }[] | undefined => {
+): { offset: number; value: string; tokenType: string; nextState?: boolean;interactor?:string }[] | undefined => {
   let tp;
   let indexOfOp;
   const comparationSymbols = /(\<\s*\=|\>\s*\=|(?<!\-)\s*\>|\<\s*(?!\-)|\=|\!\s*\=)/;
@@ -229,12 +229,12 @@ export const compareRelationTokens = (
         return errors;
       }
 
-      let agValues;
+      let agValues: { tokens: { offset: number; value: string; tokenType: string; }[]; type: string | undefined; lastInteractor: string; attributeName: string; } | undefined;
       if ((agValues = parseAggregatesValue(textInfo, offset, preAtt))) {
         updateAttributeUsage(agValues.attributeName.trim(), agValues.lastInteractor.trim());
         return [
           ...agValues.tokens.map((x) => {
-            return { ...x, offset: preAtt.offset + x.offset };
+            return { ...x, offset: preAtt.offset + x.offset, nextState:removeExclamation(x.value.trim()).isNextState, interactor:agValues!.lastInteractor.trim()};
           }),
           {
             offset: preVal.offset,
@@ -275,10 +275,6 @@ export const compareRelationTokens = (
           });
         } else {
           const clearedValue = removeExclamation(agValues.attributeName.trim()).value;
-          console.log(agValues);
-          console.log(clearedValue);
-          console.log(attributes.get(removeExclamation(agValues.lastInteractor).value)!);
-          console.log(textInfo.lineNumber);
 
           if (attributes.get(removeExclamation(agValues.lastInteractor).value)!.has(clearedValue)) {
             addDiagnostic(

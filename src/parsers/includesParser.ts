@@ -1,5 +1,12 @@
 import { addDiagnostic, NOT_YET_IMPLEMENTED } from "../diagnostics/diagnostics";
-import { aggregates, attributes, currentInteractor, IParsedToken } from "./globalParserInfo";
+import {
+  actions,
+  actionsToAttributes,
+  aggregates,
+  attributes,
+  currentInteractor,
+  IParsedToken,
+} from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 import { removeExclamation } from "./relations/relationParser";
 
@@ -26,10 +33,10 @@ export const parseAggregatesValue = (
   let current = currentInteractor;
   const toks = [];
   let typeToRet: string | undefined = "";
-  let i=0;
+  let i = 0;
   if (splitByPoints.length > 1) {
     for (let x of splitByPoints) {
-      const xt = i===0?(removeExclamation(x.value.trim()).value):(x.value.trim());
+      const xt = i === 0 ? removeExclamation(x.value.trim()).value : x.value.trim();
       i++;
       if (aggregates.has(xt) && aggregates.get(xt)!.current === current) {
         current = aggregates.get(xt)!.included;
@@ -86,6 +93,15 @@ const parseInclude = (line: string, lineNumber: number) => {
       return "macro";
     } else {
       aggregates.set(el.trim(), { current: currentInteractor, included: intName });
+      if (!actionsToAttributes.has(currentInteractor)) {
+        actionsToAttributes.set(currentInteractor, new Map());
+      }
+      actionsToAttributes.get(currentInteractor)!.set(intName, new Map());
+      if (actions.has(intName)) {
+        for (let act of actions.get(intName)!) {
+          actionsToAttributes.get(currentInteractor)!.get(intName)!.set(act[0], new Set());
+        }
+      }
       return "variable";
     }
   });

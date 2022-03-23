@@ -75,15 +75,6 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ActionsDeterminismProvider.viewType, provider));
 
-	context.subscriptions.push(
-		vscode.commands.registerCommand('calicoColors.addColor', () => {
-			provider.addColor();
-		}));
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand('calicoColors.clearColors', () => {
-			provider.clearColors();
-		}));
 }
 
 class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensProvider {

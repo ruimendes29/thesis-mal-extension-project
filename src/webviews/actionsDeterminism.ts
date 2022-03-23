@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { actions, actionsToAttributes, attributes } from "../parsers/globalParserInfo";
+import { actions, actionsToAttributes, aggregates, attributes, interactorLimits } from "../parsers/globalParserInfo";
 
 export class ActionsDeterminismProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "mal-deterministic";
@@ -29,9 +29,25 @@ export class ActionsDeterminismProvider implements vscode.WebviewViewProvider {
         case "receiveActions": {
           webviewView.webview.postMessage({
             type: "refreshActions",
-            actions: Array.from(actions).map(([key, _value]) => key),
-            attributes: Array.from(actions).map(([key, _value]) => Array.from(actionsToAttributes.get(key)!.values())),
-            totalAttributes: attributes.size,
+            interactors: Array.from(interactorLimits).map(([key, _value]) => key),
+            actions: Array.from(actionsToAttributes).map(([mainInteractor, insideInteractors]) => {
+              return {
+                mainInteractor: mainInteractor,
+                insideInteractors: Array.from(insideInteractors).map(([interactorName, actionsInInteractor]) => {
+                  return {
+                    includedInteractor: interactorName === mainInteractor ? "self" : interactorName,
+                    actions: Array.from(actionsInInteractor).map(([actionName, attributesAttended]) => {
+                      const joinedAtts = this.joinAttributesFromInteractors(mainInteractor);
+                      return {
+                        actionName: actionName,
+                        totalAttributes: joinedAtts.length,
+                        attributes: joinedAtts.filter((el) => !attributesAttended.has(el)),
+                      };
+                    }),
+                  };
+                }),
+              };
+            }),
           });
           break;
         }
@@ -39,17 +55,30 @@ export class ActionsDeterminismProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  public addColor() {
-    if (this._view) {
-      this._view.show?.(true); // `show` is not implemented in 1.49 but is for 1.50 insiders
-      this._view.webview.postMessage({ type: "addColor" });
+  private joinAttributesFromInteractors(main: string): string[] {
+    const mySet = new Set<string>();
+    for (let included of Array.from(aggregates)
+      .filter((el) => el[1].current === main)
+      .map(([key, value]) => value.included)) {
+      if (attributes.has(included)) {
+        for (let x of Array.from(attributes.get(included)!).map(([key, value]) => key)) {
+          if (included !== main) {
+            const aggregatedName = Array.from(aggregates).filter(
+              (el) => el[1].current === main && el[1].included === included
+            )[0][0];
+            mySet.add(aggregatedName + "." + x);
+          } else {
+            mySet.add(x);
+          }
+        }
+      }
     }
-  }
-
-  public clearColors() {
-    if (this._view) {
-      this._view.webview.postMessage({ type: "clearColors" });
+    if (attributes.has(main)) {
+      for (let x of Array.from(attributes.get(main)!).map(([key, value]) => key)) {
+        mySet.add(x);
+      }
     }
+    return [...mySet];
   }
 
   private _getHtmlForWebview(webview: vscode.Webview) {
@@ -72,13 +101,12 @@ export class ActionsDeterminismProvider implements vscode.WebviewViewProvider {
 					Use a content security policy to only allow loading images from https or from our extension directory,
 					and only allow scripts that have a specific nonce.
 				-->
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
 				<link href="${styleResetUri}" rel="stylesheet">
 				<link href="${styleVSCodeUri}" rel="stylesheet">
 				<link href="${styleMainUri}" rel="stylesheet">
-				
 				<title>Determinism of Actions</title>
+        <script src="https://kit.fontawesome.com/266aa513f6.js" crossorigin="anonymous"></script>
 			</head>
 			<body>
 				<ul class="actions-list">

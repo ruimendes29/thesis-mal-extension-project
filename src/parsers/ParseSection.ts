@@ -47,7 +47,7 @@ export class ParseSection {
     lineNumber: number,
     offset: number,
     aggregatedTokens?: boolean,
-    separateTokens?:(textInfo:{line:string,lineNumber:number,el:string}, offset: number)=>{ offset: number; value: string; tokenType: string;nextState?: boolean|undefined }[] | undefined
+    separateTokens?:(textInfo:{line:string,lineNumber:number,el:string}, offset: number)=>{ offset: number; value: string; tokenType: string;nextState?: boolean|undefined;interactor?:string }[] | undefined
   ) {
     let x: RegExpExecArray | null;
     
@@ -94,7 +94,7 @@ export class ParseSection {
               const sepTokens = separateTokens!(textInfo, el.offset);
               if (sepTokens !== undefined) {
                 for (let t of sepTokens) {
-                  this.tokenTypeCondition(t.value+":"+t.nextState,el.offset);
+                  this.tokenTypeCondition(t.value+":"+t.nextState+":"+t.interactor,el.offset);
                   tokens.push({
                     line: lineNumber,
                     startCharacter: el.offset+t.offset,

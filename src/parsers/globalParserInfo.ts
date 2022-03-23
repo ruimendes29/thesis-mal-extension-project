@@ -12,7 +12,7 @@ export const defines = new Map<string, { used: boolean; type: string | undefined
 export const enums = new Map<string, { used: boolean; values: string[] }>();
 export const ranges = new Map<string, { used: boolean; minimum: number; maximum: number }>();
 export const arrays = new Map<string, { firstIndex: number; lastIndex: number; type: string }>();
-export const actionsToAttributes = new Map<string,Map<string, Set<string>>>();
+export const actionsToAttributes = new Map<string,Map<string,Map<string,Set<string>>>>();
 export const interactorLimits = new Map<string, { start: number; end: number | undefined }>();
 export const aggregates = new Map<string, { current: string; included: string }>();
 
@@ -109,7 +109,7 @@ export const clearStoredValues = () => {
   });
 };
 
-export const getInteractorByLine = (lineNumber: number):string => {
+export const getInteractorByLine = (lineNumber: number): string => {
   for (let x of interactorLimits) {
     if (x[1].start <= lineNumber && (x[1].end === undefined || x[1].end! >= lineNumber)) {
       return x[0];

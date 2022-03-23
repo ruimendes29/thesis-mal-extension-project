@@ -10,7 +10,7 @@ import {
 } from "./globalParserInfo";
 import { isIncludedDinamically } from "./includesParser";
 import { ParseSection } from "./ParseSection";
-import { compareRelationTokens } from "./relations/relationParser";
+import { compareRelationTokens, removeExclamation } from "./relations/relationParser";
 
 export let triggerAction: string[] = [];
 const setOfAttributesAttended: Set<string> = new Set();
@@ -35,7 +35,7 @@ const parseActionWithArguments = (
   startingChar: number
 ) => {
   const rx = /(\)|\(|\,)/;
-  const rx2 = new RegExp(action+"\\(\\s*(\\w*\\s*,?\\s*)*\\)");
+  const rx2 = new RegExp(action + "\\(\\s*(\\w*\\s*,?\\s*)*\\)");
   const slicedLine = line.slice(startingChar + action.length);
   const args = slicedLine.slice(0, slicedLine.indexOf(")") + 1);
   const splitedArgs = args.split(rx).filter((el) => !rx.test(el) && el.trim() !== "");
@@ -55,15 +55,13 @@ const parseActionWithArguments = (
   }
 };
 
-
-
 const parseTemporaryArgument = (
   lineNumber: number,
   sc: number,
   el: string,
   currentAction: string,
   actionArgumentIndex: number,
-  interactor:string
+  interactor: string
 ): string => {
   const correctType = actions.get(interactor)!.get(currentAction)!.arguments[actionArgumentIndex];
   if (el.charAt(0) === "_") {
@@ -88,21 +86,24 @@ const parseTemporaryArgument = (
   }
 };
 
-const submitAction = (textInfo:{el:string,line:string,lineNumber:number},interactor:string,sc:number) => {
+const submitAction = (textInfo: { el: string; line: string; lineNumber: number }, interactor: string, sc: number) => {
   let isOkay = true;
   let numberOfArgumentsInAction = 0;
-  const {el,line,lineNumber} = {...textInfo};
+  const { el, line, lineNumber } = { ...textInfo };
   const prevAction = actions.get(interactor)!.get(el.trim())!;
   if (!parseActionWithArguments(line, lineNumber, el, prevAction.arguments.length, sc)) {
-    isOkay=false;
+    isOkay = false;
   } else {
     numberOfArgumentsInAction = prevAction.arguments.length;
   }
   const currentAction = el.trim();
   triggerAction.push(interactor + ":" + el.trim());
   actions.get(interactor)!.set(currentAction, { ...prevAction, used: true });
-  return {numberOfArgumentsInAction:numberOfArgumentsInAction,tokenType:isOkay?"function":"regexp",currentAction:currentAction};
-
+  return {
+    numberOfArgumentsInAction: numberOfArgumentsInAction,
+    tokenType: isOkay ? "function" : "regexp",
+    currentAction: currentAction,
+  };
 };
 
 const parseTriggerAction = (line: string, lineNumber: number) => {
@@ -125,9 +126,13 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
       }
       isIncluded = false;
       if (actionsInIncluded.has(el.trim())) {
-        const {numberOfArgumentsInAction:naia,tokenType,currentAction:ca} = {...submitAction({el:el,line:line,lineNumber:lineNumber},includedInteractor,sc)};
+        const {
+          numberOfArgumentsInAction: naia,
+          tokenType,
+          currentAction: ca,
+        } = { ...submitAction({ el: el, line: line, lineNumber: lineNumber }, includedInteractor, sc) };
         numberOfArgumentsInAction = naia;
-        currentAction=ca;
+        currentAction = ca;
         interactorForTemps = includedInteractor;
         return tokenType;
       }
@@ -143,7 +148,7 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
       return "regexp";
     } else if (numberOfArgumentsInAction > 0) {
       numberOfArgumentsInAction--;
-      const toRet = parseTemporaryArgument(lineNumber, sc, el, currentAction, actionArgumentIndex,interactorForTemps);
+      const toRet = parseTemporaryArgument(lineNumber, sc, el, currentAction, actionArgumentIndex, interactorForTemps);
       actionArgumentIndex++;
       return toRet;
     } else if (aggregates.has(el.trim()) && aggregates.get(el.trim())!.current === currentInteractor) {
@@ -152,11 +157,15 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
       actionsInIncluded = actions.get(includedInteractor)!;
       return "variable";
     } else if (actions.get(currentInteractor)!.has(el.trim())) {
-      const {numberOfArgumentsInAction:naia,tokenType,currentAction:ca} = {...submitAction({el:el,line:line,lineNumber:lineNumber},currentInteractor,sc)};
-      interactorForTemps = currentInteractor;  
+      const {
+        numberOfArgumentsInAction: naia,
+        tokenType,
+        currentAction: ca,
+      } = { ...submitAction({ el: el, line: line, lineNumber: lineNumber }, currentInteractor, sc) };
+      interactorForTemps = currentInteractor;
       numberOfArgumentsInAction = naia;
-        currentAction=ca;
-        return tokenType;
+      currentAction = ca;
+      return tokenType;
     } else {
       addDiagnostic(
         lineNumber,
@@ -177,14 +186,32 @@ const parseNextState = (line: string, lineNumber: number) => {
   const toFindTokens = /(?<=((?<=(\-\s*\>.*|^\s*\[.*))\]|^\s*per\s*\(.*\)\s*\<?\-\>)).*/;
   const toSeparateTokens = /(\&|\||\)|\(|\,|\<?\s*\-\s*\>)/;
   let isInKeep = false;
+  let addToAttributes: string[] = [];
   const parseNextStateSection: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-    const isNextState: boolean = el.split(":")[1] === "true";
-    if (el.split(":")[0] === "keep") {
+    const [attName, isNextState, interactor] = el.split(":");
+    if (interactor !== "undefined") {
+      addToAttributes.push(removeExclamation(attName.trim()).value + ".");
+    } else {
+      addToAttributes = [];
+      addToAttributes.push(removeExclamation(attName.trim()).value+".");
+    }
+    if (attName === "keep") {
       isInKeep = true;
       return "";
     }
-    if (isInKeep || isNextState) {
-      setOfAttributesAttended.add(el.split(":")[0]);
+    if (isInKeep || isNextState === "true") {
+      setOfAttributesAttended.add(addToAttributes.join("").slice(0, addToAttributes.join("").length - 1));
+      addToAttributes = [];
+    }
+    else if (interactor==="undefined")
+    {
+      addToAttributes=[];
+    }
+    if (addToAttributes.length!==0)
+    {
+
+      console.log(el);
+      console.log(addToAttributes.length===0?"nothing":addToAttributes);
     }
 
     return "cantprint";
@@ -216,15 +243,16 @@ export const _parseAxioms = (
     }
     if (setOfAttributesAttended.size > 0) {
       for (let act of triggerAction) {
-        if (!actionsToAttributes.has(currentInteractor)) {
-          actionsToAttributes.set(currentInteractor, new Map());
+        const [interactorName, actName] = act.split(":");
+        if (
+          actionsToAttributes.has(currentInteractor) &&
+          actionsToAttributes.get(currentInteractor)!.has(interactorName)
+        ) {
+          if (actionsToAttributes.get(currentInteractor)!.get(interactorName)!.has(actName)) {
+            const actionsRecorded = actionsToAttributes.get(currentInteractor)!.get(interactorName)!;
+            actionsRecorded.set(actName, new Set([...actionsRecorded.get(actName)!, ...setOfAttributesAttended]));
+          }
         }
-        if (!actionsToAttributes.get(currentInteractor)!.has(act)) {
-          actionsToAttributes.get(currentInteractor)!.set(act, new Set());
-        }
-        actionsToAttributes
-          .get(currentInteractor)!
-          .set(act, new Set([...actionsToAttributes.get(currentInteractor)!.get(act)!, ...setOfAttributesAttended]));
       }
     }
   }

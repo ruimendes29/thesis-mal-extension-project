@@ -59,12 +59,6 @@ function activate(context) {
     context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider({ language: "mal" }, new DocumentSemanticTokensProvider(), legend));
     const provider = new actionsDeterminism_1.ActionsDeterminismProvider(context.extensionUri);
     context.subscriptions.push(vscode.window.registerWebviewViewProvider(actionsDeterminism_1.ActionsDeterminismProvider.viewType, provider));
-    context.subscriptions.push(vscode.commands.registerCommand('calicoColors.addColor', () => {
-        provider.addColor();
-    }));
-    context.subscriptions.push(vscode.commands.registerCommand('calicoColors.clearColors', () => {
-        provider.clearColors();
-    }));
 }
 exports.activate = activate;
 class DocumentSemanticTokensProvider {
@@ -466,7 +460,7 @@ class ParseSection {
                             const sepTokens = separateTokens(textInfo, el.offset);
                             if (sepTokens !== undefined) {
                                 for (let t of sepTokens) {
-                                    this.tokenTypeCondition(t.value + ":" + t.nextState, el.offset);
+                                    this.tokenTypeCondition(t.value + ":" + t.nextState + ":" + t.interactor, el.offset);
                                     tokens.push({
                                         line: lineNumber,
                                         startCharacter: el.offset + t.offset,
@@ -920,7 +914,11 @@ const submitAction = (textInfo, interactor, sc) => {
     const currentAction = el.trim();
     exports.triggerAction.push(interactor + ":" + el.trim());
     globalParserInfo_1.actions.get(interactor).set(currentAction, { ...prevAction, used: true });
-    return { numberOfArgumentsInAction: numberOfArgumentsInAction, tokenType: isOkay ? "function" : "regexp", currentAction: currentAction };
+    return {
+        numberOfArgumentsInAction: numberOfArgumentsInAction,
+        tokenType: isOkay ? "function" : "regexp",
+        currentAction: currentAction,
+    };
 };
 const parseTriggerAction = (line, lineNumber) => {
     let numberOfArgumentsInAction = 0;
@@ -941,7 +939,7 @@ const parseTriggerAction = (line, lineNumber) => {
             }
             isIncluded = false;
             if (actionsInIncluded.has(el.trim())) {
-                const { numberOfArgumentsInAction: naia, tokenType, currentAction: ca } = { ...submitAction({ el: el, line: line, lineNumber: lineNumber }, includedInteractor, sc) };
+                const { numberOfArgumentsInAction: naia, tokenType, currentAction: ca, } = { ...submitAction({ el: el, line: line, lineNumber: lineNumber }, includedInteractor, sc) };
                 numberOfArgumentsInAction = naia;
                 currentAction = ca;
                 interactorForTemps = includedInteractor;
@@ -963,7 +961,7 @@ const parseTriggerAction = (line, lineNumber) => {
             return "variable";
         }
         else if (globalParserInfo_1.actions.get(globalParserInfo_1.currentInteractor).has(el.trim())) {
-            const { numberOfArgumentsInAction: naia, tokenType, currentAction: ca } = { ...submitAction({ el: el, line: line, lineNumber: lineNumber }, globalParserInfo_1.currentInteractor, sc) };
+            const { numberOfArgumentsInAction: naia, tokenType, currentAction: ca, } = { ...submitAction({ el: el, line: line, lineNumber: lineNumber }, globalParserInfo_1.currentInteractor, sc) };
             interactorForTemps = globalParserInfo_1.currentInteractor;
             numberOfArgumentsInAction = naia;
             currentAction = ca;
@@ -980,14 +978,30 @@ const parseNextState = (line, lineNumber) => {
     const toFindTokens = /(?<=((?<=(\-\s*\>.*|^\s*\[.*))\]|^\s*per\s*\(.*\)\s*\<?\-\>)).*/;
     const toSeparateTokens = /(\&|\||\)|\(|\,|\<?\s*\-\s*\>)/;
     let isInKeep = false;
+    let addToAttributes = [];
     const parseNextStateSection = new ParseSection_1.ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-        const isNextState = el.split(":")[1] === "true";
-        if (el.split(":")[0] === "keep") {
+        const [attName, isNextState, interactor] = el.split(":");
+        if (interactor !== "undefined") {
+            addToAttributes.push((0, relationParser_1.removeExclamation)(attName.trim()).value + ".");
+        }
+        else {
+            addToAttributes = [];
+            addToAttributes.push((0, relationParser_1.removeExclamation)(attName.trim()).value + ".");
+        }
+        if (attName === "keep") {
             isInKeep = true;
             return "";
         }
-        if (isInKeep || isNextState) {
-            setOfAttributesAttended.add(el.split(":")[0]);
+        if (isInKeep || isNextState === "true") {
+            setOfAttributesAttended.add(addToAttributes.join("").slice(0, addToAttributes.join("").length - 1));
+            addToAttributes = [];
+        }
+        else if (interactor === "undefined") {
+            addToAttributes = [];
+        }
+        if (addToAttributes.length !== 0) {
+            console.log(el);
+            console.log(addToAttributes.length === 0 ? "nothing" : addToAttributes);
         }
         return "cantprint";
     });
@@ -1010,15 +1024,14 @@ const _parseAxioms = (line, lineNumber) => {
         }
         if (setOfAttributesAttended.size > 0) {
             for (let act of exports.triggerAction) {
-                if (!globalParserInfo_1.actionsToAttributes.has(globalParserInfo_1.currentInteractor)) {
-                    globalParserInfo_1.actionsToAttributes.set(globalParserInfo_1.currentInteractor, new Map());
+                const [interactorName, actName] = act.split(":");
+                if (globalParserInfo_1.actionsToAttributes.has(globalParserInfo_1.currentInteractor) &&
+                    globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).has(interactorName)) {
+                    if (globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).get(interactorName).has(actName)) {
+                        const actionsRecorded = globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).get(interactorName);
+                        actionsRecorded.set(actName, new Set([...actionsRecorded.get(actName), ...setOfAttributesAttended]));
+                    }
                 }
-                if (!globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).has(act)) {
-                    globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).set(act, new Set());
-                }
-                globalParserInfo_1.actionsToAttributes
-                    .get(globalParserInfo_1.currentInteractor)
-                    .set(act, new Set([...globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).get(act), ...setOfAttributesAttended]));
             }
         }
     }
@@ -1058,7 +1071,7 @@ const parseAggregatesValue = (textInfo, offset, val) => {
     let i = 0;
     if (splitByPoints.length > 1) {
         for (let x of splitByPoints) {
-            const xt = i === 0 ? ((0, relationParser_1.removeExclamation)(x.value.trim()).value) : (x.value.trim());
+            const xt = i === 0 ? (0, relationParser_1.removeExclamation)(x.value.trim()).value : x.value.trim();
             i++;
             if (globalParserInfo_1.aggregates.has(xt) && globalParserInfo_1.aggregates.get(xt).current === current) {
                 current = globalParserInfo_1.aggregates.get(xt).included;
@@ -1110,6 +1123,15 @@ const parseInclude = (line, lineNumber) => {
         }
         else {
             globalParserInfo_1.aggregates.set(el.trim(), { current: globalParserInfo_1.currentInteractor, included: intName });
+            if (!globalParserInfo_1.actionsToAttributes.has(globalParserInfo_1.currentInteractor)) {
+                globalParserInfo_1.actionsToAttributes.set(globalParserInfo_1.currentInteractor, new Map());
+            }
+            globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).set(intName, new Map());
+            if (globalParserInfo_1.actions.has(intName)) {
+                for (let act of globalParserInfo_1.actions.get(intName)) {
+                    globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).get(intName).set(act[0], new Set());
+                }
+            }
             return "variable";
         }
     });
@@ -1338,7 +1360,7 @@ const compareRelationTokens = (textInfo, offset) => {
                 updateAttributeUsage(agValues.attributeName.trim(), agValues.lastInteractor.trim());
                 return [
                     ...agValues.tokens.map((x) => {
-                        return { ...x, offset: preAtt.offset + x.offset };
+                        return { ...x, offset: preAtt.offset + x.offset, nextState: (0, exports.removeExclamation)(x.value.trim()).isNextState, interactor: agValues.lastInteractor.trim() };
                     }),
                     {
                         offset: preVal.offset,
@@ -1382,10 +1404,6 @@ const compareRelationTokens = (textInfo, offset) => {
                 }
                 else {
                     const clearedValue = (0, exports.removeExclamation)(agValues.attributeName.trim()).value;
-                    console.log(agValues);
-                    console.log(clearedValue);
-                    console.log(globalParserInfo_1.attributes.get((0, exports.removeExclamation)(agValues.lastInteractor).value));
-                    console.log(textInfo.lineNumber);
                     if (globalParserInfo_1.attributes.get((0, exports.removeExclamation)(agValues.lastInteractor).value).has(clearedValue)) {
                         (0, diagnostics_1.addDiagnostic)(textInfo.lineNumber, offset, textInfo.lineNumber, offset + textInfo.el.length, clearedOfSymbols.value + " is not a boolean", "error", diagnostics_1.CHANGE_TYPE +
                             ":" +
@@ -2029,8 +2047,13 @@ const parseAction = (line, lineNumber, currentOffset) => {
                 return "regexp";
             }
             else {
-                globalParserInfo_1.actionsToAttributes.set(globalParserInfo_1.currentInteractor, new Map());
-                globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).set(el.trim(), new Set());
+                if (!globalParserInfo_1.actionsToAttributes.has(globalParserInfo_1.currentInteractor)) {
+                    globalParserInfo_1.actionsToAttributes.set(globalParserInfo_1.currentInteractor, new Map());
+                }
+                if (!globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).has(globalParserInfo_1.currentInteractor)) {
+                    globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).set(globalParserInfo_1.currentInteractor, new Map());
+                }
+                globalParserInfo_1.actionsToAttributes.get(globalParserInfo_1.currentInteractor).get(globalParserInfo_1.currentInteractor).set(el.trim(), new Set());
                 actionName = el.trim();
                 indexOfElement++;
                 return "function";
@@ -2233,25 +2256,54 @@ class ActionsDeterminismProvider {
                 case "receiveActions": {
                     webviewView.webview.postMessage({
                         type: "refreshActions",
-                        actions: Array.from(globalParserInfo_1.actions).map(([key, _value]) => key),
-                        attributes: Array.from(globalParserInfo_1.actions).map(([key, _value]) => Array.from(globalParserInfo_1.actionsToAttributes.get(key).values())),
-                        totalAttributes: globalParserInfo_1.attributes.size,
+                        interactors: Array.from(globalParserInfo_1.interactorLimits).map(([key, _value]) => key),
+                        actions: Array.from(globalParserInfo_1.actionsToAttributes).map(([mainInteractor, insideInteractors]) => {
+                            return {
+                                mainInteractor: mainInteractor,
+                                insideInteractors: Array.from(insideInteractors).map(([interactorName, actionsInInteractor]) => {
+                                    return {
+                                        includedInteractor: interactorName === mainInteractor ? "self" : interactorName,
+                                        actions: Array.from(actionsInInteractor).map(([actionName, attributesAttended]) => {
+                                            const joinedAtts = this.joinAttributesFromInteractors(mainInteractor);
+                                            return {
+                                                actionName: actionName,
+                                                totalAttributes: joinedAtts.length,
+                                                attributes: joinedAtts.filter((el) => !attributesAttended.has(el)),
+                                            };
+                                        }),
+                                    };
+                                }),
+                            };
+                        }),
                     });
                     break;
                 }
             }
         });
     }
-    addColor() {
-        if (this._view) {
-            this._view.show?.(true); // `show` is not implemented in 1.49 but is for 1.50 insiders
-            this._view.webview.postMessage({ type: "addColor" });
+    joinAttributesFromInteractors(main) {
+        const mySet = new Set();
+        for (let included of Array.from(globalParserInfo_1.aggregates)
+            .filter((el) => el[1].current === main)
+            .map(([key, value]) => value.included)) {
+            if (globalParserInfo_1.attributes.has(included)) {
+                for (let x of Array.from(globalParserInfo_1.attributes.get(included)).map(([key, value]) => key)) {
+                    if (included !== main) {
+                        const aggregatedName = Array.from(globalParserInfo_1.aggregates).filter((el) => el[1].current === main && el[1].included === included)[0][0];
+                        mySet.add(aggregatedName + "." + x);
+                    }
+                    else {
+                        mySet.add(x);
+                    }
+                }
+            }
         }
-    }
-    clearColors() {
-        if (this._view) {
-            this._view.webview.postMessage({ type: "clearColors" });
+        if (globalParserInfo_1.attributes.has(main)) {
+            for (let x of Array.from(globalParserInfo_1.attributes.get(main)).map(([key, value]) => key)) {
+                mySet.add(x);
+            }
         }
+        return [...mySet];
     }
     _getHtmlForWebview(webview) {
         // Get the local path to main script run in the webview, then convert it to a uri we can use in the webview.
@@ -2270,13 +2322,12 @@ class ActionsDeterminismProvider {
 					Use a content security policy to only allow loading images from https or from our extension directory,
 					and only allow scripts that have a specific nonce.
 				-->
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
 				<link href="${styleResetUri}" rel="stylesheet">
 				<link href="${styleVSCodeUri}" rel="stylesheet">
 				<link href="${styleMainUri}" rel="stylesheet">
-				
 				<title>Determinism of Actions</title>
+        <script src="https://kit.fontawesome.com/266aa513f6.js" crossorigin="anonymous"></script>
 			</head>
 			<body>
 				<ul class="actions-list">

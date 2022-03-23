@@ -50,8 +50,16 @@ const parseAction = (line: string, lineNumber: number, currentOffset: number) =>
         indexOfElement++;
         return "regexp";
       } else {
-        actionsToAttributes.set(currentInteractor,new Map());
-        actionsToAttributes.get(currentInteractor)!.set(el.trim(), new Set<string>());
+        if (!actionsToAttributes.has(currentInteractor))
+        {
+          actionsToAttributes.set(currentInteractor,new Map());
+        }
+        if (!actionsToAttributes.get(currentInteractor)!.has(currentInteractor))
+        {
+          actionsToAttributes.get(currentInteractor)!.set(currentInteractor,new Map());
+        }
+        actionsToAttributes.get(currentInteractor)!.get(currentInteractor)!.set(el.trim(),new Set());
+
         actionName = el.trim();
         indexOfElement++;
         return "function";
