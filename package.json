@@ -26,7 +26,7 @@
     "views": {
       "mal-explorer": [
         {
-          "type":"webview",
+          "type": "webview",
           "id": "mal-deterministic",
           "name": "Determinism of Actions"
         },
@@ -69,30 +69,44 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run package",
-    "compile": "webpack",
-    "watch": "webpack --watch",
-    "package": "webpack --mode production --devtool hidden-source-map",
-    "compile-tests": "tsc -p . --outDir out",
-    "watch-tests": "tsc -p . -w --outDir out",
-    "pretest": "npm run compile-tests && npm run compile && npm run lint",
-    "lint": "eslint src --ext ts",
-    "test": "node ./out/test/runTest.js"
+    "vscode:prepublish": "npm run compile",
+    "compile": "npm-run-all compile:*",
+    "watch": "npm-run-all -p watch:*",
+    "compile:extension": "tsc -p . --outDir dist",
+    "compile:views": "webpack --mode development",
+    "watch:extension": "tsc -watch -p ./",
+    "watch:views": "webpack --watch --mode development",
+    "postinstall": "node ./node_modules/vscode/bin/install",
+    "test": "npm run compile && node ./node_modules/vscode/bin/test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.63.0",
     "@types/glob": "^7.1.4",
     "@types/mocha": "^9.0.0",
     "@types/node": "14.x",
+    "@types/vscode": "^1.63.0",
     "@typescript-eslint/eslint-plugin": "^5.1.0",
     "@typescript-eslint/parser": "^5.1.0",
+    "@vscode/test-electron": "^1.6.2",
     "eslint": "^8.1.0",
     "glob": "^7.1.7",
     "mocha": "^9.1.3",
+    "ts-loader": "^9.2.8",
     "typescript": "^4.4.4",
-    "ts-loader": "^9.2.5",
-    "webpack": "^5.52.1",
-    "webpack-cli": "^4.8.0",
-    "@vscode/test-electron": "^1.6.2"
+    "webpack": "^5.70.0",
+    "webpack-cli": "^4.9.2"
+  },
+  "dependencies": {
+    "-": "^0.0.1",
+    "@fortawesome/fontawesome-svg-core": "^6.1.1",
+    "@fortawesome/free-solid-svg-icons": "^6.1.1",
+    "@fortawesome/react-fontawesome": "^0.1.18",
+    "@types/react": "^17.0.43",
+    "@types/react-dom": "^17.0.14",
+    "css-loader": "^6.7.1",
+    "npm-run-all": "^4.1.5",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "save-dev": "^0.0.1-security",
+    "style-loader": "^3.3.1"
   }
 }

@@ -1,48 +1,39 @@
-//@ts-check
+const path = require("path");
 
-'use strict';
-
-const path = require('path');
-
-//@ts-check
-/** @typedef {import('webpack').Configuration} WebpackConfig **/
-
-/** @type WebpackConfig */
-const extensionConfig = {
-  target: 'node', // vscode extensions run in a Node.js-context 📖 -> https://webpack.js.org/configuration/node/
-	mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
-
-  entry: './src/extension.ts', // the entry point of this extension, 📖 -> https://webpack.js.org/configuration/entry-context/
+const configViewer = {
+  entry: {
+    configViewer: "./src/webviews/actionDeterminism/index.tsx"
+  },
   output: {
-    // the bundle is stored in the 'dist' folder (check package.json), 📖 -> https://webpack.js.org/configuration/output/
-    path: path.resolve(__dirname, 'dist'),
-    filename: 'extension.js',
-    libraryTarget: 'commonjs2'
+    path: path.resolve(__dirname, "configViewer"),
+    filename: "[name].js"
   },
-  externals: {
-    vscode: 'commonjs vscode' // the vscode-module is created on-the-fly and must be excluded. Add other modules that cannot be webpack'ed, 📖 -> https://webpack.js.org/configuration/externals/
-    // modules added here also need to be added in the .vscodeignore file
-  },
+  devtool: "eval-source-map",
   resolve: {
-    // support reading TypeScript and JavaScript files, 📖 -> https://github.com/TypeStrong/ts-loader
-    extensions: ['.ts', '.js']
+    extensions: [".js", ".ts", ".tsx", ".json"]
   },
   module: {
     rules: [
       {
-        test: /\.ts$/,
-        exclude: /node_modules/,
+        test: /\.(ts|tsx)$/,
+        loader: "ts-loader",
+        options: {}
+      },
+      {
+        test: /\.css$/,
         use: [
           {
-            loader: 'ts-loader'
+            loader: "style-loader"
+          },
+          {
+            loader: "css-loader"
           }
         ]
       }
     ]
   },
-  devtool: 'nosources-source-map',
-  infrastructureLogging: {
-    level: "log", // enables logging required for problem matchers
-  },
+  performance: {
+    hints: false
+  }
 };
-module.exports = [ extensionConfig ];
+module.exports = [configViewer];

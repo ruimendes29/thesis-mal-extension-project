@@ -6,7 +6,6 @@ import {
   enums,
   getInteractorByLine,
   aggregates,
-  currentInteractor,
 } from "../parsers/globalParserInfo";
 import { findValueType } from "../parsers/relations/typeFindes";
 

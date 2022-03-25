@@ -85,15 +85,12 @@ export class ActionsDeterminismProvider implements vscode.WebviewViewProvider {
     // Get the local path to main script run in the webview, then convert it to a uri we can use in the webview.
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "media", "main.js"));
 
-    // Do the same for the stylesheet.
-    const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "media", "reset.css"));
-    const styleVSCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "media", "vscode.css"));
-    const styleMainUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "media", "main.css"));
+    const reactAppUri =  webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "configViewer", "configViewer.js"));
 
     // Use a nonce to only allow a specific script to be run.
     const nonce = getNonce();
 
-    return `<!DOCTYPE html>
+    return /*html*/`<!DOCTYPE html>
 			<html lang="en">
 			<head>
 				<meta charset="UTF-8">
@@ -102,18 +99,20 @@ export class ActionsDeterminismProvider implements vscode.WebviewViewProvider {
 					and only allow scripts that have a specific nonce.
 				-->
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
-				<link href="${styleResetUri}" rel="stylesheet">
-				<link href="${styleVSCodeUri}" rel="stylesheet">
-				<link href="${styleMainUri}" rel="stylesheet">
 				<title>Determinism of Actions</title>
-        <script src="https://kit.fontawesome.com/266aa513f6.js" crossorigin="anonymous"></script>
-			</head>
+        <meta http-equiv="Content-Security-Policy"
+              content="default-src 'none';
+                      img-src https:;
+                      script-src 'unsafe-eval' 'unsafe-inline' vscode-resource:;
+                      style-src vscode-resource: 'unsafe-inline';">
+        <script>
+          window.acquireVsCodeApi = acquireVsCodeApi;
+        </script>
+      </head>
 			<body>
-				<ul class="actions-list">
-				</ul>
-				<button class="actions-button">Refresh Actions</button>
-				<script nonce="${nonce}" src="${scriptUri}"></script>
-			</body>
+        <div id="root"></div>
+        <script src="${reactAppUri}"></script>
+      </body>
 			</html>`;
   }
 }
