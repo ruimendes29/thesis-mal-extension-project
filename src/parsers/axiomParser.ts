@@ -188,32 +188,27 @@ const parseNextState = (line: string, lineNumber: number) => {
   let isInKeep = false;
   let addToAttributes: string[] = [];
   const parseNextStateSection: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-    const [attName, isNextState, interactor] = el.split(":");
+    console.log(el);
+    const [attName, isNextState, interactor, lastValue] = el.split(":");
+    if (attName.trim() === "keep") {
+      isInKeep = true;
+      return "";
+    }
     if (interactor !== "undefined") {
       addToAttributes.push(removeExclamation(attName.trim()).value + ".");
     } else {
       addToAttributes = [];
-      addToAttributes.push(removeExclamation(attName.trim()).value+".");
-    }
-    if (attName === "keep") {
-      isInKeep = true;
-      return "";
+      addToAttributes.push(removeExclamation(attName.trim()).value + ".");
     }
     if (isInKeep || isNextState === "true") {
-      setOfAttributesAttended.add(addToAttributes.join("").slice(0, addToAttributes.join("").length - 1));
+      if (interactor === "undefined" || attName === lastValue) {
+        setOfAttributesAttended.add(addToAttributes.join("").slice(0, addToAttributes.join("").length - 1));
+        addToAttributes = [];
+      }
+    } else if (interactor === "undefined") {
       addToAttributes = [];
     }
-    else if (interactor==="undefined")
-    {
-      addToAttributes=[];
-    }
-    if (addToAttributes.length!==0)
-    {
-
-      console.log(el);
-      console.log(addToAttributes.length===0?"nothing":addToAttributes);
-    }
-
+    console.log(setOfAttributesAttended);
     return "cantprint";
   });
   return parseNextStateSection.getTokens(line, lineNumber, 0, true, compareRelationTokens);

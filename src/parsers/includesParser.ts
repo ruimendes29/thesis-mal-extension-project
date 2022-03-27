@@ -23,6 +23,7 @@ export const parseAggregatesValue = (
     }
   | undefined => {
   let offsetPoints = 0;
+  
   const splitByPoints = val.value
     .split(/(\.)/)
     .map((el) => {

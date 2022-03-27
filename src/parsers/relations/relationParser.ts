@@ -176,12 +176,12 @@ const updateAttributeUsage = (att: string, interactor: string) => {
 export const compareRelationTokens = (
   textInfo: { line: string; lineNumber: number; el: string },
   offset: number
-): { offset: number; value: string; tokenType: string; nextState?: boolean;interactor?:string }[] | undefined => {
+): { offset: number; value: string; tokenType: string; nextState?: boolean; interactor?: string }[] | undefined => {
   let tp;
   let indexOfOp;
   const comparationSymbols = /(\<\s*\=|\>\s*\=|(?<!\-)\s*\>|\<\s*(?!\-)|\=|\!\s*\=)/;
-  if (textInfo.el === "keep") {
-    return [{ offset: 0, value: textInfo.el, tokenType: "keyword" }];
+  if (textInfo.el.trim() === "keep") {
+    return [{ offset: 0, value: textInfo.el.trim(), tokenType: "keyword"}];
   }
   // Check if there is any symbol that might indicate a relation
   if ((indexOfOp = textInfo.el.match(comparationSymbols)) !== null) {
@@ -229,12 +229,25 @@ export const compareRelationTokens = (
         return errors;
       }
 
-      let agValues: { tokens: { offset: number; value: string; tokenType: string; }[]; type: string | undefined; lastInteractor: string; attributeName: string; } | undefined;
+      let agValues:
+        | {
+            tokens: { offset: number; value: string; tokenType: string }[];
+            type: string | undefined;
+            lastInteractor: string;
+            attributeName: string;
+          }
+        | undefined;
       if ((agValues = parseAggregatesValue(textInfo, offset, preAtt))) {
         updateAttributeUsage(agValues.attributeName.trim(), agValues.lastInteractor.trim());
         return [
           ...agValues.tokens.map((x) => {
-            return { ...x, offset: preAtt.offset + x.offset, nextState:removeExclamation(x.value.trim()).isNextState, interactor:agValues!.lastInteractor.trim()};
+            return {
+              ...x,
+              offset: preAtt.offset + x.offset,
+              nextState: removeExclamation(x.value.trim()).isNextState,
+              interactor: agValues!.lastInteractor.trim(),
+              lastValue: agValues!.attributeName
+            };
           }),
           {
             offset: preVal.offset,
@@ -264,14 +277,27 @@ export const compareRelationTokens = (
   } else {
     // without exclamation
     const clearedOfSymbols = removeExclamation(textInfo.el.trim());
-    let agValues;
+    let agValues:
+      | {
+          tokens: { offset: number; value: string; tokenType: string }[];
+          type: string | undefined;
+          lastInteractor: string;
+          attributeName: string;
+        }
+      | undefined;
     let preAtt = { value: textInfo.el, offset: 0 };
     if ((agValues = parseAggregatesValue(textInfo, offset, preAtt))) {
       if (clearedOfSymbols.value !== textInfo.el.trim()) {
         if (agValues.type === "boolean") {
           updateAttributeUsage(agValues.attributeName.trim(), agValues.lastInteractor.trim());
           return agValues.tokens.map((x) => {
-            return { ...x, offset: preAtt.offset + x.offset };
+            return {
+              ...x,
+              offset: preAtt.offset + x.offset,
+              nextState: removeExclamation(x.value.trim()).isNextState,
+              interactor: agValues!.lastInteractor.trim(),
+              lastValue: agValues!.attributeName
+            };
           });
         } else {
           const clearedValue = removeExclamation(agValues.attributeName.trim()).value;
@@ -294,6 +320,17 @@ export const compareRelationTokens = (
             );
           }
         }
+      } else {
+        updateAttributeUsage(agValues.attributeName.trim(), agValues.lastInteractor.trim());
+        return agValues.tokens.map((x) => {
+          return {
+            ...x,
+            offset: preAtt.offset + x.offset,
+            nextState: removeExclamation(x.value.trim()).isNextState,
+            interactor: agValues!.lastInteractor.trim(),
+            lastValue: agValues!.attributeName
+          };
+        });
       }
     } else if (attributes.has(currentInteractor) && attributes.get(currentInteractor)!.has(clearedOfSymbols.value)) {
       if (

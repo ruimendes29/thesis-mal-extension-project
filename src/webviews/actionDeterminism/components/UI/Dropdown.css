@@ -14,9 +14,25 @@
     align-items: center;
 }
 
-.dropdown-icon{
+.dropdown-icon-holder{
     display: flex;
     flex-direction: row;
     justify-content: center;
     align-items: center;
+}
+
+.dropdown-icon {
+    transition: all 0.5s ease-in-out;
+}
+
+.dropdown-icon.opened{
+    transform: rotate(-180deg);
+}
+
+.total-number{
+    margin-right: 0.5rem;
+}
+
+h3{
+    font-size: small;
 }

@@ -16,17 +16,17 @@ const Dropdown = (props: {level:number, title: string; items: any[]; totalNumber
         className="dropdown-header"
       >
         <h3 className="dropdown-name">{props.title}</h3>
-        <div className="dropdown-icon">
+        <div className="dropdown-icon-holder">
           {props.totalNumberOfItems && (
-            <h3>{props.totalNumberOfItems - props.items.length + "/" + props.totalNumberOfItems}</h3>
+            <h3 className="total-number">{props.totalNumberOfItems - props.items.length + "/" + props.totalNumberOfItems}</h3>
           )}
-          <FontAwesomeIcon icon={faAngleDown} />
+          <FontAwesomeIcon className={`dropdown-icon ${isOpen?'opened':''}`} icon={faAngleDown} />
         </div>
       </div>
 
-      <div className={`dropdown-items ${isOpen ? "" : "closed"}`}>
+      <div className={`dropdown-items`}>
         {props.items.map((el) => (
-          <div key={elementId++} className="dropdown-item">
+          <div key={elementId++} style={{transition:`all ${1*elementId}s ease-in-out`}} className={`dropdown-item ${isOpen ? "" : "closed"}`}>
             {el}
           </div>
         ))}
