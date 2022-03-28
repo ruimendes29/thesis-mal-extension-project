@@ -57,9 +57,9 @@ export const provider2 = vscode.languages.registerCompletionItemProvider(
         linePrefix.charAt(linePrefix.length - 1) === "=" &&
         (match = linePrefix.match(/(\w+)\s*\=/)) !== null
       ) {
-        if (enums.has(findValueType(match[1])!)) {
+        if (enums.has(findValueType(match[1],getInteractorByLine(position.line))!)) {
           return enums
-            .get(findValueType(match[1])!)!
+            .get(findValueType(match[1],getInteractorByLine(position.line))!)!
             .values.map((v) => new vscode.CompletionItem(v, vscode.CompletionItemKind.EnumMember));
         } else {
           return undefined;

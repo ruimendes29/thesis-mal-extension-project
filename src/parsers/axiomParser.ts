@@ -188,9 +188,13 @@ const parseNextState = (line: string, lineNumber: number) => {
   let isInKeep = false;
   let addToAttributes: string[] = [];
   const parseNextStateSection: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-    console.log(el);
     const [attName, isNextState, interactor, lastValue] = el.split(":");
+    if (isInKeep)
+    {
+      console.log(el);
+    }
     if (attName.trim() === "keep") {
+      console.log("keebp!!");
       isInKeep = true;
       return "";
     }
@@ -200,15 +204,13 @@ const parseNextState = (line: string, lineNumber: number) => {
       addToAttributes = [];
       addToAttributes.push(removeExclamation(attName.trim()).value + ".");
     }
-    if (isInKeep || isNextState === "true") {
-      if (interactor === "undefined" || attName === lastValue) {
-        setOfAttributesAttended.add(addToAttributes.join("").slice(0, addToAttributes.join("").length - 1));
-        addToAttributes = [];
-      }
+    if ((isInKeep&&isNextState!=="undefined") || isNextState === "true") {
+      const toAddToSet = addToAttributes.join("").slice(0, addToAttributes.join("").length - 1);
+      setOfAttributesAttended.add(toAddToSet);
+      addToAttributes = [];
     } else if (interactor === "undefined") {
       addToAttributes = [];
     }
-    console.log(setOfAttributesAttended);
     return "cantprint";
   });
   return parseNextStateSection.getTokens(line, lineNumber, 0, true, compareRelationTokens);

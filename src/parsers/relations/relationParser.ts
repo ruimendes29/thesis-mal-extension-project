@@ -1,21 +1,15 @@
+import { addDiagnosticToRelation, NOT_YET_IMPLEMENTED } from "../../diagnostics/diagnostics";
+import { getArrayInStore, getArrayWrittenInfo } from "../arrayRelations";
+import { aggregates, attributes, currentInteractor, defines, enums, ranges } from "../globalParserInfo";
 import {
-  addDiagnosticToRelation,
-  NOT_YET_IMPLEMENTED,
-  CHANGE_TYPE,
-  addDiagnostic,
-} from "../../diagnostics/diagnostics";
-import { getArrayInStore, getArrayWrittenInfo, parseArray } from "../arrayRelations";
-import { attributes, currentInteractor, defines, ranges } from "../globalParserInfo";
-import { parseAggregatesValue } from "../includesParser";
-import {
-  processErrors,
-  isUsedAsAnArrayButIsNot,
-  isValueInvalid,
-  isAttributeNotDefined,
-  isAttributeSameTypeAsValue,
+  emitNotAggregatedDiagnostic,
+  emitNotANumberDiagnostic,
+  emitNotArrayDiagnostic,
+  parseErrorsRelationBetween,
 } from "./relationErrors";
-import { isAttributeSameAsValue, findValueType, findTemporaryType } from "./typeFindes";
+import { findValueType, findTemporaryType } from "./typeFindes";
 
+let offsetForDiags = 0;
 const attributeExists = (attribute: string): boolean => {
   return (
     (attributes.has(currentInteractor) && attributes.get(currentInteractor)!.has(attribute)) ||
@@ -86,72 +80,6 @@ export const separateRangeTokens = (
   return undefined;
 };
 
-export const processExpressions = (
-  textInfo: { line: string; lineNumber: number; el: string },
-  att: string,
-  val: string,
-  implies: boolean,
-  isNextState?: boolean
-) => {
-  const specialChars = /(\+|\!|\-|\&|\*|\,|\)|\(|\/|\||\>|\<)/;
-  let offsetForSplitted = 0;
-  const splittedValue = val
-    .split(specialChars)
-    .map((el) => {
-      offsetForSplitted += el.length;
-      return { value: el, offset: offsetForSplitted - el.length };
-    })
-    .filter((el) => el.value.trim() !== "" && !specialChars.test(el.value));
-  let currentType = "";
-  let i = 0;
-  let toks = [];
-  if (att.trim() === "" || val.trim() === "") {
-    return undefined;
-  }
-  if ((isAttributeSameAsValue(att, splittedValue[0].value.trim()) && splittedValue.length > 1) || implies) {
-    toks.push({
-      offset: 0,
-      value: att,
-      tokenType: "variable",
-      nextState: isNextState,
-    });
-    for (i = 0; i < splittedValue.length; i++) {
-      const trimmedV = splittedValue[i].value.trim();
-      if (splittedValue[i].value.includes("=")) {
-        const fromCompare = compareRelationTokens({ ...textInfo, el: splittedValue[i].value }, splittedValue[i].offset);
-        if (fromCompare !== undefined) {
-          for (let x of fromCompare) {
-            toks.push({
-              offset: splittedValue[i].offset + x.offset,
-              value: x.value,
-              tokenType: x.tokenType,
-            });
-          }
-        }
-      } else {
-        if (i === 0) {
-          currentType = findValueType(trimmedV)!;
-        } else {
-          const newType = findValueType(trimmedV);
-          if (currentType !== newType) {
-            break;
-          }
-        }
-        toks.push({
-          offset: splittedValue[i].offset,
-          value: splittedValue[i].value,
-          tokenType: !isNaN(+trimmedV) ? splittedValue[i].value : findTemporaryType(trimmedV) ? "keyword" : "macro",
-        });
-      }
-    }
-    if (i === splittedValue.length) {
-      return toks;
-    }
-    return undefined;
-  }
-  return undefined;
-};
-
 export const removeExclamation = (att: string) => {
   let nextState = false;
   const we = att.trim().charAt(0) === "!" ? att.trim().slice(1) : att.trim();
@@ -173,15 +101,282 @@ const updateAttributeUsage = (att: string, interactor: string) => {
   }
 };
 
+const splitWithOffset = (rx: RegExp, element: string, offset: number) => {
+  let offsetInsideMember = offset;
+  const splittedMember = element
+    .split(rx)
+    .map((el) => {
+      offsetInsideMember += el.length;
+      return { value: el, offset: offsetInsideMember - el.length };
+    })
+    .filter((el) => !rx.test(el.value.trim()) && el.value.trim() !== "");
+  return splittedMember;
+};
+
+const parseArrayMember = (
+  textInfo: { line: string; lineNumber: number; el: string },
+  member: { offset: number; value: string },
+  interactor: string
+): { tokens: any[]; type: string | undefined } | undefined => {
+  if (member.value.includes("[")) {
+    const splittedMember = splitWithOffset(/(\[|\])/, member.value, member.offset);
+    let index = 0;
+    let arrayInfo: { type: any; dimensions: number };
+    let toRet: any[] = [];
+    const cx = /(?<!\w\s*\[.*)(\+|\-|\*|\/|\&|\||\-\s*\>)/;
+    for (let sm of splittedMember) {
+      const { offset: o, value: v } = sm;
+      const { value: tv, isNextState } = removeExclamation(v.trim());
+      if (index === 0) {
+        if (attributes.has(interactor) && attributes.get(interactor)!.has(tv)) {
+          updateAttributeUsage(tv, interactor);
+          arrayInfo = getArrayInStore(tv, interactor);
+          if (arrayInfo.type !== "") {
+            toRet.push({
+              offset: o,
+              value: v,
+              tokenType: "variable",
+              nextState: isNextState,
+            });
+          } else {
+            emitNotArrayDiagnostic(textInfo.lineNumber, offsetForDiags + o, v);
+            toRet.push({ offset: o, value: v, tokenType: "regexp", nextState: false });
+          }
+        }
+        index++;
+      } else {
+        if (index < arrayInfo!.dimensions+1) {
+          const parsedComplexArgument = parseMemberOfRelation(textInfo, sm, currentInteractor);
+          if (parsedComplexArgument?.type === "number") {
+            toRet = [...toRet, ...parsedComplexArgument.tokens];
+          } else {
+            emitNotANumberDiagnostic(textInfo.lineNumber, offsetForDiags + o, v);
+            toRet = [{ offset: o, value: v, tokenType: "regexp", nextState: false }, ...parsedComplexArgument!.tokens];
+          }
+          index++;
+        } else {
+          toRet = [{ offset: member.offset, value: member.value, tokenType: "regexp", nextState: false }];
+          return {tokens:toRet,type:""};
+        }
+      }
+    }
+
+    return { tokens: toRet, type: arrayInfo!.type };
+  }
+  return undefined;
+};
+
+const parseAggregatedMember = (
+  textInfo: { line: string; lineNumber: number; el: string },
+  member: {
+    offset: number;
+    value: string;
+  },
+  interactor: string
+): { tokens: any[]; type: string | undefined } | undefined => {
+  const rx = /(?<!\w\s*\[.*)(\.)/;
+  if (rx.test(member.value)) {
+    const splittedMember = splitWithOffset(rx, member.value, member.offset);
+    let current = interactor;
+    let retType: string | undefined = undefined;
+    const toRet = [];
+    let arrayAttribute;
+    for (let sm of splittedMember) {
+      const { value: v, offset: o } = sm;
+      const { value: tv, isNextState } = removeExclamation(v.trim());
+      if (aggregates.has(tv) && aggregates.get(tv)!.current === current) {
+        current = aggregates.get(tv)!.included;
+        toRet.push({ offset: o, value: v, tokenType: "variable", interactor: aggregates.get(tv)!.current });
+      } else if (attributes.has(current) && attributes.get(current)!.has(tv)) {
+        retType = findValueType(tv, current);
+        updateAttributeUsage(tv, current);
+        toRet.push({
+          offset: o,
+          value: v,
+          tokenType: "variable",
+          nextState: isNextState,
+          interactor: current,
+        });
+        break;
+      } else if ((arrayAttribute = getArrayInStore(getArrayWrittenInfo(tv).arrayName, current)).type !== "") {
+        return {
+          tokens: [
+            ...toRet,
+            ...parseArrayMember(textInfo, sm, current)!.tokens.map((el) => {
+              return { ...el, interactor: current };
+            }),
+          ],
+          type: arrayAttribute.type,
+        };
+      } else {
+        emitNotAggregatedDiagnostic(textInfo.lineNumber, offsetForDiags + o, v);
+        return {
+          tokens: [...toRet, { offset: o, value: v, tokenType: "regexp", nextState: false }],
+          type: arrayAttribute.type,
+        };
+      }
+    }
+    return { tokens: toRet, type: retType };
+  }
+  return undefined;
+};
+
+const parseNumberMember = (
+  textInfo: { line: string; lineNumber: number; el: string },
+  member: {
+    offset: number;
+    value: string;
+  },
+  interactor: string
+): { tokens: any[]; type: string | undefined } | undefined => {
+  const { value: v, offset: o } = member;
+  const { value: tv, isNextState } = removeExclamation(v.trim());
+  if (
+    !isNaN(+tv) ||
+    ranges.has(tv) ||
+    (attributes.get(interactor)?.has(tv) && attributes.get(interactor)?.get(tv)?.type === "number") ||
+    (defines.has(tv) && defines.get(tv)?.type === "number") ||
+    findTemporaryType(tv, interactor) === "number"
+  ) {
+    updateAttributeUsage(tv, interactor);
+    return {
+      tokens: [
+        {
+          offset: o,
+          value: v,
+          tokenType: !isNaN(+tv) ? "number" : findTemporaryType(tv, interactor) === "number" ? "keyword" : "variable",
+          nextState: isNextState,
+        },
+      ],
+      type: "number",
+    };
+  }
+  return undefined;
+};
+
+const parseTemporaryMember = (
+  textInfo: { line: string; lineNumber: number; el: string },
+  member: { offset: number; value: string },
+  interactor: string
+): { tokens: any[]; type: string | undefined } | undefined => {
+  let tempInfo;
+  if ((tempInfo = findTemporaryType(member.value.trim(), interactor))) {
+    return {
+      tokens: [{ offset: member.offset, value: member.value, tokenType: "keyword", nextState: false }],
+      type: tempInfo,
+    };
+  }
+  return undefined;
+};
+
+const parseDefinedMember = (
+  textInfo: { line: string; lineNumber: number; el: string },
+  member: { offset: number; value: string },
+  interactor: string
+): { tokens: any[]; type: string | undefined } | undefined => {
+  let definedInfo;
+  if ((definedInfo = defines.get(member.value.trim()))) {
+    return {
+      tokens: [{ offset: member.offset, value: member.value, tokenType: "macro", nextState: false }],
+      type: definedInfo.type,
+    };
+  }
+  return undefined;
+};
+
+const parseEnumMember = (
+  textInfo: { line: string; lineNumber: number; el: string },
+  member: { offset: number; value: string },
+  interactor: string
+): { tokens: any[]; type: string | undefined } | undefined => {
+  for (var [k, v] of enums) {
+    if (v.values.includes(member.value.trim())) {
+      return {
+        tokens: [{ offset: member.offset, value: member.value, tokenType: "macro", nextState: false }],
+        type: k,
+      };
+    }
+  }
+  return undefined;
+};
+
+const parseAttributeMember = (
+  textInfo: { line: string; lineNumber: number; el: string },
+  member: { offset: number; value: string },
+  interactor: string
+): { tokens: any[]; type: string | undefined } | undefined => {
+  const { value: v, offset: o } = member;
+  const { value: tv, isNextState } = removeExclamation(v.trim());
+  let attInfo;
+  if ((attInfo = attributes.get(interactor)?.get(tv))) {
+    updateAttributeUsage(tv, interactor);
+    return {
+      tokens: [{ offset: o, value: v, tokenType: "variable", nextState: isNextState }],
+      type: attInfo.type,
+    };
+  }
+  return undefined;
+};
+
+const parseBooleanMember = (
+  textInfo: { line: string; lineNumber: number; el: string },
+  member: { offset: number; value: string },
+  interactor: string
+): { tokens: any[]; type: string | undefined } | undefined => {
+  if (member.value.trim() === "false" || member.value.trim() === "true") {
+    return { tokens: [{ offset: member.offset, value: member.value, tokenType: "keyword" }], type: "boolean" };
+  }
+  return undefined;
+};
+
+export const parseMemberOfRelation = (
+  textInfo: { line: string; lineNumber: number; el: string },
+  preMember: { value: string; offset: number },
+  interactor: string
+):
+  | {
+      tokens: { offset: number; value: string; tokenType: string; nextState?: boolean; interactor?: string }[];
+      type: string | undefined;
+    }
+  | undefined => {
+  const rx = /(?<!\w\s*\[.*)(\+|\-|\*|\/|\&|\||\-\s*\>)/;
+  const splittedMember = splitWithOffset(rx, preMember.value, preMember.offset);
+  let possibleRet;
+  let type: string | undefined = undefined;
+  let toRetTokens: any[] = [];
+  const memberParsers = [
+    parseAggregatedMember,
+    parseArrayMember,
+    parseNumberMember,
+    parseTemporaryMember,
+    parseDefinedMember,
+    parseEnumMember,
+    parseAttributeMember,
+    parseBooleanMember,
+  ];
+  for (let sm of splittedMember) {
+    type = undefined;
+    for (let memberParser of memberParsers) {
+      if ((possibleRet = memberParser(textInfo, sm, interactor))) {
+        type = possibleRet.type;
+        toRetTokens = [...toRetTokens, ...possibleRet.tokens];
+        break;
+      }
+    }
+  }
+
+  return { tokens: toRetTokens, type: type };
+};
+
 export const compareRelationTokens = (
   textInfo: { line: string; lineNumber: number; el: string },
   offset: number
 ): { offset: number; value: string; tokenType: string; nextState?: boolean; interactor?: string }[] | undefined => {
-  let tp;
   let indexOfOp;
+  offsetForDiags = offset;
   const comparationSymbols = /(\<\s*\=|\>\s*\=|(?<!\-)\s*\>|\<\s*(?!\-)|\=|\!\s*\=)/;
   if (textInfo.el.trim() === "keep") {
-    return [{ offset: 0, value: textInfo.el.trim(), tokenType: "keyword"}];
+    return [{ offset: 0, value: textInfo.el.trim(), tokenType: "keyword" }];
   }
   // Check if there is any symbol that might indicate a relation
   if ((indexOfOp = textInfo.el.match(comparationSymbols)) !== null) {
@@ -197,202 +392,24 @@ export const compareRelationTokens = (
       //separate the attribute and the value
       //const preAtt = textInfo.el.slice(0, textInfo.el.indexOf(indexOfOp[0])).trim();
       const preAtt = separated[0];
-
-      // take out the ' that simbolizes the next state in case it exists, and if so
-      // set the nextState to true
-      let { value: att, isNextState } = removeExclamation(preAtt.value.trim());
-
+      const parsedAtt = parseMemberOfRelation(textInfo, preAtt, currentInteractor);
       //get the value
       const preVal = separated[1];
-      let { value: val } = removeExclamation(preVal.value.trim());
+      const parsedVal = parseMemberOfRelation(textInfo, preVal, currentInteractor);
 
-      let expressionsParsed;
-      //process multiple expressions when connected i.e. var1' = var2 + 4 * var3[2]
-      expressionsParsed = processExpressions(textInfo, att, val, textInfo.el.includes("->"), isNextState);
+      parseErrorsRelationBetween(
+        textInfo.lineNumber,
+        preAtt,
+        preVal,
+        parsedAtt!.type!,
+        parsedVal!.type!,
+        offsetForDiags
+      );
 
-      if (expressionsParsed !== undefined) {
-        return expressionsParsed;
-      }
-      /*
-    IsUsedAsAnArrayButIsNot - Checks if either the value or the attribute are being used as an array when they are not declared as such
-    isValueInvalid - Checks if the type of the value can not be found
-     */
-      let errors;
-      if (
-        (errors = processErrors(textInfo, offset, preAtt, preVal, [
-          isUsedAsAnArrayButIsNot,
-          isValueInvalid,
-          isAttributeNotDefined,
-          isAttributeSameTypeAsValue,
-        ]))
-      ) {
-        return errors;
-      }
-
-      let agValues:
-        | {
-            tokens: { offset: number; value: string; tokenType: string }[];
-            type: string | undefined;
-            lastInteractor: string;
-            attributeName: string;
-          }
-        | undefined;
-      if ((agValues = parseAggregatesValue(textInfo, offset, preAtt))) {
-        updateAttributeUsage(agValues.attributeName.trim(), agValues.lastInteractor.trim());
-        return [
-          ...agValues.tokens.map((x) => {
-            return {
-              ...x,
-              offset: preAtt.offset + x.offset,
-              nextState: removeExclamation(x.value.trim()).isNextState,
-              interactor: agValues!.lastInteractor.trim(),
-              lastValue: agValues!.attributeName
-            };
-          }),
-          {
-            offset: preVal.offset,
-            value: preVal.value,
-            tokenType: !isNaN(+val) ? "number" : findTemporaryType(val) ? "keyword" : "macro",
-          },
-        ];
-      } else {
-        updateAttributeUsage(att, currentInteractor);
-      }
-
-      let attTokens = [];
-      if (/(\[|\])/.test(att)) {
-        attTokens = parseArray(textInfo.line, textInfo.lineNumber, att)!;
-      } else {
-        attTokens = [{ offset: preAtt.offset, value: preAtt.value, tokenType: "variable", nextState: isNextState }];
-      }
-      return [
-        ...attTokens,
-        {
-          offset: preVal.offset,
-          value: preVal.value,
-          tokenType: !isNaN(+val) ? "number" : findTemporaryType(val) ? "keyword" : "macro",
-        },
-      ];
+      return [...parsedAtt!.tokens, ...parsedVal!.tokens];
     }
   } else {
-    // without exclamation
-    const clearedOfSymbols = removeExclamation(textInfo.el.trim());
-    let agValues:
-      | {
-          tokens: { offset: number; value: string; tokenType: string }[];
-          type: string | undefined;
-          lastInteractor: string;
-          attributeName: string;
-        }
-      | undefined;
-    let preAtt = { value: textInfo.el, offset: 0 };
-    if ((agValues = parseAggregatesValue(textInfo, offset, preAtt))) {
-      if (clearedOfSymbols.value !== textInfo.el.trim()) {
-        if (agValues.type === "boolean") {
-          updateAttributeUsage(agValues.attributeName.trim(), agValues.lastInteractor.trim());
-          return agValues.tokens.map((x) => {
-            return {
-              ...x,
-              offset: preAtt.offset + x.offset,
-              nextState: removeExclamation(x.value.trim()).isNextState,
-              interactor: agValues!.lastInteractor.trim(),
-              lastValue: agValues!.attributeName
-            };
-          });
-        } else {
-          const clearedValue = removeExclamation(agValues.attributeName.trim()).value;
-
-          if (attributes.get(removeExclamation(agValues.lastInteractor).value)!.has(clearedValue)) {
-            addDiagnostic(
-              textInfo.lineNumber,
-              offset,
-              textInfo.lineNumber,
-              offset + textInfo.el.length,
-              clearedOfSymbols.value + " is not a boolean",
-              "error",
-              CHANGE_TYPE +
-                ":" +
-                "boolean" +
-                ":" +
-                attributes.get(removeExclamation(agValues.lastInteractor).value)!.get(clearedValue)!.line +
-                ":" +
-                clearedValue
-            );
-          }
-        }
-      } else {
-        updateAttributeUsage(agValues.attributeName.trim(), agValues.lastInteractor.trim());
-        return agValues.tokens.map((x) => {
-          return {
-            ...x,
-            offset: preAtt.offset + x.offset,
-            nextState: removeExclamation(x.value.trim()).isNextState,
-            interactor: agValues!.lastInteractor.trim(),
-            lastValue: agValues!.attributeName
-          };
-        });
-      }
-    } else if (attributes.has(currentInteractor) && attributes.get(currentInteractor)!.has(clearedOfSymbols.value)) {
-      if (
-        clearedOfSymbols.value !== textInfo.el.trim() &&
-        attributes.get(currentInteractor)!.get(clearedOfSymbols.value)?.type !== "boolean"
-      ) {
-        addDiagnostic(
-          textInfo.lineNumber,
-          offset,
-          textInfo.lineNumber,
-          offset + textInfo.el.length,
-          clearedOfSymbols.value + " is not a boolean",
-          "error",
-          CHANGE_TYPE +
-            ":" +
-            "boolean" +
-            ":" +
-            attributes.get(currentInteractor)!.get(clearedOfSymbols.value.trim())!.line +
-            ":" +
-            clearedOfSymbols.value
-        );
-      } else {
-        updateAttributeUsage(textInfo.el.trim(), currentInteractor);
-        return [
-          {
-            offset: 0,
-            value: textInfo.el,
-            tokenType: "variable",
-            nextState:
-              new RegExp("keep\\s*\\(.*\\b" + clearedOfSymbols.value + "\\b.*\\)").test(textInfo.line) ||
-              clearedOfSymbols.isNextState,
-          },
-        ];
-      }
-    } else {
-      if (defines.has(textInfo.el.trim())) {
-        return [
-          {
-            offset: 0,
-            value: textInfo.el,
-            tokenType: "function",
-            nextState: false,
-          },
-        ];
-      } else if ((tp = getArrayInStore(getArrayWrittenInfo(textInfo.el.trim()).arrayName).type!.trim()) !== "") {
-        if (tp === "boolean") {
-          return parseArray(textInfo.line, textInfo.lineNumber, textInfo.el.trim());
-        } else {
-          addDiagnostic(
-            textInfo.lineNumber,
-            0,
-            textInfo.lineNumber,
-            textInfo.el.trim().length,
-            textInfo.el.trim() + " must be a boolean in order to be alone in the condition",
-            "error",
-            NOT_YET_IMPLEMENTED + ":" + textInfo.el.trim()
-          );
-          //TODO deal with arrays when they are in the keep tag
-          return [{ offset: 0, value: textInfo.el, tokenType: "regexp", nextState: false }];
-        }
-      }
-    }
+    return [...parseMemberOfRelation(textInfo, { value: textInfo.el, offset: 0 }, currentInteractor)!.tokens];
   }
   return undefined;
 };

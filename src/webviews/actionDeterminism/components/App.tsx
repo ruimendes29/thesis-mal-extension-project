@@ -12,7 +12,6 @@ const App = (props) => {
     const message = event.data; // The json data that the extension sent
     switch (message.type) {
       case "refreshActions": {
-        console.log(message.actions);
         setListOfInteractors(message.actions);
         break;
       }
