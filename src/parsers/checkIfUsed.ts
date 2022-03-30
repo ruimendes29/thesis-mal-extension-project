@@ -6,7 +6,7 @@ const notUsed = (lines: string[], variable: string, info: { used: boolean; line:
   if (!info.used) {
     const l = info.line;
     const sc = ParseSection.getPosition(lines[l], variable, 1);
-    addDiagnostic(l, sc, l, sc + variable.length, variable + " was never used!", "warning", "NOTHING");
+    addDiagnostic(l, sc, variable, variable + " was never used!", "warning", "NOTHING");
   }
 };
 

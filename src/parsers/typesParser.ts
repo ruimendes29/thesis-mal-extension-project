@@ -50,8 +50,7 @@ const parseArray = (line: string, lineNumber: number) => {
           addDiagnostic(
             lineNumber,
             sc,
-            lineNumber,
-            sc + el.length,
+             el,
             "error",
             arrayType + " is not a valid type",
             NOT_YET_IMPLEMENTED
@@ -92,8 +91,7 @@ const parseRangeTypes = (line: string, lineNumber: number) => {
             addDiagnostic(
               lineNumber,
               sc,
-              lineNumber,
-              sc + el.length,
+              el,
               minValue + " is equal or greater than " + maxValue,
               "error",
               NOT_YET_IMPLEMENTED + ":" + minValue
@@ -126,8 +124,7 @@ const parseEnumTypes = (line: string, lineNumber: number) => {
         addDiagnostic(
           lineNumber,
           sc,
-          lineNumber,
-          sc + el.length,
+          el,
           et + " is already declared",
           "warning",
           ALREADY_DEFINED + ":" + lineNumber + ":" + et

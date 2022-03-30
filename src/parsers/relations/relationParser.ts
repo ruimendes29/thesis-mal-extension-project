@@ -1,4 +1,3 @@
-import { addDiagnosticToRelation, NOT_YET_IMPLEMENTED } from "../../diagnostics/diagnostics";
 import { getArrayInStore, getArrayWrittenInfo } from "../arrayRelations";
 import { aggregates, attributes, currentInteractor, defines, enums, ranges } from "../globalParserInfo";
 import {

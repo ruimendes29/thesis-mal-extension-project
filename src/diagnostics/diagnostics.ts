@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { diagnosticCollection } from "../extension";
 import { actions, actionsStartingLine, attributes, defines, enums } from "../parsers/globalParserInfo";
+import { getCorrectLine, lineSizes } from "../parsers/textParser";
 
 export const CHANGE_TYPE = "changeType";
 export const DECLARE_ACTION = "declareAction";
@@ -18,8 +19,7 @@ export const clearDiagnosticCollection = () => {
 export const addDiagnostic = (
   initialLineNumber: number,
   initialCharacter: number,
-  finalLineNumber: number,
-  finalCharacter: number,
+  element: string,
   diagnosticMessage: string,
   severity: string,
   code: string
@@ -39,10 +39,11 @@ export const addDiagnostic = (
       severityType = vscode.DiagnosticSeverity.Hint;
       break;
   }
+  const correctLineInfo = getCorrectLine(initialLineNumber-lineSizes.length+1,lineSizes,initialCharacter);
   const diagnostic = new vscode.Diagnostic(
     new vscode.Range(
-      new vscode.Position(initialLineNumber, initialCharacter),
-      new vscode.Position(finalLineNumber, finalCharacter)
+      new vscode.Position(correctLineInfo.correctLine, correctLineInfo.correctOffset),
+      new vscode.Position(correctLineInfo.correctLine, correctLineInfo.correctOffset+element.length)
     ),
     diagnosticMessage,
     severityType
@@ -88,8 +89,7 @@ export const addDiagnosticToRelation = (
   addDiagnostic(
     textInfo.lineNumber,
     errorOffset+offsetToCompare,
-    textInfo.lineNumber,
-    errorOffset +offsetToCompare+ stringToCompare.length,
+    stringToCompare,
     message,
     severity,
     code

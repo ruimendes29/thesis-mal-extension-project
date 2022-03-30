@@ -7,8 +7,7 @@ export const emitNotAggregatedDiagnostic = (lineNumber: number, offset: number, 
   addDiagnostic(
     lineNumber,
     offset,
-    lineNumber,
-    offset + element.length,
+    element,
     element.trim() + " is not an aggregated value",
     "error",
     NOT_YET_IMPLEMENTED + ":" + element.trim()
@@ -19,8 +18,7 @@ export const emitNotArrayDiagnostic = (lineNumber: number, offset: number, eleme
   addDiagnostic(
     lineNumber,
     offset,
-    lineNumber,
-    offset + element.length,
+     element,
     element.trim() + " is not an array",
     "error",
     NOT_YET_IMPLEMENTED + ":" + element.trim()
@@ -31,8 +29,7 @@ export const emitNotANumberDiagnostic = (lineNumber: number, offset: number, ele
   addDiagnostic(
     lineNumber,
     offset,
-    lineNumber,
-    offset + element.length,
+    element,
     element.trim() + " is not a numeric value",
     "error",
     NOT_YET_IMPLEMENTED + ":" + element.trim()
@@ -43,8 +40,7 @@ const emitDoesNotExistDiagnostic = (lineNumber: number, offset: number, element:
   addDiagnostic(
     lineNumber,
     offset,
-    lineNumber,
-    offset + element.length,
+    element,
     element.trim() + " is not defined",
     "error",
     valueTypeForAtt
@@ -64,8 +60,7 @@ const emitNotSameTypeDiagnostic = (lineNumber: number, offset: number, att: stri
   addDiagnostic(
     lineNumber,
     offset,
-    lineNumber,
-    offset + att.length,
+    att,
     attValue + " is not of type " + valType,
     "error",
     CHANGE_TYPE + ":" + valType + ":" + lineN + ":" + attValue

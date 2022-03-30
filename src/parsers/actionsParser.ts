@@ -41,8 +41,7 @@ const parseAction = (line: string, lineNumber: number, currentOffset: number) =>
         addDiagnostic(
           lineNumber,
           sc,
-          lineNumber,
-          sc + el.length,
+          el,
           el.trim() + " is already defined",
           "error",
           ALREADY_DEFINED + ":" + lineNumber + ":" + el.trim()
@@ -71,7 +70,7 @@ const parseAction = (line: string, lineNumber: number, currentOffset: number) =>
       if (enums.has(et) || ranges.has(et) || arrays.has(et) || et==="boolean" ||et==="number")
       {actionArguments.push(et);return "type";}
       else {
-        addDiagnostic(lineNumber,sc,lineNumber,sc+el.length,et+" is not a valid type","error",NOT_YET_IMPLEMENTED);
+        addDiagnostic(lineNumber,sc,el,et+" is not a valid type","error",NOT_YET_IMPLEMENTED);
         return "regexp";
       }
     }

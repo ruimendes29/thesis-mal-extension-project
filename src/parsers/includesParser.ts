@@ -50,8 +50,7 @@ export const parseAggregatesValue = (
         addDiagnostic(
           textInfo.lineNumber,
           offset + x.offset,
-          textInfo.lineNumber,
-          offset + x.offset + x.value.length,
+           x.value,
           xt + " is not aggregated",
           "error",
           NOT_YET_IMPLEMENTED + ":" + xt

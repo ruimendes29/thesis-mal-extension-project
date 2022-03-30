@@ -27,6 +27,8 @@ mapParsers.set("defines", _parseDefines);
 mapParsers.set("aggregates", _parseIncludes);
 mapParsers.set("types", _parseTypes);
 
+export let lineSizes:number [] = [];
+
 /* Simple method to check if a line is an expression or a simple line,
  by checking if it is a number,true or false */
 
@@ -42,7 +44,7 @@ const isNotAnExpression = (line: string) => {
   return false;
 };
 
-const getCorrectLine = (originalLineNumber: number, lineSizes: number[], offsetOfElem: number) => {
+export const getCorrectLine = (originalLineNumber: number, lineSizes: number[], offsetOfElem: number) => {
   let newLineNumber = originalLineNumber;
   let newOffset = offsetOfElem;
   for (const s of lineSizes) {
@@ -120,7 +122,6 @@ export function _parseText(text: string): IParsedToken[] {
   // splitting the lines
   const lines = text.split(/\r\n|\r|\n/);
   let currentIdentation: number = 0;
-  let lineSizes: number[] = [];
   let lineToParseArray: string[] = [];
 
   //loopn through all lines

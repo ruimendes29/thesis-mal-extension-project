@@ -17,8 +17,7 @@ const parseAttribute = (line: string, lineNumber: number,currentOffset: number) 
       addDiagnostic(
         lineNumber,
         sc,
-        lineNumber,
-        sc + el.trim().length,
+        el,
         el.trim() + " is already defined",
         "error",
         ALREADY_DEFINED + ":" + lineNumber + ":" + el.trim()

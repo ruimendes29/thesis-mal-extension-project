@@ -43,8 +43,7 @@ const parseActionWithArguments = (
     addDiagnostic(
       lineNumber,
       startingChar,
-      lineNumber,
-      startingChar + action.length,
+      action,
       action + " doest not have the right amount of arguments",
       "error",
       NOT_YET_IMPLEMENTED + ":" + action
@@ -76,8 +75,7 @@ const parseTemporaryArgument = (
     addDiagnostic(
       lineNumber,
       sc,
-      lineNumber,
-      sc + el.length,
+      el,
       el + " needs to start with an underscore (_) or be an attribute with type " + correctType,
       "error",
       NOT_YET_IMPLEMENTED + ":" + el
@@ -139,8 +137,7 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
       addDiagnostic(
         lineNumber,
         sc,
-        lineNumber,
-        sc + el.length,
+        el,
         el + " is not an action from " + includedInteractor,
         "error",
         NOT_YET_IMPLEMENTED + ":" + el
@@ -170,8 +167,7 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
       addDiagnostic(
         lineNumber,
         sc,
-        lineNumber,
-        sc + el.length,
+        el,
         el + " is not declared as an action",
         "error",
         DECLARE_ACTION + ":" + el
