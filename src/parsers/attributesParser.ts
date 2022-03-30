@@ -6,7 +6,7 @@ let attributesInLine: Array<string> = [];
 
 const parseAttribute = (line: string, lineNumber: number,currentOffset: number) => {
   const toFindTokens = /(\s*[A-Za-z]+\w*\s*(\,|(?=\:)))+/;
-  const toSeparateTokens = /(\,)/;
+  const toSeparateTokens = /(\,|\s)/;
 
   const parseActionSection: ParseSection = new ParseSection(
     toFindTokens,
@@ -35,7 +35,7 @@ const parseAttribute = (line: string, lineNumber: number,currentOffset: number) 
 
 const parseVis = (line: string, lineNumber: number,currentOffset: number) => {
   const toFindTokens = /^\s*\[\s*vis\s*\]/;
-  const toSeparateTokens = /(\[|\])/;
+  const toSeparateTokens = /(\[|\]|\s)/;
 
   const parseActionSection: ParseSection = new ParseSection(
     toFindTokens,
@@ -49,7 +49,7 @@ const parseVis = (line: string, lineNumber: number,currentOffset: number) => {
 
 const parseType = (line: string, lineNumber: number,currentOffset: number) => {
   const toFindTokens = /:\s*[A-Za-z\_]+\w*\s*/;
-  const toSeparateTokens = /\:/;
+  const toSeparateTokens = /(\:|\s)/;
 
   const parseActionSection: ParseSection = new ParseSection(
     toFindTokens,

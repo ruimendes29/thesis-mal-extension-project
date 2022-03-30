@@ -18,7 +18,7 @@ const attributeExists = (attribute: string): boolean => {
   );
 };
 
-const parseRangeInput = (preV: string): { value: number; isANumber: boolean } => {
+export const parseRangeInput = (preV: string): { value: number; isANumber: boolean } => {
   let v;
   let isANumber = true;
   v = 0;
@@ -31,53 +31,6 @@ const parseRangeInput = (preV: string): { value: number; isANumber: boolean } =>
     defines.set(trimmedv, { used: true, type: "number", value: v });
   }
   return { value: +v, isANumber: isANumber };
-};
-
-export const separateRangeTokens = (
-  textInfo: { line: string; el: string; lineNumber: number },
-  offset: number
-): { offset: number; value: string; tokenType: string }[] | undefined => {
-  let indexOfOp = 0;
-  const afterAndBefore = textInfo.el.split("=");
-  if ((indexOfOp = afterAndBefore[1].search(/\.\./)) > 0) {
-    const min = afterAndBefore[1].slice(0, indexOfOp);
-    const max = afterAndBefore[1].slice(indexOfOp + 2);
-
-    const minimum = parseRangeInput(min.trim());
-    const maximum = parseRangeInput(max.trim());
-    if (minimum.value >= maximum.value) {
-      return addDiagnosticToRelation(
-        "att",
-        { ...textInfo, el: afterAndBefore[1] },
-        min.trim(),
-        max.trim(),
-        minimum.value + " is equal or greater than " + maximum.value,
-        "warning",
-        0,
-        indexOfOp + 2,
-        offset,
-        NOT_YET_IMPLEMENTED + ":" + textInfo.lineNumber
-      );
-    }
-    ranges.set(afterAndBefore[0].trim(), {
-      used: false,
-      minimum: minimum.value,
-      maximum: maximum.value,
-    });
-    return [
-      {
-        offset: textInfo.el.indexOf(min),
-        value: min,
-        tokenType: minimum.isANumber ? "number" : "variable",
-      },
-      {
-        offset: textInfo.el.indexOf(max),
-        value: max,
-        tokenType: maximum.isANumber ? "number" : "variable",
-      },
-    ];
-  }
-  return undefined;
 };
 
 export const removeExclamation = (att: string) => {

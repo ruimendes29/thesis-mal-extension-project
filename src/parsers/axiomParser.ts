@@ -18,7 +18,7 @@ export const temporaryAttributes: { action: string; value: string; index: number
 
 const parseConditions = (line: string, lineNumber: number) => {
   const toFindTokens = /^.*(?=\s*\<?\-\>\s*\[)/;
-  const toSeparateTokens = /(\&|\||\)|\(|\!)/;
+  const toSeparateTokens = /(\s|\&|\||\)|\(|\!)/;
 
   const parseConditionsSection: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
     return "cantprint";
@@ -115,7 +115,7 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
   let interactorForTemps = currentInteractor;
   let actionsInIncluded: Map<string, { used: boolean; line: number; arguments: string[] }>;
   const toFindTokens = /((\<?\s*\-\>\s*)|^\s*)\[[^\[]+\]/;
-  const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\]|\,|\.)/;
+  const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\]|\,|\.|\s)/;
   const parseTriggerActions: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
     if (isIncluded) {
       if (isIncludedDinamically(includedInteractor, el.trim())) {
@@ -184,7 +184,7 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
 
 const parseNextState = (line: string, lineNumber: number) => {
   const toFindTokens = /(?<=((?<=(\-\s*\>.*|^\s*\[.*))\]|^\s*per\s*\(.*\)\s*\<?\-\>)).*/;
-  const toSeparateTokens = /(\&|\||\)|\(|\,|\<?\s*\-\s*\>)/;
+  const toSeparateTokens = /(\&|\||\)|\(|\,|\<?\s*\-\s*\>|\s)/;
   let isInKeep = false;
   let addToAttributes: string[] = [];
   const parseNextStateSection: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {

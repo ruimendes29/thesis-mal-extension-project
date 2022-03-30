@@ -54,7 +54,7 @@ const parseDefinesBeforeValue = (line: string, lineNumber: number) => {
       } else {
         defines.set(beforeEquals.trim(),{used:false,type:"expression",value:afterEquals.trim()});
         const toFindTokens = /(?<=^\s*\w+\s*\=).*/;
-        const toSeparateTokens = /(\&|\||\(|\)|\-\>)/;
+        const toSeparateTokens = /(\&|\||\(|\)|\-\>|\s)/;
         const parseExpressions: ParseSection = new ParseSection(
           toFindTokens,
           toSeparateTokens,

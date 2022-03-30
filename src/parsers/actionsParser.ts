@@ -7,7 +7,7 @@ semantic token "keyword" to it*/
 const parseVis = (line: string, lineNumber: number, currentOffset: number) => {
   const toFindTokens = /^\s*\[\s*vis\s*\]/;
   // separate in the square brackets so that only the vis is colored
-  const toSeparateTokens = /(\[|\])/;
+  const toSeparateTokens = /(\[|\]\s)/;
 
   // Create an instance of ParseSection
   const parseActionSection: ParseSection = new ParseSection(
@@ -30,7 +30,7 @@ tokens to separate the main match. */
 const parseAction = (line: string, lineNumber: number, currentOffset: number) => {
   let indexOfElement = 0;
   const toFindTokens = /(?<=(\]\s*|^\s*))(?<!\[)\s*[A-Za-z]+\w*\s*(\(((\s*\w+\s*),?)+\))?(?!\])/;
-  const toSeparateTokens = /(\&|\||\)|\(|\,)/;
+  const toSeparateTokens = /(\&|\||\)|\(|\,|\s)/;
   let actionName:string = "";
   const actionArguments:string[] = [];
 
