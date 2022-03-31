@@ -1,7 +1,8 @@
 import * as vscode from "vscode";
-import { ALREADY_DEFINED, CHANGE_TYPE, DECLARE_ACTION, DEFINE_ATTRIBUTE } from "../diagnostics/diagnostics";
+import { ADD_TO_ENUM, ALREADY_DEFINED, CHANGE_TYPE, DECLARE_ACTION, DEFINE_ATTRIBUTE } from "../diagnostics/diagnostics";
 import { actionsStartingLine, attributes, attributesStartingLine, getInteractorByLine } from "../parsers/globalParserInfo";
 import { ParseSection } from "../parsers/ParseSection";
+import { countSpacesAtStart } from "../parsers/textParser";
 
 const COMMAND = "mal.command";
 
@@ -31,6 +32,9 @@ export class Emojinfo implements vscode.CodeActionProvider {
         case DEFINE_ATTRIBUTE:
           //DEFINE_ATTRIBUTE +":"+findValueType(val)+":"+attribute
           return this.addAttribute(document,diagnosticS[1],diagnosticS[2],diagnostic);
+        case ADD_TO_ENUM:
+          //ADD_TO_ENUM:lineNumber:newEnumMember:enumName
+          return this.addToEnum(document,+diagnosticS[1],diagnosticS[2],diagnosticS[3],diagnostic);
         default:
           return new vscode.CodeAction(`No QuickFix available`, vscode.CodeActionKind.QuickFix);
       }
@@ -55,6 +59,21 @@ export class Emojinfo implements vscode.CodeActionProvider {
     return fix;
   }
 
+  private addToEnum(
+    document: vscode.TextDocument,
+    lineToFix: number,
+    enumMember: string,
+    enumName:string,
+    diagnostic: vscode.Diagnostic
+  ): vscode.CodeAction {
+    const fix = new vscode.CodeAction(`Add ${enumMember} to ${enumName}`, vscode.CodeActionKind.QuickFix);
+    fix.diagnostics = [diagnostic];
+    fix.edit = new vscode.WorkspaceEdit();
+    const line = document.lineAt(lineToFix).text;
+    fix.edit.insert(document.uri,new vscode.Position(lineToFix,document.lineAt(lineToFix).text.indexOf("{")+1),enumMember+", ");
+    return fix;
+  }
+
   private changeToCorrectType(
     document: vscode.TextDocument,
     newType: string,
@@ -66,7 +85,7 @@ export class Emojinfo implements vscode.CodeActionProvider {
     fix.diagnostics = [diagnostic];
     fix.edit = new vscode.WorkspaceEdit();
     const line = document.lineAt(lineToFix).text;
-    const characterOfType = line.indexOf(":") + 2;
+    const characterOfType = line.indexOf(":") + 1;
     if (attributes.get(getInteractorByLine(lineToFix))!.get(attribute)!.alone) {
       const oldTypeRange = new vscode.Range(
         new vscode.Position(lineToFix, characterOfType),
@@ -83,7 +102,8 @@ export class Emojinfo implements vscode.CodeActionProvider {
         )
       );
       fix.edit.replace(document.uri, oldAttributeRange, "");
-      fix.edit.insert(document.uri, new vscode.Position(lineToFix + 1, 2), attribute + " : " + newType + " " + "\n  ");
+      const numberOfSpaces = countSpacesAtStart(document.lineAt(attributesStartingLine[0]+1).text);
+      fix.edit.insert(document.uri, new vscode.Position(lineToFix + 1, numberOfSpaces), attribute + " : " + newType + " " + "\n");
     }
     return fix;
   }
@@ -109,7 +129,8 @@ export class Emojinfo implements vscode.CodeActionProvider {
     const fix = new vscode.CodeAction(`Add ${attribute} with type ${newType}`, vscode.CodeActionKind.QuickFix);
     fix.diagnostics = [diagnostic];
     fix.edit = new vscode.WorkspaceEdit();
-    fix.edit.insert(document.uri, new vscode.Position(attributesStartingLine[0] + 1, 2), attribute + " : " + newType + " " + "\n  ");
+    const numberOfSpaces = countSpacesAtStart(document.lineAt(attributesStartingLine[0]+1).text);
+    fix.edit.insert(document.uri, new vscode.Position(attributesStartingLine[0] + 1, numberOfSpaces), attribute + " : " + newType + " " + "\n");
 
     return fix;
   }

@@ -9,7 +9,7 @@ export const attributes = new Map<
 >();
 export const actions = new Map<string, Map<string, { used: boolean; line: number; arguments: string[] }>>();
 export const defines = new Map<string, { used: boolean; type: string | undefined; value: string }>();
-export const enums = new Map<string, { used: boolean; values: string[] }>();
+export const enums = new Map<string, { used: boolean; values: string[];line:number }>();
 export const ranges = new Map<string, { used: boolean; minimum: number; maximum: number }>();
 export const arrays = new Map<string, { firstIndex: number; lastIndex: number; type: string }>();
 export const actionsToAttributes = new Map<string,Map<string,Map<string,Set<string>>>>();

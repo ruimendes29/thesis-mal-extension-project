@@ -3,6 +3,7 @@ import { diagnosticCollection } from "../extension";
 import { actions, actionsStartingLine, attributes, defines, enums } from "../parsers/globalParserInfo";
 import { getCorrectLine, lineSizes } from "../parsers/textParser";
 
+export const ADD_TO_ENUM = "addToEnum";
 export const CHANGE_TYPE = "changeType";
 export const DECLARE_ACTION = "declareAction";
 export const ALREADY_DEFINED = "alreadyDefined";
@@ -39,7 +40,7 @@ export const addDiagnostic = (
       severityType = vscode.DiagnosticSeverity.Hint;
       break;
   }
-  const correctLineInfo = getCorrectLine(initialLineNumber-lineSizes.length+1,lineSizes,initialCharacter);
+  const correctLineInfo = getCorrectLine(initialLineNumber-lineSizes.length+(lineSizes.length===0?0:1),lineSizes,initialCharacter);
   const diagnostic = new vscode.Diagnostic(
     new vscode.Range(
       new vscode.Position(correctLineInfo.correctLine, correctLineInfo.correctOffset),

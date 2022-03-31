@@ -1,5 +1,13 @@
 import { addDiagnostic, ALREADY_DEFINED, NOT_YET_IMPLEMENTED } from "../diagnostics/diagnostics";
-import { actions, actionsToAttributes, arrays, currentInteractor, enums, IParsedToken, ranges } from "./globalParserInfo";
+import {
+  actions,
+  actionsToAttributes,
+  arrays,
+  currentInteractor,
+  enums,
+  IParsedToken,
+  ranges,
+} from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 
 /* Method responsible for parsing the vis tag that some action might have and assign the 
@@ -31,8 +39,8 @@ const parseAction = (line: string, lineNumber: number, currentOffset: number) =>
   let indexOfElement = 0;
   const toFindTokens = /(?<=(\]\s*|^\s*))(?<!\[)\s*[A-Za-z]+\w*\s*(\(((\s*\w+\s*),?)+\))?(?!\])/;
   const toSeparateTokens = /(\&|\||\)|\(|\,|\s)/;
-  let actionName:string = "";
-  const actionArguments:string[] = [];
+  let actionName: string = "";
+  const actionArguments: string[] = [];
 
   const parseActionSection: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
     if (indexOfElement === 0) {
@@ -49,39 +57,36 @@ const parseAction = (line: string, lineNumber: number, currentOffset: number) =>
         indexOfElement++;
         return "regexp";
       } else {
-        if (!actionsToAttributes.has(currentInteractor))
-        {
-          actionsToAttributes.set(currentInteractor,new Map());
+        if (!actionsToAttributes.has(currentInteractor)) {
+          actionsToAttributes.set(currentInteractor, new Map());
         }
-        if (!actionsToAttributes.get(currentInteractor)!.has(currentInteractor))
-        {
-          actionsToAttributes.get(currentInteractor)!.set(currentInteractor,new Map());
+        if (!actionsToAttributes.get(currentInteractor)!.has(currentInteractor)) {
+          actionsToAttributes.get(currentInteractor)!.set(currentInteractor, new Map());
         }
-        actionsToAttributes.get(currentInteractor)!.get(currentInteractor)!.set(el.trim(),new Set());
+        actionsToAttributes.get(currentInteractor)!.get(currentInteractor)!.set(el.trim(), new Set());
 
         actionName = el.trim();
         indexOfElement++;
         return "function";
       }
-    }
-    else {
+    } else {
       indexOfElement++;
       const et = el.trim();
-      if (enums.has(et) || ranges.has(et) || arrays.has(et) || et==="boolean" ||et==="number")
-      {actionArguments.push(et);return "type";}
-      else {
-        addDiagnostic(lineNumber,sc,el,et+" is not a valid type","error",NOT_YET_IMPLEMENTED);
+      if (enums.has(et) || ranges.has(et) || arrays.has(et) || et === "boolean" || et === "number") {
+        actionArguments.push(et);
+        return "type";
+      } else {
+        addDiagnostic(lineNumber, sc, el, et + " is not a valid type", "error", NOT_YET_IMPLEMENTED);
         return "regexp";
       }
     }
   });
   const toReturnParseAction = parseActionSection.getTokens(line, lineNumber, 0);
-  if (!actions.has(currentInteractor))
-  {
-    actions.set(currentInteractor,new Map());
+  if (!actions.has(currentInteractor)) {
+    actions.set(currentInteractor, new Map());
   }
-  actions.get(currentInteractor)!.set(actionName,{used:false,line:lineNumber,arguments:actionArguments});
-    return toReturnParseAction;
+  actions.get(currentInteractor)!.set(actionName, { used: false, line: lineNumber, arguments: actionArguments });
+  return toReturnParseAction;
 };
 
 export const _parseActions = (
@@ -99,21 +104,15 @@ export const _parseActions = (
 
   const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
 
-  while (currentOffset < lineWithoutComments.length) {
-    let foundMatch: boolean = false;
-    for (const parser of sectionsToParseParsers) {
-      const matchedPiece = parser(lineWithoutComments, lineNumber, currentOffset);
-      if (matchedPiece && matchedPiece.size > 0) {
-        foundMatch = true;
-        toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
-        size += matchedPiece.size;
-        currentOffset += matchedPiece.size;
-      }
-    }
-    if (!foundMatch) {
-      break;
+  for (const parser of sectionsToParseParsers) {
+    const matchedPiece = parser(lineWithoutComments, lineNumber, currentOffset);
+    if (matchedPiece && matchedPiece.size > 0) {
+      toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
+      size += matchedPiece.size;
+      currentOffset += matchedPiece.size;
     }
   }
+
   if (size === 0) {
     return undefined;
   } else {

@@ -2,7 +2,7 @@ import { types } from "util";
 import { addDiagnostic, ALREADY_DEFINED, NOT_YET_IMPLEMENTED } from "../diagnostics/diagnostics";
 import { arrays, defines, enums, IParsedToken, ranges } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
-import { parseRangeInput} from "./relations/relationParser";
+import { compareRelationTokens, parseRangeInput} from "./relations/relationParser";
 
 const getNumericalValue = (s: string): number | undefined => {
   if (!isNaN(+s)) {
@@ -111,47 +111,24 @@ const parseRangeTypes = (line: string, lineNumber: number) => {
   return toReturnRanges;
 };
 
-const parseEnumTypes = (line: string, lineNumber: number) => {
-  const toFindTokens = /^\s*[a-zA-Z][a-zA-Z0-9\_]*\s*\=\s*\{.*\}/;
-  const toSeparateTokens = /(\=|\,|\{|\}|\s)/;
-  let elementIndex = 0;
-  let typeName = "";
+const parseTests = (line: string, lineNumber: number) => {
+  const toFindTokens = /.*/;
+  const toSeparateTokens = /(\&|\||\)|\(|\,|\<?\s*\-\s*\>)/;
   const parseEnums: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-    const et = el.trim();
-    if (elementIndex === 0) {
-      elementIndex++;
-      if (enums.has(et) || ranges.has(et)) {
-        addDiagnostic(
-          lineNumber,
-          sc,
-          el,
-          et + " is already declared",
-          "warning",
-          ALREADY_DEFINED + ":" + lineNumber + ":" + et
-        );
-        return "function";
-      } else {
-        typeName = et;
-        enums.set(et, { used: false, values: [], line:lineNumber });
-        return "enum";
-      }
-    } else {
-      elementIndex++;
-      enums.get(typeName)?.values.push(et);
-      return "macro";
-    }
+      return "cantprint";
+  
   });
-  return parseEnums.getTokens(line, lineNumber, 0);
+  return parseEnums.getTokens(line, lineNumber, 0,true,compareRelationTokens);
 };
 
-export const _parseTypes = (line: string, lineNumber: number): { tokens: IParsedToken[]; size: number } | undefined => {
+export const _parseTest = (line: string, lineNumber: number): { tokens: IParsedToken[]; size: number } | undefined => {
   let currentOffset = 0;
   let toRetTokens: IParsedToken[] = [];
   let size = 0;
   const sectionsToParseParsers: ((
     line: string,
     lineNumber: number
-  ) => { tokens: IParsedToken[]; size: number } | undefined)[] = [parseArray, parseEnumTypes, parseRangeTypes];
+  ) => { tokens: IParsedToken[]; size: number } | undefined)[] = [];
 
   const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
 

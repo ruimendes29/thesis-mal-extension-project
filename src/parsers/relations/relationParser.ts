@@ -1,5 +1,7 @@
+import { addDiagnostic, ADD_TO_ENUM, NOT_YET_IMPLEMENTED } from "../../diagnostics/diagnostics";
 import { getArrayInStore, getArrayWrittenInfo } from "../arrayRelations";
 import { aggregates, attributes, currentInteractor, defines, enums, ranges } from "../globalParserInfo";
+import { countSpacesAtStart } from "../textParser";
 import {
   emitNotAggregatedDiagnostic,
   emitNotANumberDiagnostic,
@@ -9,24 +11,18 @@ import {
 import { findValueType, findTemporaryType } from "./typeFindes";
 
 let offsetForDiags = 0;
-const attributeExists = (attribute: string): boolean => {
-  return (
-    (attributes.has(currentInteractor) && attributes.get(currentInteractor)!.has(attribute)) ||
-    (attribute.charAt(attribute.length - 1) === "'" &&
-      attributes.get(currentInteractor)!.has(attribute.substring(0, attribute.length - 1)))
-  );
-};
 
 export const parseRangeInput = (preV: string): { value: number; isANumber: boolean } => {
   let v;
-  let isANumber = true;
+  let isANumber = false;
   v = 0;
   const trimmedv = preV.trim();
   if (!isNaN(+trimmedv)) {
+    isANumber = true;
     v = trimmedv;
   } else if (defines.has(trimmedv) && defines.get(trimmedv)!.type === "number") {
     v = defines.get(trimmedv)!.value;
-    isANumber = false;
+    isANumber = true;
     defines.set(trimmedv, { used: true, type: "number", value: v });
   }
   return { value: +v, isANumber: isANumber };
@@ -97,7 +93,7 @@ const parseArrayMember = (
         }
         index++;
       } else {
-        if (index < arrayInfo!.dimensions+1) {
+        if (index < arrayInfo!.dimensions + 1) {
           const parsedComplexArgument = parseMemberOfRelation(textInfo, sm, currentInteractor);
           if (parsedComplexArgument?.type === "number") {
             toRet = [...toRet, ...parsedComplexArgument.tokens];
@@ -108,12 +104,71 @@ const parseArrayMember = (
           index++;
         } else {
           toRet = [{ offset: member.offset, value: member.value, tokenType: "regexp", nextState: false }];
-          return {tokens:toRet,type:""};
+          return { tokens: toRet, type: "" };
         }
       }
     }
 
     return { tokens: toRet, type: arrayInfo!.type };
+  }
+  return undefined;
+};
+
+const parseGroupForInMember = (
+  textInfo: { line: string; lineNumber: number; el: string },
+  member: {
+    offset: number;
+    value: string;
+  },
+  interactor: string
+): { tokens: any[]; type: string | undefined } | undefined => {
+  const rx = /(\{|\,|\})/;
+  if (rx.test(member.value)) {
+    const toRet = [];
+    let index = 0;
+    let correctType: string | undefined = "";
+    const splittedMember = splitWithOffset(rx, member.value, member.offset);
+    for (let sm of splittedMember) {
+      const smvt = sm.value.trim();
+      if (index++ === 0) {
+        correctType = findValueType(smvt, interactor);
+        if (correctType === undefined) {
+          addDiagnostic(
+            textInfo.lineNumber,
+            offsetForDiags+sm.offset,
+            sm.value,
+            smvt + " is not a member of any enum",
+            "error",
+            NOT_YET_IMPLEMENTED + ":" + smvt
+          );
+        } else {
+          toRet.push({ offset: sm.offset, value: sm.value, tokenType: "macro" });
+        }
+      } else {
+        const typeOfElem = findValueType(smvt, interactor);
+        if (typeOfElem && typeOfElem !== correctType) {
+          addDiagnostic(
+            textInfo.lineNumber,
+            offsetForDiags+sm.offset,
+            sm.value,
+            smvt + " is not a member of " + correctType,
+            "error",
+            NOT_YET_IMPLEMENTED + ":" + smvt
+          );
+        } else if (typeOfElem === undefined && correctType !== undefined) {
+          addDiagnostic(
+            textInfo.lineNumber,
+            offsetForDiags+sm.offset,
+            sm.value,
+            smvt + " is not defined as a member of " + correctType,
+            "error",
+            ADD_TO_ENUM + ":" + enums.get(correctType)!.line + ":" + smvt + ":" + correctType
+          );
+        }
+        else {  toRet.push({ offset: sm.offset, value: sm.value, tokenType: "macro" });}
+      }
+    }
+    return {tokens:toRet,type:correctType};
   }
   return undefined;
 };
@@ -297,6 +352,7 @@ export const parseMemberOfRelation = (
   let type: string | undefined = undefined;
   let toRetTokens: any[] = [];
   const memberParsers = [
+    parseGroupForInMember,
     parseAggregatedMember,
     parseArrayMember,
     parseNumberMember,
@@ -326,9 +382,9 @@ export const compareRelationTokens = (
 ): { offset: number; value: string; tokenType: string; nextState?: boolean; interactor?: string }[] | undefined => {
   let indexOfOp;
   offsetForDiags = offset;
-  const comparationSymbols = /(\<\s*\=|\>\s*\=|(?<!\-)\s*\>|\<\s*(?!\-)|\=|\!\s*\=)/;
+  const comparationSymbols = /(\<\s*\=|\>\s*\=|(?<!\-)\s*\>|\<\s*(?!\-)|\=|\!\s*\=|\bin\b)/;
   if (textInfo.el.trim() === "keep") {
-    return [{ offset: 0, value: textInfo.el.trim(), tokenType: "keyword" }];
+    return [{ offset: 0, value: textInfo.el, tokenType: "keyword" }];
   }
   // Check if there is any symbol that might indicate a relation
   if ((indexOfOp = textInfo.el.match(comparationSymbols)) !== null) {
@@ -337,7 +393,8 @@ export const compareRelationTokens = (
       .split(comparationSymbols)
       .map((el) => {
         offsetForComparation += el.length;
-        return { value: el, offset: offsetForComparation - el.length };
+        let numberOfSpaces = countSpacesAtStart(el);
+        return { value: el.trim(), offset: offsetForComparation - el.length + numberOfSpaces };
       })
       .filter((el) => !comparationSymbols.test(el.value.trim()) && el.value.trim() !== "");
     if (separated.length === 2) {

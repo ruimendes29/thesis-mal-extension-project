@@ -18,7 +18,7 @@ export const temporaryAttributes: { action: string; value: string; index: number
 
 const parseConditions = (line: string, lineNumber: number) => {
   const toFindTokens = /^.*(?=\s*\<?\-\>\s*\[)/;
-  const toSeparateTokens = /(\s|\&|\||\)|\(|\!)/;
+  const toSeparateTokens = /(\&|\||\)|\(|\!)/;
 
   const parseConditionsSection: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
     return "cantprint";
@@ -164,14 +164,7 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
       currentAction = ca;
       return tokenType;
     } else {
-      addDiagnostic(
-        lineNumber,
-        sc,
-        el,
-        el + " is not declared as an action",
-        "error",
-        DECLARE_ACTION + ":" + el
-      );
+      addDiagnostic(lineNumber, sc, el, el + " is not declared as an action", "error", DECLARE_ACTION + ":" + el);
       return "regexp";
     }
   });
@@ -180,19 +173,14 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
 
 const parseNextState = (line: string, lineNumber: number) => {
   const toFindTokens = /(?<=((?<=(\-\s*\>.*|^\s*\[.*))\]|^\s*per\s*\(.*\)\s*\<?\-\>)).*/;
-  const toSeparateTokens = /(\&|\||\)|\(|\,|\<?\s*\-\s*\>|\s)/;
+  const toSeparateTokens = /(\&|\||\)|\(|(?<=keep.*)\,|\<?\s*\-\s*\>)/;
   let isInKeep = false;
   let addToAttributes: string[] = [];
   const parseNextStateSection: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
     const [attName, isNextState, interactor, lastValue] = el.split(":");
-    if (isInKeep)
-    {
-      console.log(el);
-    }
     if (attName.trim() === "keep") {
-      console.log("keebp!!");
       isInKeep = true;
-      return "";
+      return "keyword";
     }
     if (interactor !== "undefined") {
       addToAttributes.push(removeExclamation(attName.trim()).value + ".");
@@ -200,7 +188,7 @@ const parseNextState = (line: string, lineNumber: number) => {
       addToAttributes = [];
       addToAttributes.push(removeExclamation(attName.trim()).value + ".");
     }
-    if ((isInKeep&&isNextState!=="undefined") || isNextState === "true") {
+    if ((isInKeep && isNextState !== "undefined") || isNextState === "true") {
       const toAddToSet = addToAttributes.join("").slice(0, addToAttributes.join("").length - 1);
       setOfAttributesAttended.add(toAddToSet);
       addToAttributes = [];

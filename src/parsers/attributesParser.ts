@@ -4,15 +4,12 @@ import { ParseSection } from "./ParseSection";
 
 let attributesInLine: Array<string> = [];
 
-const parseAttribute = (line: string, lineNumber: number,currentOffset: number) => {
+const parseAttribute = (line: string, lineNumber: number, currentOffset: number) => {
   const toFindTokens = /(\s*[A-Za-z]+\w*\s*(\,|(?=\:)))+/;
   const toSeparateTokens = /(\,|\s)/;
 
-  const parseActionSection: ParseSection = new ParseSection(
-    toFindTokens,
-    toSeparateTokens,
-    (el, sc) => {
-      // if an element is found, add it to the actions map and return function as the token type
+  const parseActionSection: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
+    // if an element is found, add it to the actions map and return function as the token type
     if (attributes.has(currentInteractor) && attributes.get(currentInteractor)!.has(el.trim())) {
       addDiagnostic(
         lineNumber,
@@ -27,52 +24,43 @@ const parseAttribute = (line: string, lineNumber: number,currentOffset: number) 
       attributesInLine.push(el.trim());
       return "variable";
     }
-    }
-  );
+  });
   return parseActionSection.getTokens(line, lineNumber, currentOffset);
 };
 
-const parseVis = (line: string, lineNumber: number,currentOffset: number) => {
+const parseVis = (line: string, lineNumber: number, currentOffset: number) => {
   const toFindTokens = /^\s*\[\s*vis\s*\]/;
   const toSeparateTokens = /(\[|\]|\s)/;
 
-  const parseActionSection: ParseSection = new ParseSection(
-    toFindTokens,
-    toSeparateTokens,
-    (el, sc) => {
-      return "keyword";
-    }
-  );
+  const parseActionSection: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
+    return "keyword";
+  });
   return parseActionSection.getTokens(line, lineNumber, currentOffset);
 };
 
-const parseType = (line: string, lineNumber: number,currentOffset: number) => {
+const parseType = (line: string, lineNumber: number, currentOffset: number) => {
   const toFindTokens = /:\s*[A-Za-z\_]+\w*\s*/;
   const toSeparateTokens = /(\:|\s)/;
 
-  const parseActionSection: ParseSection = new ParseSection(
-    toFindTokens,
-    toSeparateTokens,
-    (el, sc) => {
-      const type = el.trim();
-      for (let att of attributesInLine)
-      {
-        if (!attributes.has(currentInteractor))
-        {
-          attributes.set(currentInteractor,new Map());
-        }
-        attributes.get(currentInteractor)!.set(att,{used:false,type:type,line:lineNumber,alone: attributesInLine.length===1});
+  const parseActionSection: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
+    const type = el.trim();
+    for (let att of attributesInLine) {
+      if (!attributes.has(currentInteractor)) {
+        attributes.set(currentInteractor, new Map());
       }
-      attributesInLine = [];
-      return "type";
+      attributes
+        .get(currentInteractor)!
+        .set(att, { used: false, type: type, line: lineNumber, alone: attributesInLine.length === 1 });
     }
-  );
+    attributesInLine = [];
+    return "type";
+  });
   return parseActionSection.getTokens(line, lineNumber, currentOffset);
 };
 
 export const _parseAttributes = (
   line: string,
-  lineNumber: number,
+  lineNumber: number
 ): { tokens: IParsedToken[]; size: number } | undefined => {
   let currentOffset = 0;
   let toRetTokens: IParsedToken[] = [];
@@ -81,29 +69,19 @@ export const _parseAttributes = (
     line: string,
     lineNumber: number,
     currentOffset: number
-  ) => { tokens: IParsedToken[]; size: number } | undefined)[] = [
-    parseVis,
-    parseAttribute,
-    parseType
-  ];
+  ) => { tokens: IParsedToken[]; size: number } | undefined)[] = [parseVis, parseAttribute, parseType];
 
   const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
 
-  while (currentOffset < lineWithoutComments.length) {
-    let foundMatch: boolean = false;
-    for (const parser of sectionsToParseParsers) {
-      const matchedPiece = parser(lineWithoutComments, lineNumber,currentOffset);
-      if (matchedPiece && matchedPiece.size > 0) {
-        foundMatch = true;
-        toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
-        size += matchedPiece.size;
-        currentOffset += matchedPiece.size;
-      }
-    }
-    if (!foundMatch) {
-      break;
+  for (const parser of sectionsToParseParsers) {
+    const matchedPiece = parser(lineWithoutComments, lineNumber, currentOffset);
+    if (matchedPiece && matchedPiece.size > 0) {
+      toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
+      size += matchedPiece.size;
+      currentOffset += matchedPiece.size;
     }
   }
+
   if (size === 0) {
     return undefined;
   } else {
