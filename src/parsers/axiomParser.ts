@@ -112,8 +112,8 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
   let includedInteractor = "";
   let interactorForTemps = currentInteractor;
   let actionsInIncluded: Map<string, { used: boolean; line: number; arguments: string[] }>;
-  const toFindTokens = /((\<?\s*\-\>\s*)|^\s*)\[[^\[]+\]/;
-  const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\]|\,|\.|\s)/;
+  const toFindTokens = /(((\<?\s*\-\>\s*)|^\s*)\[[^\[]+\])|(^\s*per\s*\(.*\)\s*\<?\s*\-\s*\>)/;
+  const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\]|\,|\.|\s|\bper\b)/;
   const parseTriggerActions: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
     if (isIncluded) {
       if (isIncludedDinamically(includedInteractor, el.trim())) {
@@ -172,7 +172,7 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
 };
 
 const parseNextState = (line: string, lineNumber: number) => {
-  const toFindTokens = /(?<=((?<=(\-\s*\>.*|^\s*\[.*))\]|^\s*per\s*\(.*\)\s*\<?\-\>)).*/;
+  const toFindTokens = /(?<=(((?<=(^|\<?\s*\-\s*\>))\s*\[.*\])|^\s*per\s*\(.*\)\s*\<?\s*\-\s*\>)|^(?!(\s*\[.*\])|.*\-\s*\>\s*\[.*\]|\s*per\s*\(.*\)\s*\<?\s*\-\s*\>)).*/;
   const toSeparateTokens = /(\&|\||\)|\(|(?<=keep.*)\,|\<?\s*\-\s*\>)/;
   let isInKeep = false;
   let addToAttributes: string[] = [];
