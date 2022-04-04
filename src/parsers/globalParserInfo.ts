@@ -1,7 +1,7 @@
 export const sections = new Map<string, boolean>();
 export let previousSection = "";
-export let actionsStartingLine = new Array<number>();
-export let attributesStartingLine = new Array<number>();
+export let actionsStartingLine = new Map<string,number>();
+export let attributesStartingLine = new Map<string,number>();
 export let currentInteractor = "";
 export const attributes = new Map<
   string,
@@ -9,10 +9,10 @@ export const attributes = new Map<
 >();
 export const actions = new Map<string, Map<string, { used: boolean; line: number; arguments: string[] }>>();
 export const defines = new Map<string, { used: boolean; type: string | undefined; value: string }>();
-export const enums = new Map<string, { used: boolean; values: string[];line:number }>();
+export const enums = new Map<string, { used: boolean; values: string[]; line: number }>();
 export const ranges = new Map<string, { used: boolean; minimum: number; maximum: number }>();
 export const arrays = new Map<string, { firstIndex: number; lastIndex: number; type: string }>();
-export const actionsToAttributes = new Map<string,Map<string,Map<string,Set<string>>>>();
+export const actionsToAttributes = new Map<string, Map<string, Map<string, Set<string>>>>();
 export const interactorLimits = new Map<string, { start: number; end: number | undefined }>();
 export const aggregates = new Map<string, { current: string; included: string }>();
 
@@ -20,6 +20,7 @@ sections.set("attributes", false);
 sections.set("types", false);
 sections.set("defines", false);
 sections.set("interactor", false);
+sections.set("importing", false);
 sections.set("actions", false);
 sections.set("axioms", false);
 sections.set("test", false);
@@ -35,9 +36,9 @@ export interface IParsedToken {
 
 export const updateSection = (line: string, lineNumber: number): boolean => {
   if (line.trim() === "actions") {
-    actionsStartingLine.push(lineNumber);
+    actionsStartingLine.set(currentInteractor,lineNumber);
   } else if (line.trim() === "attributes") {
-    attributesStartingLine.push(lineNumber);
+    attributesStartingLine.set(currentInteractor,lineNumber);
   }
   let x: RegExpExecArray | null;
   x = /^\s*interactor\s+[a-zA-Z]+[a-zA-Z\_0-9]*/.exec(line);
@@ -75,7 +76,8 @@ export const isSubSection = (line: string): boolean => {
     line.trim() === "actions" ||
     line.trim() === "axioms" ||
     line.trim() === "test" ||
-    line.trim() === "aggregates"
+    line.trim() === "aggregates" ||
+    line.trim() === "importing"
   ) {
     return true;
   } else {
@@ -90,13 +92,14 @@ export const isInsideInteractor = (): boolean => {
     sections.get("actions") ||
     sections.get("axioms") ||
     sections.get("aggregates") ||
+    sections.get("importing") ||
     sections.get("test")!
   );
 };
 
 export const clearStoredValues = () => {
-  actionsStartingLine = [];
-  attributesStartingLine = [];
+  actionsStartingLine.clear();
+  attributesStartingLine.clear();
   actionsToAttributes.clear();
   attributes.clear();
   actions.clear();

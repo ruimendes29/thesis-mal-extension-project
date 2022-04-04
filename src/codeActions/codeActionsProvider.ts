@@ -1,6 +1,18 @@
 import * as vscode from "vscode";
-import { ADD_TO_ENUM, ALREADY_DEFINED, CHANGE_TYPE, DECLARE_ACTION, DEFINE_ATTRIBUTE } from "../diagnostics/diagnostics";
-import { actionsStartingLine, attributes, attributesStartingLine, getInteractorByLine } from "../parsers/globalParserInfo";
+import {
+  ADD_TO_ENUM,
+  ALREADY_DEFINED,
+  CHANGE_TYPE,
+  DECLARE_ACTION,
+  DEFINE_ATTRIBUTE,
+} from "../diagnostics/diagnostics";
+import {
+  actionsStartingLine,
+  attributes,
+  attributesStartingLine,
+  getInteractorByLine,
+  interactorLimits,
+} from "../parsers/globalParserInfo";
 import { ParseSection } from "../parsers/ParseSection";
 import { countSpacesAtStart } from "../parsers/textParser";
 
@@ -23,18 +35,25 @@ export class Emojinfo implements vscode.CodeActionProvider {
       const diagnosticS = (diagnostic.code! + "").split(":");
       switch (diagnostic.code!.toString().split(":")[0]) {
         case DECLARE_ACTION:
-          return this.declareAction(document, diagnostic.code!.toString().split(":")[1], diagnostic);
+          return this.declareAction(document, diagnostic.code!.toString().split(":")[1], diagnostic, range.start);
         case CHANGE_TYPE:
-          return this.changeToCorrectType(document, diagnosticS[1]!, +diagnosticS[2]!, diagnosticS[3]!, diagnostic);
+          return this.changeToCorrectType(
+            document,
+            diagnosticS[1]!,
+            +diagnosticS[2]!,
+            diagnosticS[3]!,
+            diagnostic,
+            range.start
+          );
         case ALREADY_DEFINED:
           //ALREADY_DEFINED + ":" + lineNumber + ":" + el.trim()
           return this.alreadyDefined(document, +diagnosticS[1], diagnosticS[2], diagnostic);
         case DEFINE_ATTRIBUTE:
           //DEFINE_ATTRIBUTE +":"+findValueType(val)+":"+attribute
-          return this.addAttribute(document,diagnosticS[1],diagnosticS[2],diagnostic);
+          return this.addAttribute(document, diagnosticS[1], diagnosticS[2], diagnostic, range.start);
         case ADD_TO_ENUM:
           //ADD_TO_ENUM:lineNumber:newEnumMember:enumName
-          return this.addToEnum(document,+diagnosticS[1],diagnosticS[2],diagnosticS[3],diagnostic);
+          return this.addToEnum(document, +diagnosticS[1], diagnosticS[2], diagnosticS[3], diagnostic);
         default:
           return new vscode.CodeAction(`No QuickFix available`, vscode.CodeActionKind.QuickFix);
       }
@@ -63,14 +82,18 @@ export class Emojinfo implements vscode.CodeActionProvider {
     document: vscode.TextDocument,
     lineToFix: number,
     enumMember: string,
-    enumName:string,
+    enumName: string,
     diagnostic: vscode.Diagnostic
   ): vscode.CodeAction {
     const fix = new vscode.CodeAction(`Add ${enumMember} to ${enumName}`, vscode.CodeActionKind.QuickFix);
     fix.diagnostics = [diagnostic];
     fix.edit = new vscode.WorkspaceEdit();
     const line = document.lineAt(lineToFix).text;
-    fix.edit.insert(document.uri,new vscode.Position(lineToFix,document.lineAt(lineToFix).text.indexOf("{")+1),enumMember+", ");
+    fix.edit.insert(
+      document.uri,
+      new vscode.Position(lineToFix, document.lineAt(lineToFix).text.indexOf("{") + 1),
+      enumMember + ", "
+    );
     return fix;
   }
 
@@ -79,7 +102,8 @@ export class Emojinfo implements vscode.CodeActionProvider {
     newType: string,
     lineToFix: number,
     attribute: string,
-    diagnostic: vscode.Diagnostic
+    diagnostic: vscode.Diagnostic,
+    position: vscode.Position
   ): vscode.CodeAction {
     const fix = new vscode.CodeAction(`Convert to ${newType}`, vscode.CodeActionKind.QuickFix);
     fix.diagnostics = [diagnostic];
@@ -102,8 +126,14 @@ export class Emojinfo implements vscode.CodeActionProvider {
         )
       );
       fix.edit.replace(document.uri, oldAttributeRange, "");
-      const numberOfSpaces = countSpacesAtStart(document.lineAt(attributesStartingLine[0]+1).text);
-      fix.edit.insert(document.uri, new vscode.Position(lineToFix + 1, numberOfSpaces), attribute + " : " + newType + " " + "\n");
+      const numberOfSpaces = countSpacesAtStart(
+        document.lineAt(attributesStartingLine.get(getInteractorByLine(position.line))! + 1).text
+      );
+      fix.edit.insert(
+        document.uri,
+        new vscode.Position(lineToFix + 1, numberOfSpaces),
+        attribute + " : " + newType + " " + "\n"
+      );
     }
     return fix;
   }
@@ -111,12 +141,25 @@ export class Emojinfo implements vscode.CodeActionProvider {
   private declareAction(
     document: vscode.TextDocument,
     newAction: string,
-    diagnostic: vscode.Diagnostic
+    diagnostic: vscode.Diagnostic,
+    position: vscode.Position
   ): vscode.CodeAction {
     const fix = new vscode.CodeAction(`Declare ${newAction} as an action`, vscode.CodeActionKind.QuickFix);
     fix.diagnostics = [diagnostic];
     fix.edit = new vscode.WorkspaceEdit();
-    fix.edit.insert(document.uri, new vscode.Position(actionsStartingLine[0] + 1, 0), "  " + newAction + "\n");
+    const actionStart = actionsStartingLine.get(getInteractorByLine(position.line));
+    const textToAdd = newAction+"\n";
+    let linePosition = (actionStart)?actionStart:interactorLimits.get(getInteractorByLine(position.line))!.start+1;
+    let numberOfSpaces = (actionStart)?countSpacesAtStart(document.lineAt(linePosition+1).text):0;
+    if (!actionStart)
+    {
+      fix.edit.insert(document.uri, new vscode.Position(linePosition,0), "actions\n");
+    }
+    fix.edit.insert(
+      document.uri,
+      new vscode.Position(linePosition+(actionStart?1:0), numberOfSpaces),
+      textToAdd
+    );
     return fix;
   }
 
@@ -124,13 +167,25 @@ export class Emojinfo implements vscode.CodeActionProvider {
     document: vscode.TextDocument,
     newType: string,
     attribute: string,
-    diagnostic: vscode.Diagnostic
+    diagnostic: vscode.Diagnostic,
+    position: vscode.Position
   ): vscode.CodeAction {
     const fix = new vscode.CodeAction(`Add ${attribute} with type ${newType}`, vscode.CodeActionKind.QuickFix);
     fix.diagnostics = [diagnostic];
     fix.edit = new vscode.WorkspaceEdit();
-    const numberOfSpaces = countSpacesAtStart(document.lineAt(attributesStartingLine[0]+1).text);
-    fix.edit.insert(document.uri, new vscode.Position(attributesStartingLine[0] + 1, numberOfSpaces), attribute + " : " + newType + " " + "\n");
+    const attributesStart = attributesStartingLine.get(getInteractorByLine(position.line));
+    const textToAdd =  attribute + " : " + newType + " " + "\n";
+    const linePosition = (attributesStart)?attributesStart:interactorLimits.get(getInteractorByLine(position.line))!.start+1;
+    const numberOfSpaces = (attributesStart)?countSpacesAtStart(document.lineAt(linePosition+1).text):0;
+    if (!attributesStart)
+    {
+      fix.edit.insert(document.uri, new vscode.Position(linePosition,0), "attributes\n");
+    }
+    fix.edit.insert(
+      document.uri,
+      new vscode.Position(linePosition+(attributesStart?1:0), numberOfSpaces),
+      textToAdd
+    );
 
     return fix;
   }

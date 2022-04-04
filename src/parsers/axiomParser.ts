@@ -14,7 +14,7 @@ import { compareRelationTokens, removeExclamation } from "./relations/relationPa
 
 export let triggerAction: string[] = [];
 const setOfAttributesAttended: Set<string> = new Set();
-export const temporaryAttributes: { action: string; value: string; index: number }[] = [];
+export let temporaryAttributes: { action: string; value: string; index: number }[] = [];
 
 const parseConditions = (line: string, lineNumber: number) => {
   const toFindTokens = /^.*(?=\s*\<?\-\>\s*\[)/;
@@ -237,6 +237,7 @@ export const _parseAxioms = (
       }
     }
   }
+  temporaryAttributes=[];
   if (size === 0) {
     return undefined;
   } else {

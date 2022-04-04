@@ -16,6 +16,7 @@ import { _parseAttributes } from "./attributesParser";
 import { checkIfUsed } from "./checkIfUsed";
 import { _parseIncludes } from "./includesParser";
 import { _parseTest } from "./testParser";
+import { _parseImports } from "./importParser";
 
 const mapParsers: Map<
   string,
@@ -28,6 +29,7 @@ mapParsers.set("defines", _parseDefines);
 mapParsers.set("aggregates", _parseIncludes);
 mapParsers.set("types", _parseTypes);
 mapParsers.set("test", _parseTest);
+mapParsers.set("importing",_parseImports);
 
 export let lineSizes: number[] = [];
 
@@ -40,7 +42,7 @@ const isNotAnExpression = (line: string) => {
     .slice(line.indexOf("=") + 1)
     .split("#")[0]
     .trim();
-  if (!isNaN(+afterEquals) || afterEquals === "true" || afterEquals === "false") {
+  if (!isNaN(+afterEquals) || afterEquals.toUpperCase() === "TRUE" || afterEquals.toUpperCase() === "FALSE") {
     return true;
   }
   return false;

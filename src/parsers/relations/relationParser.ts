@@ -1,6 +1,7 @@
 import { addDiagnostic, ADD_TO_ENUM, NOT_YET_IMPLEMENTED } from "../../diagnostics/diagnostics";
 import { getArrayInStore, getArrayWrittenInfo } from "../arrayRelations";
-import { aggregates, attributes, currentInteractor, defines, enums, ranges } from "../globalParserInfo";
+import { temporaryAttributes } from "../axiomParser";
+import { actions, aggregates, attributes, currentInteractor, defines, enums, ranges } from "../globalParserInfo";
 import { countSpacesAtStart } from "../textParser";
 import {
   emitNotAggregatedDiagnostic,
@@ -11,6 +12,10 @@ import {
 import { findValueType, findTemporaryType } from "./typeFindes";
 
 let offsetForDiags = 0;
+let argumentsInAction: any[] = [];
+let actionInExpression: string | undefined = undefined;
+let totalActionArguments: number = 0;
+let actionInteractor: string | undefined = undefined;
 
 export const parseRangeInput = (preV: string): { value: number; isANumber: boolean } => {
   let v;
@@ -66,7 +71,11 @@ const parseArrayMember = (
   member: { offset: number; value: string },
   interactor: string
 ): { tokens: any[]; type: string | undefined } | undefined => {
+  let arrayNext;
   if (member.value.includes("[")) {
+    arrayNext = removeExclamation(member.value.trim());
+    if (arrayNext.isNextState)
+      {member.value=member.value.slice(0,member.value.indexOf("'"));}
     const splittedMember = splitWithOffset(/(\[|\])/, member.value, member.offset);
     let index = 0;
     let arrayInfo: { type: any; dimensions: number };
@@ -84,7 +93,7 @@ const parseArrayMember = (
               offset: o,
               value: v,
               tokenType: "variable",
-              nextState: isNextState,
+              nextState: arrayNext.isNextState,
             });
           } else {
             emitNotArrayDiagnostic(textInfo.lineNumber, offsetForDiags + o, v);
@@ -135,7 +144,7 @@ const parseGroupForInMember = (
         if (correctType === undefined) {
           addDiagnostic(
             textInfo.lineNumber,
-            offsetForDiags+sm.offset,
+            offsetForDiags + sm.offset,
             sm.value,
             smvt + " is not a member of any enum",
             "error",
@@ -149,7 +158,7 @@ const parseGroupForInMember = (
         if (typeOfElem && typeOfElem !== correctType) {
           addDiagnostic(
             textInfo.lineNumber,
-            offsetForDiags+sm.offset,
+            offsetForDiags + sm.offset,
             sm.value,
             smvt + " is not a member of " + correctType,
             "error",
@@ -158,17 +167,18 @@ const parseGroupForInMember = (
         } else if (typeOfElem === undefined && correctType !== undefined) {
           addDiagnostic(
             textInfo.lineNumber,
-            offsetForDiags+sm.offset,
+            offsetForDiags + sm.offset,
             sm.value,
             smvt + " is not defined as a member of " + correctType,
             "error",
             ADD_TO_ENUM + ":" + enums.get(correctType)!.line + ":" + smvt + ":" + correctType
           );
+        } else {
+          toRet.push({ offset: sm.offset, value: sm.value, tokenType: "macro" });
         }
-        else {  toRet.push({ offset: sm.offset, value: sm.value, tokenType: "macro" });}
       }
     }
-    return {tokens:toRet,type:correctType};
+    return { tokens: toRet, type: correctType };
   }
   return undefined;
 };
@@ -205,6 +215,12 @@ const parseAggregatedMember = (
           interactor: current,
         });
         break;
+      } else if (actions.has(current) && actions.get(current)!.has(tv)) {
+        actionInteractor = current;
+        return {
+          tokens: [...toRet, ...parseActionMember(textInfo, sm, current)!.tokens],
+          type: "action",
+        };
       } else if ((arrayAttribute = getArrayInStore(getArrayWrittenInfo(tv).arrayName, current)).type !== "") {
         return {
           tokens: [
@@ -225,6 +241,67 @@ const parseAggregatedMember = (
     }
     return { tokens: toRet, type: retType };
   }
+  return undefined;
+};
+
+const parseActionMember = (
+  textInfo: { line: string; lineNumber: number; el: string },
+  member: { offset: number; value: string },
+  interactor: string
+): { tokens: any[]; type: string | undefined } | undefined => {
+  const { value: v, offset: o } = member;
+  const { value: tv, isNextState } = removeExclamation(v.trim());
+  let actInfo;
+  if ((actInfo = actions.get(interactor)?.get(tv))) {
+    argumentsInAction = [...actions.get(interactor)!.get(tv)!.arguments];
+    actionInExpression = tv;
+    totalActionArguments = argumentsInAction.length;
+    return {
+      tokens: [{ offset: o, value: v, tokenType: "function", nextState: isNextState }],
+      type: "action",
+    };
+  }
+  return undefined;
+};
+
+const parseArgumentOfActionMember = (
+  textInfo: { line: string; lineNumber: number; el: string },
+  member: { offset: number; value: string },
+  interactor: string
+): { tokens: any[]; type: string | undefined } | undefined => {
+  const clearValues = () => {
+    if (argumentsInAction.length === 0) {
+      actionInExpression = undefined;
+      totalActionArguments = 0;
+      actionInteractor = undefined;
+    }
+  };
+  const forActionInteractor = actionInteractor ? actionInteractor : interactor;
+  const argumentType = argumentsInAction.shift();
+  const { value: v, offset: o } = member;
+  const { value: tv, isNextState } = removeExclamation(v.trim());
+  let argType = findValueType(tv, forActionInteractor);
+  if (argType === argumentType || (argType === "number" && ranges.has(argumentType.trim()))) {
+    clearValues();
+    return {
+      tokens: [{ offset: o, value: v, tokenType: !isNaN(+tv)?"number":"variable", nextState: isNextState }],
+      type: argType,
+    };
+  } else {
+    if (tv.charAt(0) === "_") {
+      temporaryAttributes.push({
+        action: actionInExpression!,
+        value: tv,
+        index: totalActionArguments - argumentsInAction.length - 1,
+      });
+      clearValues();
+      return {
+        tokens: [{ offset: o, value: v, tokenType: "keyword", nextState: false }],
+        type: argumentType,
+      };
+    }
+  }
+  clearValues();
   return undefined;
 };
 
@@ -321,6 +398,11 @@ const parseAttributeMember = (
       tokens: [{ offset: o, value: v, tokenType: "variable", nextState: isNextState }],
       type: attInfo.type,
     };
+  } else if (actions.has(interactor) && actions.get(interactor)!.has(tv)) {
+    return {
+      tokens: [{ offset: o, value: v, tokenType: "function", nextState: false }],
+      type: "action",
+    };
   }
   return undefined;
 };
@@ -330,7 +412,7 @@ const parseBooleanMember = (
   member: { offset: number; value: string },
   interactor: string
 ): { tokens: any[]; type: string | undefined } | undefined => {
-  if (member.value.trim() === "false" || member.value.trim() === "true") {
+  if (member.value.trim().toLowerCase() === "false" || member.value.trim().toLowerCase() === "true") {
     return { tokens: [{ offset: member.offset, value: member.value, tokenType: "keyword" }], type: "boolean" };
   }
   return undefined;
@@ -352,6 +434,7 @@ export const parseMemberOfRelation = (
   let type: string | undefined = undefined;
   let toRetTokens: any[] = [];
   const memberParsers = [
+    parseActionMember,
     parseGroupForInMember,
     parseAggregatedMember,
     parseArrayMember,
@@ -363,13 +446,18 @@ export const parseMemberOfRelation = (
     parseBooleanMember,
   ];
   for (let sm of splittedMember) {
-    type = undefined;
-    for (let memberParser of memberParsers) {
-      if ((possibleRet = memberParser(textInfo, sm, interactor))) {
-        type = possibleRet.type;
-        toRetTokens = [...toRetTokens, ...possibleRet.tokens];
-        break;
+    if (argumentsInAction.length === 0) {
+      type = undefined;
+      for (let memberParser of memberParsers) {
+        if ((possibleRet = memberParser(textInfo, sm, interactor))) {
+          type = possibleRet.type;
+          toRetTokens = [...toRetTokens, ...possibleRet.tokens];
+          break;
+        }
       }
+    } else if ((possibleRet = parseArgumentOfActionMember(textInfo, sm, interactor))) {
+      type = possibleRet.type;
+      toRetTokens = [...toRetTokens, ...possibleRet.tokens];
     }
   }
 

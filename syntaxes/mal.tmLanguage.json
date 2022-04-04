@@ -126,7 +126,25 @@
           "beginCaptures": {
             "0": { "name": "entity.name.tag.attributes.mal" }
           },
-          "end": "(?=\\b((actions)|(axioms)|(test)|(interactor)|(aggregates))\\b)",
+          "end": "(?=\\b((actions)|(axioms)|(test)|(interactor)|(aggregates)|(importing))\\b)",
+          "patterns": [
+            { "include": "$self" },
+            {
+              "name": "variable.parameter.mal",
+              "match": "(?<=(\\s*\\[\\s*vis\\s*\\]\\s*)?)(?<=([a-zA-Z0-9\\_]+\\s*,\\s*|(?<=(\\]|^)\\s+)))[a-zA-Z]+[a-zA-Z0-9\\_]*(?=(\\s+|,|:))"
+            },
+            {
+              "name": "entity.name.type",
+              "match": "(?<=:\\s*)[a-zA-Z]+[a-zA-Z0-9\\_]*(?=(\\s+|$))"
+            }
+          ]
+        },
+        {
+          "begin": "importing",
+          "beginCaptures": {
+            "0": { "name": "entity.name.tag.importing.mal" }
+          },
+          "end": "(?=\\b((actions)|(axioms)|(test)|(interactor)|(aggregates)|(attributes))\\b)",
           "patterns": [
             { "include": "$self" },
             {
@@ -142,18 +160,19 @@
         {
           "begin": "aggregates",
           "beginCaptures": { "0": { "name": "entity.name.tag.aggregates.mal" } },
-          "end": "(?=\\b((attributes)|(axioms)|(test)|(interactor)|(actions))\\b)",
+          "end": "(?=\\b((attributes)|(axioms)|(test)|(interactor)|(actions)|(importing))\\b)",
           "patterns": [
             { "include": "$self" },
             {
               "name": "keyword.control.via.mal",
               "match": "via"
-            }]
+            }
+          ]
         },
         {
           "begin": "actions",
           "beginCaptures": { "0": { "name": "entity.name.tag.actions.mal" } },
-          "end": "(?=\\b((attributes)|(axioms)|(test)|(interactor)|(aggregates))\\b)",
+          "end": "(?=\\b((attributes)|(axioms)|(test)|(interactor)|(aggregates)|(importing))\\b)",
           "patterns": [
             { "include": "$self" },
             {
@@ -165,7 +184,7 @@
         {
           "begin": "axioms",
           "beginCaptures": { "0": { "name": "entity.name.tag.axioms.mal" } },
-          "end": "(?=\\b((attributes)|(actions)|(test)|(interactor)|(aggregates))\\b)",
+          "end": "(?=\\b((attributes)|(actions)|(test)|(interactor)|(aggregates)|(importing))\\b)",
           "patterns": [
             {
               "begin": "\\[",
@@ -184,12 +203,16 @@
               ]
             },
             {
-              "match": "keep",
+              "match": "\\bkeep\\b",
               "name": "keyword.control.keep.mal"
             },
             {
-              "match": "per",
+              "match": "\\bper\\b",
               "name": "keyword.control.per.mal"
+            },
+            {
+              "match": "\\beffect\\b",
+              "name": "keyword.control.effect.mal"
             },
             {
               "name": "variable.language.next_state.mal",

@@ -2,7 +2,7 @@ import { types } from "util";
 import { addDiagnostic, ALREADY_DEFINED, NOT_YET_IMPLEMENTED } from "../diagnostics/diagnostics";
 import { arrays, defines, enums, IParsedToken, ranges } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
-import { parseRangeInput} from "./relations/relationParser";
+import { parseRangeInput } from "./relations/relationParser";
 
 const getNumericalValue = (s: string): number | undefined => {
   if (!isNaN(+s)) {
@@ -47,14 +47,7 @@ const parseArray = (line: string, lineNumber: number) => {
         ) {
           return "type";
         } else {
-          addDiagnostic(
-            lineNumber,
-            sc,
-             el,
-            "error",
-            arrayType + " is not a valid type",
-            NOT_YET_IMPLEMENTED
-          );
+          addDiagnostic(lineNumber, sc, el, arrayType + " is not a valid type", "error", NOT_YET_IMPLEMENTED+":"+el);
         }
     }
     return "cantprint";
@@ -72,12 +65,12 @@ const parseRangeTypes = (line: string, lineNumber: number) => {
     /^\s*[a-zA-Z][a-zA-Z0-9\_]*\s*\=\s*([a-zA-Z][a-zA-Z0-9\_]*|[0-9]+)\s*\.\.\s*([a-zA-Z][a-zA-Z0-9\_]*|[0-9]+)/;
   const toSeparateTokens = /(\,|\{|\}|\s|\.|\=)/;
   let elementIndex = 0;
-  let rangeName:string;
+  let rangeName: string;
   let minValue: number | undefined = undefined;
   let maxValue: number | undefined = undefined;
   const parseRanges: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
     if (elementIndex++ === 0) {
-      rangeName=el.trim();
+      rangeName = el.trim();
       return "type";
     } else {
       const inputRangeInfo = parseRangeInput(el.trim());
@@ -98,7 +91,7 @@ const parseRangeTypes = (line: string, lineNumber: number) => {
             );
             return "regexp";
           }
-          ranges.set(rangeName,{used:false,minimum:minValue!,maximum:maxValue!});
+          ranges.set(rangeName, { used: false, minimum: minValue!, maximum: maxValue! });
         }
 
         return !isNaN(+el.trim()) ? "number" : "variable";
@@ -132,7 +125,7 @@ const parseEnumTypes = (line: string, lineNumber: number) => {
         return "function";
       } else {
         typeName = et;
-        enums.set(et, { used: false, values: [], line:lineNumber });
+        enums.set(et, { used: false, values: [], line: lineNumber });
         return "enum";
       }
     } else {

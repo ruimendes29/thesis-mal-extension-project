@@ -24,12 +24,10 @@ const parseDefinesAfterEquals = (line: string, lineNumber: number) => {
   const toSeparateTokens = /(\&|\||\)|\(|\,|\<?\s*\-\s*\>)/;
   let elementIndex=0;
   const parseExpressions: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-    console.log(sc);
     const definedValue = el.split(":")[0].trim();
-    console.log(definedValue);
     const definedType = !isNaN(+definedValue)
       ? "number"
-      : definedValue === "false" || definedValue === "true"
+      : definedValue.toUpperCase() === "FALSE" || definedValue.toUpperCase() === "TRUE"
       ? "boolean"
       : "defines";
     if (!alreadyAdded) {

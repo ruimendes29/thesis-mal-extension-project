@@ -1,10 +1,10 @@
 import { temporaryAttributes } from "../axiomParser";
 import { actions, ranges, attributes, defines, enums } from "../globalParserInfo";
 
-export const findTemporaryType = (s: string,interactor: string): string | undefined => {
+export const findTemporaryType = (s: string, interactor: string): string | undefined => {
   let ta = undefined;
   for (let i = 0; i < temporaryAttributes.length; i++) {
-    if (temporaryAttributes[i].value === s) {
+    if (temporaryAttributes[i].value.trim() === s.trim()) {
       const args = actions.get(interactor)!.get(temporaryAttributes[i].action)!.arguments;
       ta = args[temporaryAttributes[i].index];
       if (
@@ -20,9 +20,9 @@ export const findTemporaryType = (s: string,interactor: string): string | undefi
   return undefined;
 };
 
-export const findValueType = (value: string,interactor:string): string | undefined => {
+export const findValueType = (value: string, interactor: string): string | undefined => {
   const correctValue = value[value.length - 1] === "'" ? value.slice(0, value.length - 1) : value;
-  if (value === "true" || value === "false") {
+  if (value.toUpperCase() === "TRUE" || value.toUpperCase() === "FALSE") {
     return "boolean";
   } else if (!isNaN(+value) && value !== "") {
     // check if value is a number
@@ -44,5 +44,5 @@ export const findValueType = (value: string,interactor:string): string | undefin
       }
     }
   }
-  return findTemporaryType(value.trim(),interactor);
+  return findTemporaryType(value.trim(), interactor);
 };
