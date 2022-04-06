@@ -1,0 +1,13 @@
+.navigator{
+    display: flex;
+    flex-direction: row;
+}
+
+.arrows.clickable{
+    opacity: 100%;
+    cursor:pointer;
+}
+
+.arrows.clickable:hover{
+    color:whitesmoke;
+}

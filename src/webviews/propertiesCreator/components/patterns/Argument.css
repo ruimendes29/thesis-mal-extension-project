@@ -1,0 +1,37 @@
+.header-holder {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  margin: 5px auto;
+}
+
+.signs {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+}
+
+.arguments {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.arg-left {
+  width: 45%;
+  margin-right: 2px;
+}
+
+.arg-right {
+  width: 45%;
+  margin-left: 2px;
+}
+
+.operator {
+  min-width: fit-content;
+  width: 10%;
+}

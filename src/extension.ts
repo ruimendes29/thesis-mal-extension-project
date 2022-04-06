@@ -6,6 +6,7 @@ import { clearDiagnosticCollection } from "./diagnostics/diagnostics";
 import { clearStoredValues } from "./parsers/globalParserInfo";
 import { _parseText } from "./parsers/textParser";
 import { ActionsDeterminismProvider } from "./webviews/actionsDeterminism";
+import {PropertiesProvider } from "./webviews/propertiesCreator";
 
 const tokenTypes = new Map<string, number>();
 const tokenModifiers = new Map<string, number>();
@@ -70,10 +71,15 @@ export function activate(context: vscode.ExtensionContext) {
     )
   );
 
-  const provider = new ActionsDeterminismProvider(context.extensionUri);
+  const actionsProvider = new ActionsDeterminismProvider(context.extensionUri);
+
+  const propertiesProvider = new PropertiesProvider(context.extensionUri);
 
 	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider(ActionsDeterminismProvider.viewType, provider));
+		vscode.window.registerWebviewViewProvider(ActionsDeterminismProvider.viewType, actionsProvider));
+    
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(PropertiesProvider.viewType, propertiesProvider));
 
 }
 

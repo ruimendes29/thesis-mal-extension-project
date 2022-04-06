@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import * as React from "react";
-import Dropdown from "./UI/Dropdown";
+import Dropdown from "../../common/Dropdown";
 
 const App = (props) => {
   const vscode = props.vscode;

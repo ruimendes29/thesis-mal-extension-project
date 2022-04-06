@@ -9,6 +9,7 @@ const diagnostics_1 = require("./diagnostics/diagnostics");
 const globalParserInfo_1 = require("./parsers/globalParserInfo");
 const textParser_1 = require("./parsers/textParser");
 const actionsDeterminism_1 = require("./webviews/actionsDeterminism");
+const propertiesCreator_1 = require("./webviews/propertiesCreator");
 const tokenTypes = new Map();
 const tokenModifiers = new Map();
 const legend = (function () {
@@ -51,8 +52,10 @@ function activate(context) {
         providedCodeActionKinds: codeActionsProvider_1.Emojinfo.providedCodeActionKinds,
     }));
     context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider({ language: "mal" }, new DocumentSemanticTokensProvider(), legend));
-    const provider = new actionsDeterminism_1.ActionsDeterminismProvider(context.extensionUri);
-    context.subscriptions.push(vscode.window.registerWebviewViewProvider(actionsDeterminism_1.ActionsDeterminismProvider.viewType, provider));
+    const actionsProvider = new actionsDeterminism_1.ActionsDeterminismProvider(context.extensionUri);
+    const propertiesProvider = new propertiesCreator_1.PropertiesProvider(context.extensionUri);
+    context.subscriptions.push(vscode.window.registerWebviewViewProvider(actionsDeterminism_1.ActionsDeterminismProvider.viewType, actionsProvider));
+    context.subscriptions.push(vscode.window.registerWebviewViewProvider(propertiesCreator_1.PropertiesProvider.viewType, propertiesProvider));
 }
 exports.activate = activate;
 class DocumentSemanticTokensProvider {

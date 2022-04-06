@@ -3,7 +3,7 @@
         "module": "esnext",
         "moduleResolution": "node",
         "target": "es6",
-        "outDir": "configActionDeterminism",
+        "outDir": "configPropertiesCreator",
         "lib": [
             "es6",
             "dom"

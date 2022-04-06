@@ -82,10 +82,8 @@ export class ActionsDeterminismProvider implements vscode.WebviewViewProvider {
   }
 
   private _getHtmlForWebview(webview: vscode.Webview) {
-    // Get the local path to main script run in the webview, then convert it to a uri we can use in the webview.
-    const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "media", "main.js"));
 
-    const reactAppUri =  webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "configViewer", "configViewer.js"));
+    const reactAppUri =  webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "configActionDeterminism", "configActionDeterminism.js"));
 
     // Use a nonce to only allow a specific script to be run.
     const nonce = getNonce();
