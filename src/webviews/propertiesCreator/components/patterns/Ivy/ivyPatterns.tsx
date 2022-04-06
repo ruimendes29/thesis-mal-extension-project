@@ -3,7 +3,7 @@ import * as React from "react";
 /* eslint-disable @typescript-eslint/naming-convention */
 const EICS_Completness = {
   name: "EICS Completness",
-  formula: <div>AG(S -&gt EX(Q))</div>,
+  formula: <div>AG(S -{">"} EX(Q))</div>,
   description: (
     <div>
       It is always possible to go from S to Q in one step.
@@ -17,13 +17,14 @@ const EICS_Completness = {
       <br />
     </div>
   ),
+  arguments: ["S", "Q"],
   intent: <div>To verify that the user can get from any state to any other state with only one action</div>,
   example: <div>To be filled.</div>,
 };
 
 const EICS_Eccentricity = {
   name: "EICS Eccentricity",
-  formula: <div>AG(S -&gt !EF(Q))</div>,
+  formula: <div>AG(S -{">"} !EF(Q))</div>,
   description: (
     <div>
       The notion of eccentricity is used to define the diameter and radius of the graph. This enables the identification
@@ -40,13 +41,14 @@ const EICS_Eccentricity = {
       Q: another attrib=IVALn expression (typically with the same attributes as S).
     </div>
   ),
+  arguments: ["S", "Q"],
   example: <div>To be filled</div>,
   intent: <div>To generate traces that enable determining eccentricity of states</div>,
 };
 
 const EICS_Reachability = {
   name: "EICS Reachability",
-  formula: <div>AG(S -&gt EF(Q))</div>,
+  formula: <div>AG(S -{">"} EF(Q))</div>,
   description: (
     <div>
       It is always possible to go from S to Q.
@@ -56,13 +58,18 @@ const EICS_Reachability = {
       Q: another attrib=*x expression (typically with the same attributes as S, but different IVALns)
     </div>
   ),
+  arguments: ["S", "Q"],
   intent: <div>To verify that the user can get from any state to any other state.</div>,
   example: <div>To be filled</div>,
 };
 
 const BC_Guarded_Consistency = {
   name: "BC Guarded Consistency",
-  formula: <div>AG((P) `{"&"}` (S) -&gt AX(Q -&gt (R)))</div>,
+  formula: (
+    <div>
+      AG((P) {"&"} (S) -{">"} AX(Q -{">"} (R)))
+    </div>
+  ),
   description: (
     <div>
       When P, then Q always causes the R effect.
@@ -78,11 +85,12 @@ const BC_Guarded_Consistency = {
       IVALns of S)
     </div>
   ),
+  arguments: ["P", "S", "Q"],
   intent: <div> To verify that, under the defined condition, an action causes a consistent effect.</div>,
   example: (
     <div>
-      AG((on=true) `{"&"}` (ac=IVAL1) -&gt AX (action=ackey -&gt (ac!=IVAL1))) checks whether ackey toggles attribute ac
-      when the system is on.
+      AG((on=true) `{"&"}` (ac=IVAL1) -{">"} AX (action=ackey -{">"} (ac!=IVAL1))) checks whether ackey toggles
+      attribute ac when the system is on.
       <br />
       P: on=true
       <br />
@@ -96,7 +104,12 @@ const BC_Guarded_Consistency = {
 
 const BC_Consistency = {
   name: "BC Consistency",
-  formula: <div> AG((S) -&gt AX(Q -&gt (R)))</div>,
+  formula: (
+    <div>
+      {" "}
+      AG((S) -{">"} AX(Q -{">"} (R)))
+    </div>
+  ),
   description: (
     <div>
       Q always causes the R effect.
@@ -109,10 +122,11 @@ const BC_Consistency = {
       R: characterises the effect in the state
     </div>
   ),
+  arguments: ["S", "Q", "R"],
   intent: <div> To verify that an action causes a consistent effect.</div>,
   example: (
     <div>
-      AG((ac=IVAL1) -&gt AX (action=ackey -&gt (ac!=IVAL1))) checks whether ackey toggles attribute ac.
+      AG((ac=IVAL1) -{">"} AX (action=ackey -{">"} (ac!=IVAL1))) checks whether ackey toggles attribute ac.
       <br />
       S: ac=IVAL1
       <br />
@@ -125,7 +139,12 @@ const BC_Consistency = {
 
 const Feedback_Guarded_Feedback = {
   name: "Feedback - Guarded Feedback",
-  formula: <div> AG(P `{"&"}` S -&gt AX(Q -&gt !(S)))</div>,
+  formula: (
+    <div>
+      {" "}
+      AG(P `{"&"}` S -{">"} AX(Q -{">"} !(S)))
+    </div>
+  ),
   description: (
     <div>
       When P, then Q always provides feedback through the attributes in S.
@@ -138,13 +157,18 @@ const Feedback_Guarded_Feedback = {
       Q: the action
     </div>
   ),
+  arguments: ["P", "S", "Q"],
   intent: <div> To verify that a given action provides feedback.</div>,
   example: <div>To be filled.</div>,
 };
 
 const Feedback_Feedback = {
   name: "Feedback - Feedback",
-  formula: <div>AG(S -&gt AX(Q -&gt !(S)))</div>,
+  formula: (
+    <div>
+      AG(S -{">"} AX(Q -{">"} !(S)))
+    </div>
+  ),
   description: (
     <div>
       Action Q always provides feedback through the attributes in S.
@@ -157,6 +181,7 @@ const Feedback_Feedback = {
   ),
   intent: <div> To verify that a given action provides feedback.</div>,
   example: <div>To be filled.</div>,
+  arguments: ["S", "Q"],
 };
 
 export const ivyPatterns = [

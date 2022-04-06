@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
-import { actions, attributes, interactorLimits } from "../parsers/globalParserInfo";
+import { actions, attributes, enums, interactorLimits } from "../parsers/globalParserInfo";
+import { findValueType } from "../parsers/relations/typeFindes";
 
 export class PropertiesProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "mal-properties";
@@ -7,6 +8,29 @@ export class PropertiesProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
 
   constructor(private readonly _extensionUri: vscode.Uri) {}
+
+  private getValidValues = (arg: string, interactor: string) => {
+    const toRet = [];
+    console.log(arg);
+    if (attributes.has(interactor) && attributes.get(interactor)!.has(arg)) {
+      const foundValueTypeForArg = findValueType(arg, interactor);
+      for (let att of attributes.get(interactor)!) {
+        if (findValueType(att[0], interactor) === foundValueTypeForArg) {
+          toRet.push(att[0]);
+        }
+      }
+      if (foundValueTypeForArg === "boolean") {
+        toRet.push("TRUE", "FALSE");
+      }
+      if (enums.has(foundValueTypeForArg!)) {
+        toRet.push(...enums.get(foundValueTypeForArg!)!.values);
+      }
+
+      toRet.push("$" + attributes.get(interactor)!.get(arg)!.type);
+    }
+
+    return toRet;
+  };
 
   public resolveWebviewView(
     webviewView: vscode.WebviewView,
@@ -34,6 +58,7 @@ export class PropertiesProvider implements vscode.WebviewViewProvider {
             ? Array.from(actions.get(data.interactor)!).map(([key, v]) => "effected(" + key + ")")
             : [];
           webviewView.webview.postMessage({
+            key: data.key,
             type: "interactor-info-response",
             possibilities: [...possibleAtts, ...possibleActions],
           });
@@ -44,6 +69,15 @@ export class PropertiesProvider implements vscode.WebviewViewProvider {
             type: "interactors-response",
             possibilities: Array.from(interactorLimits).map(([key, val]) => key),
           });
+          break;
+        }
+        case "get-valid-values": {
+          webviewView.webview.postMessage({
+            key: data.key,
+            type: "valid-values-response",
+            possibilities: this.getValidValues(data.value, data.interactor),
+          });
+          break;
         }
       }
     });

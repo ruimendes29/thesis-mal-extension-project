@@ -11,6 +11,7 @@ const Pattern = (props: {
     description: JSX.Element;
     intent: JSX.Element;
     example: JSX.Element;
+    arguments: string[];
   };
   vscode: any;
 }) => {
@@ -45,7 +46,9 @@ const Pattern = (props: {
             }}
           >
             {listOfInteractors.map((el) => (
-              <option key={el.toLowerCase()} value={el.toLowerCase()}>{el}</option>
+              <option key={el.toLowerCase()} value={el.toLowerCase()}>
+                {el}
+              </option>
             ))}
           </select>,
         ]}
@@ -54,7 +57,13 @@ const Pattern = (props: {
       <Dropdown level={1} title="Description" items={[<div>{props.pattern.description}</div>]} />
       <Dropdown level={1} title="Intent" items={[<div>{props.pattern.intent}</div>]} />
       <Dropdown level={1} title="Example" items={[<div>{props.pattern.example}</div>]} />
-      <Dropdown level={1} title="Arguments" items={[<Argument interactor={interactor} name="P" vscode={props.vscode} />]} />
+      <Dropdown
+        level={1}
+        title="Arguments"
+        items={props.pattern.arguments.map((el) => (
+          <Argument key={props.pattern.name + "." + el} interactor={interactor} name={el} vscode={props.vscode} />
+        ))}
+      />
     </div>
   );
 };

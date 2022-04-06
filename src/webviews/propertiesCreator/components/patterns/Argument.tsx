@@ -3,51 +3,35 @@ import { faMinus, faPlus } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import * as React from "react";
 import "./Argument.css";
+import ArgumentInput from "./ArgumentInput";
 
 const Argument = (props: { interactor: string; vscode: any; name: string }) => {
-  const [listOfPossibilities, setListOfPossibilities] = React.useState([]);
-  const operators: string[] = ["!=", "=", "<", ">", "in"];
-  // Handle messages sent from the extension to the webview
-  window.addEventListener("message", (event) => {
-    const message = event.data; // The json data that the extension sent
-    switch (message.type) {
-      case "interactor-info-response": {
-        setListOfPossibilities(message.possibilities);
-        break;
-      }
-    }
-  });
+  const [numOfInputs, setNumOfInputs] = React.useState(1);
 
-  React.useEffect(() => {
-    props.vscode.postMessage({ type: "interactor-info", interactor: props.interactor });
-  }, [props.interactor]);
+
+
+  const handleAddInput = () => {
+    setNumOfInputs((prevNum) => prevNum + 1);
+  };
+
+  const handleRemoveInput = () => {
+    if (numOfInputs > 1) {
+      setNumOfInputs((prevNum) => prevNum - 1);
+    }
+  };
 
   return (
     <React.Fragment>
       <div className="header-holder">
         <h3>{props.name}</h3>
         <div className="signs">
-          <FontAwesomeIcon style={{ marginRight: "2px" }} icon={faPlus} />
-          <FontAwesomeIcon icon={faMinus} />
+          <FontAwesomeIcon className="icon" onClick={handleAddInput} style={{ marginRight: "2px" }} icon={faPlus} />
+          <FontAwesomeIcon className="icon" onClick={handleRemoveInput} icon={faMinus} />
         </div>
       </div>
-      <div className="arguments">
-        <select className="arg-left">
-          {listOfPossibilities.map((el) => (
-            <option key={el} value={el.toLowerCase()}>{el}</option>
-          ))}
-        </select>
-        <select className="operator">
-          {operators.map((el) => (
-            <option key={el}  value={el.toLowerCase()}>{el}</option>
-          ))}
-        </select>
-        <select className="arg-right">
-          {listOfPossibilities.map((el) => (
-            <option key={el}  value={el.toLowerCase()}>{el}</option>
-          ))}
-        </select>
-      </div>
+      {[...Array(numOfInputs).keys()].map((_i) => (
+        <ArgumentInput identifier={props.name+"."+_i} key={_i} interactor={props.interactor} vscode={props.vscode}/>
+      ))}
     </React.Fragment>
   );
 };
