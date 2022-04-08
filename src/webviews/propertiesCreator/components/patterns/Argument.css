@@ -39,5 +39,11 @@
 
 .icon:hover {
   cursor: pointer;
-  color:white;
+  color: white;
+}
+
+.non-clickable {
+  color: grey;
+  opacity: 50;
+  cursor: not-allowed;
 }

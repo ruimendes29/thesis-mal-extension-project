@@ -79,6 +79,15 @@ export class PropertiesProvider implements vscode.WebviewViewProvider {
           });
           break;
         }
+        case "insert": {
+          const p = new vscode.Position(
+            interactorLimits.get(data.interactor)!.end !== undefined
+              ? interactorLimits.get(data.interactor)!.end!
+              : vscode.window.activeTextEditor!.document.lineCount + 1,
+            0
+          );
+          vscode.window.activeTextEditor?.insertSnippet(new vscode.SnippetString("test\n" + data.value + "\n"), p);
+        }
       }
     });
   }

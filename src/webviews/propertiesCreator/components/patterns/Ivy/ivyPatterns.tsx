@@ -3,7 +3,7 @@ import * as React from "react";
 /* eslint-disable @typescript-eslint/naming-convention */
 const EICS_Completness = {
   name: "EICS Completness",
-  formula: <div>AG(S -{">"} EX(Q))</div>,
+  formula: "AG(S -> EX(Q))",
   description: (
     <div>
       It is always possible to go from S to Q in one step.
@@ -24,7 +24,7 @@ const EICS_Completness = {
 
 const EICS_Eccentricity = {
   name: "EICS Eccentricity",
-  formula: <div>AG(S -{">"} !EF(Q))</div>,
+  formula: "AG(S ->!EF(Q))",
   description: (
     <div>
       The notion of eccentricity is used to define the diameter and radius of the graph. This enables the identification
@@ -48,7 +48,7 @@ const EICS_Eccentricity = {
 
 const EICS_Reachability = {
   name: "EICS Reachability",
-  formula: <div>AG(S -{">"} EF(Q))</div>,
+  formula: "AG(S -> EF(Q))</div>",
   description: (
     <div>
       It is always possible to go from S to Q.
@@ -65,11 +65,7 @@ const EICS_Reachability = {
 
 const BC_Guarded_Consistency = {
   name: "BC Guarded Consistency",
-  formula: (
-    <div>
-      AG((P) {"&"} (S) -{">"} AX(Q -{">"} (R)))
-    </div>
-  ),
+  formula: "AG((P) & (S) -> AX(Q -> (R)))",
   description: (
     <div>
       When P, then Q always causes the R effect.
@@ -104,12 +100,7 @@ const BC_Guarded_Consistency = {
 
 const BC_Consistency = {
   name: "BC Consistency",
-  formula: (
-    <div>
-      {" "}
-      AG((S) -{">"} AX(Q -{">"} (R)))
-    </div>
-  ),
+  formula: "AG((S) -> AX(Q -> (R)))",
   description: (
     <div>
       Q always causes the R effect.
@@ -139,12 +130,7 @@ const BC_Consistency = {
 
 const Feedback_Guarded_Feedback = {
   name: "Feedback - Guarded Feedback",
-  formula: (
-    <div>
-      {" "}
-      AG(P `{"&"}` S -{">"} AX(Q -{">"} !(S)))
-    </div>
-  ),
+  formula: "AG(P & S -> AX(Q -> !(S)))",
   description: (
     <div>
       When P, then Q always provides feedback through the attributes in S.
@@ -164,11 +150,7 @@ const Feedback_Guarded_Feedback = {
 
 const Feedback_Feedback = {
   name: "Feedback - Feedback",
-  formula: (
-    <div>
-      AG(S -{">"} AX(Q -{">"} !(S)))
-    </div>
-  ),
+  formula: "AG(S -> AX(Q -> !(S)))",
   description: (
     <div>
       Action Q always provides feedback through the attributes in S.
