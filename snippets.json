@@ -1,0 +1,24 @@
+{
+  "Build Interactor": {
+    "prefix": "interactor",
+    "body": [
+      "interactor ${0:interactor_name}",
+      "attributes",
+      "",
+      "actions",
+      "",
+      "axioms",
+      "#condition -> [action] relations",
+      "#example:",
+      "#a=3 -> [action1] b'=3 & keep(a,c)"
+    ],
+    "description": "Boiler plate for interactor"
+  },
+  "Build Rule": {
+    "prefix": "rule",
+    "body": [
+      "(${1:condition(s)}) -> [(${2:action(s)})] ${3:attribute_that_changes}'=${4:new_value} & keep(${5:attribute(s) that don't change}))"
+    ],
+    "description": "Write an axiom"
+  }
+}

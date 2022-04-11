@@ -44,6 +44,7 @@ export const updateSection = (line: string, lineNumber: number): boolean => {
   x = /^\s*interactor\s+[a-zA-Z]+[a-zA-Z\_0-9]*/.exec(line);
   let trimmed;
   if (x) {
+    console.log("found interactor");
     if (currentInteractor !== "") {
       interactorLimits.set(currentInteractor, {
         start: interactorLimits.get(currentInteractor)!.start,
@@ -101,8 +102,10 @@ export const clearStoredValues = () => {
   actionsStartingLine.clear();
   attributesStartingLine.clear();
   actionsToAttributes.clear();
+  interactorLimits.clear();
   attributes.clear();
   actions.clear();
+  currentInteractor="";
   aggregates.clear();
   defines.clear();
   enums.clear();
