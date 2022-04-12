@@ -74,16 +74,43 @@ const updateAttributeUsage = (att: string, interactor: string) => {
   }
 };
 
-const splitWithOffset = (rx: RegExp, element: string, offset: number) => {
+const splitWithOffset = (
+  rx: RegExp,
+  element: string,
+  offset: number,
+  toNotSeparateArrays?: boolean
+) => {
   let offsetInsideMember = offset;
-  const splittedMember = element
-    .split(rx)
-    .map((el) => {
-      offsetInsideMember += el.length;
-      return { value: el, offset: offsetInsideMember - el.length };
-    })
-    .filter((el) => !rx.test(el.value.trim()) && el.value.trim() !== "");
-  return splittedMember;
+  if (toNotSeparateArrays) {
+    let numberOfBrackets = 0;
+    let valueHeld = "";
+    const splittedMember = element.split(rx);
+    const toRet = [];
+    for (const el of splittedMember) {
+      offsetInsideMember+=el.length;
+      valueHeld += el;
+      if (el.includes("[")) {
+        numberOfBrackets++;
+      }
+      if (el.includes("]")) {
+        numberOfBrackets--;
+      }
+      if (numberOfBrackets === 0) {
+        valueHeld="";
+        toRet.push({ value: valueHeld, offset: offsetInsideMember - valueHeld.length });
+      }
+    }
+    return toRet;
+  } else {
+    const splittedMember = element
+      .split(rx)
+      .map((el) => {
+        offsetInsideMember += el.length;
+        return { value: el, offset: offsetInsideMember - el.length };
+      })
+      .filter((el) => !rx.test(el.value.trim()) && el.value.trim() !== "");
+    return splittedMember;
+  }
 };
 
 const parseArrayMember = (
@@ -92,6 +119,7 @@ const parseArrayMember = (
   interactor: string
 ): { tokens: any[]; type: string | undefined } | undefined => {
   let arrayNext;
+
   if (member.value.includes("[")) {
     arrayNext = removeExclamation(member.value.trim());
     if (arrayNext.isNextState) {
@@ -572,7 +600,7 @@ export const parseMemberOfRelation = (
       type: string | undefined;
     }
   | undefined => {
-  const rx = /(?<!\w\s*\[.*)(\+|\-|\*|\/|\&|\||\-\s*\>)/;
+  const rx = /(\+|\-|\*|\/|\&|\||\-\s*\>)/;
   const splittedMember = splitWithOffset(rx, preMember.value, preMember.offset);
   let possibleRet;
   let type: string | undefined = undefined;

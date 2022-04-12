@@ -11,7 +11,6 @@ export class PropertiesProvider implements vscode.WebviewViewProvider {
 
   private getValidValues = (arg: string, interactor: string) => {
     const toRet = [];
-    console.log(arg);
     if (attributes.has(interactor) && attributes.get(interactor)!.has(arg)) {
       const foundValueTypeForArg = findValueType(arg, interactor);
       for (let att of attributes.get(interactor)!) {

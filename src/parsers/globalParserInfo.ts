@@ -44,7 +44,6 @@ export const updateSection = (line: string, lineNumber: number): boolean => {
   x = /^\s*interactor\s+[a-zA-Z]+[a-zA-Z\_0-9]*/.exec(line);
   let trimmed;
   if (x) {
-    console.log("found interactor");
     if (currentInteractor !== "") {
       interactorLimits.set(currentInteractor, {
         start: interactorLimits.get(currentInteractor)!.start,

@@ -47,8 +47,6 @@ const ArgumentInput = (props: {
           break;
         }
         case "valid-values-response": {
-          console.log("recebeu");
-          console.log(message);
           setListOfPossibilities((oldArgs) => {
             return { ...oldArgs, values: message.possibilities };
           });
