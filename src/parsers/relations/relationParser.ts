@@ -702,6 +702,13 @@ export const compareRelationTokens = (
 
       return [...parsedAtt!.tokens, ...parsedVal!.tokens];
     }
+    else {return [
+      ...parseMemberOfRelation(
+        textInfo,
+        separated[0],
+        currentInteractor
+      )!.tokens,
+    ];}
   } else {
     return [
       ...parseMemberOfRelation(

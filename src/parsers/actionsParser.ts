@@ -10,12 +10,13 @@ import {
 } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 
+
 /* Method responsible for parsing the vis tag that some action might have and assign the 
 semantic token "keyword" to it*/
 const parseVis = (line: string, lineNumber: number, currentOffset: number) => {
   const toFindTokens = /^\s*\[\s*vis\s*\]/;
   // separate in the square brackets so that only the vis is colored
-  const toSeparateTokens = /(\[|\]\s)/;
+  const toSeparateTokens = /(\[|\]|\s)/;
 
   // Create an instance of ParseSection
   const parseActionSection: ParseSection = new ParseSection(
@@ -30,7 +31,7 @@ const parseVis = (line: string, lineNumber: number, currentOffset: number) => {
   the current line to search only after the index of currentOffset as well as being aware
   of what offset previously existed to determine the start character of the tokens in the whole line
   and not only in the sliced one */
-  return parseActionSection.getTokens(line, lineNumber, 0);
+  return parseActionSection.getTokens(line, lineNumber, currentOffset);
 };
 
 /* Very similar to the method above, where only the findTokens expression is changed as well as the 
@@ -38,7 +39,7 @@ tokens to separate the main match. */
 const parseAction = (line: string, lineNumber: number, currentOffset: number) => {
   let indexOfElement = 0;
   const toFindTokens = /(?<=(\]\s*|^\s*))(?<!\[)\s*[A-Za-z]+\w*\s*(\(((\s*\w+\s*),?)+\))?(?!\])/;
-  const toSeparateTokens = /(\&|\||\)|\(|\,|\s)/;
+  const toSeparateTokens = /(\)|\(|\,|\s)/;
   let actionName: string = "";
   const actionArguments: string[] = [];
 

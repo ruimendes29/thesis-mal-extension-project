@@ -43,14 +43,18 @@ const legend = (function () {
 })();
 exports.diagnosticCollection = vscode.languages.createDiagnosticCollection();
 function activate(context) {
-    const command = 'mal.checkIfActionsAreDeterministic';
+    const command = "mal.checkIfActionsAreDeterministic";
     context.subscriptions.push(vscode.commands.registerCommand(command, commands_1.commandHandler));
     context.subscriptions.push(codeCompletionProvider_1.provider1, codeCompletionProvider_1.provider2, codeCompletionProvider_1.provider3);
     context.subscriptions.push(exports.diagnosticCollection);
-    vscode.window.onDidChangeActiveTextEditor(() => { (0, globalParserInfo_1.clearStoredValues)(); (0, diagnostics_1.clearDiagnosticCollection)(); });
+    vscode.window.onDidChangeActiveTextEditor(() => {
+        (0, globalParserInfo_1.clearStoredValues)();
+        (0, diagnostics_1.clearDiagnosticCollection)();
+    });
     context.subscriptions.push(vscode.languages.registerCodeActionsProvider("mal", new codeActionsProvider_1.Emojinfo(), {
         providedCodeActionKinds: codeActionsProvider_1.Emojinfo.providedCodeActionKinds,
     }));
+    context.subscriptions.push(vscode.languages.registerDefinitionProvider({ language: "mal" }, new MyDefinitionProvider()));
     context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider({ language: "mal" }, new DocumentSemanticTokensProvider(), legend));
     const actionsProvider = new actionsDeterminism_1.ActionsDeterminismProvider(context.extensionUri);
     const propertiesProvider = new propertiesCreator_1.PropertiesProvider(context.extensionUri);
@@ -88,6 +92,19 @@ class DocumentSemanticTokensProvider {
             }
         }
         return result;
+    }
+}
+class MyDefinitionProvider {
+    provideDefinition(document, position, token) {
+        const wordRange = document.getWordRangeAtPosition(position);
+        const word = document.getText(wordRange);
+        for (const interactorInAttributes of Array.from(globalParserInfo_1.attributes)) {
+            if (interactorInAttributes[1].has(word)) {
+                const line = interactorInAttributes[1].get(word).line;
+                return new vscode.Location(document.uri, new vscode.Range(new vscode.Position(line, 0), new vscode.Position(line, document.lineAt(line).text.length)));
+            }
+        }
+        return null;
     }
 }
 //# sourceMappingURL=extension.js.map
