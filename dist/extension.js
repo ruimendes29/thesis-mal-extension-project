@@ -104,6 +104,12 @@ class MyDefinitionProvider {
                 return new vscode.Location(document.uri, new vscode.Range(new vscode.Position(line, 0), new vscode.Position(line, document.lineAt(line).text.length)));
             }
         }
+        for (const interactorInActions of Array.from(globalParserInfo_1.actions)) {
+            if (interactorInActions[1].has(word)) {
+                const line = interactorInActions[1].get(word).line;
+                return new vscode.Location(document.uri, new vscode.Range(new vscode.Position(line, 0), new vscode.Position(line, document.lineAt(line).text.length)));
+            }
+        }
         return null;
     }
 }

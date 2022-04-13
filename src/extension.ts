@@ -7,7 +7,11 @@ import {
 } from "./codeCompletion/codeCompletionProvider";
 import { commandHandler } from "./commands/commands";
 import { clearDiagnosticCollection } from "./diagnostics/diagnostics";
-import { attributes, clearStoredValues } from "./parsers/globalParserInfo";
+import {
+  actions,
+  attributes,
+  clearStoredValues,
+} from "./parsers/globalParserInfo";
 import { _parseText } from "./parsers/textParser";
 import { ActionsDeterminismProvider } from "./webviews/actionsDeterminism";
 import { PropertiesProvider } from "./webviews/propertiesCreator";
@@ -168,6 +172,18 @@ class MyDefinitionProvider implements vscode.DefinitionProvider {
     for (const interactorInAttributes of Array.from(attributes)) {
       if (interactorInAttributes[1].has(word)) {
         const line = interactorInAttributes[1].get(word)!.line;
+        return new vscode.Location(
+          document.uri,
+          new vscode.Range(
+            new vscode.Position(line, 0),
+            new vscode.Position(line, document.lineAt(line).text.length)
+          )
+        );
+      }
+    }
+    for (const interactorInActions of Array.from(actions)) {
+      if (interactorInActions[1].has(word)) {
+        const line = interactorInActions[1].get(word)!.line;
         return new vscode.Location(
           document.uri,
           new vscode.Range(
