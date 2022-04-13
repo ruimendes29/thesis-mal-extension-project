@@ -1,5 +1,5 @@
-import { addDiagnostic, ALREADY_DEFINED } from "../diagnostics/diagnostics";
-import { actions, attributes, currentInteractor, IParsedToken } from "./globalParserInfo";
+import { addDiagnostic, ALREADY_DEFINED, NOT_YET_IMPLEMENTED } from "../diagnostics/diagnostics";
+import { actions, attributes, currentInteractor, enums, IParsedToken, ranges } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 
 let attributesInLine: Array<string> = [];
@@ -44,16 +44,24 @@ const parseType = (line: string, lineNumber: number, currentOffset: number) => {
 
   const parseActionSection: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
     const type = el.trim();
-    for (let att of attributesInLine) {
-      if (!attributes.has(currentInteractor)) {
-        attributes.set(currentInteractor, new Map());
+    if (enums.has(type) || ranges.has(type) || type==="boolean" || type==="number")
+    {
+      for (let att of attributesInLine) {
+        if (!attributes.has(currentInteractor)) {
+          attributes.set(currentInteractor, new Map());
+        }
+        attributes
+          .get(currentInteractor)!
+          .set(att, { used: false, type: type, line: lineNumber, alone: attributesInLine.length === 1 });
       }
-      attributes
-        .get(currentInteractor)!
-        .set(att, { used: false, type: type, line: lineNumber, alone: attributesInLine.length === 1 });
+      attributesInLine = [];
+      return "type";
     }
-    attributesInLine = [];
-    return "type";
+    else {
+      addDiagnostic(lineNumber,sc,el,type+" is not a valid type","error",NOT_YET_IMPLEMENTED+":"+type);
+      return "regexp";
+    }
+
   });
   return parseActionSection.getTokens(line, lineNumber, currentOffset);
 };

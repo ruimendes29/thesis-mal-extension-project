@@ -1,17 +1,9 @@
 import * as vscode from "vscode";
-import { Emojinfo } from "./codeActions/codeActionsProvider";
-import {
-  provider1,
-  provider2,
-  provider3,
-} from "./codeCompletion/codeCompletionProvider";
+import { MyCodeActionProvider } from "./codeActions/codeActionsProvider";
+import { provider1, provider2, provider3, provider4 } from "./codeCompletion/codeCompletionProvider";
 import { commandHandler } from "./commands/commands";
 import { clearDiagnosticCollection } from "./diagnostics/diagnostics";
-import {
-  actions,
-  attributes,
-  clearStoredValues,
-} from "./parsers/globalParserInfo";
+import { actions, attributes, clearStoredValues } from "./parsers/globalParserInfo";
 import { _parseText } from "./parsers/textParser";
 import { ActionsDeterminismProvider } from "./webviews/actionsDeterminism";
 import { PropertiesProvider } from "./webviews/propertiesCreator";
@@ -43,32 +35,22 @@ const legend = (function () {
     "property",
     "label",
   ];
-  tokenTypesLegend.forEach((tokenType, index) =>
-    tokenTypes.set(tokenType, index)
-  );
+  tokenTypesLegend.forEach((tokenType, index) => tokenTypes.set(tokenType, index));
 
   const tokenModifiersLegend: any[] | undefined = [];
-  tokenModifiersLegend.forEach((tokenModifier, index) =>
-    tokenModifiers.set(tokenModifier, index)
-  );
+  tokenModifiersLegend.forEach((tokenModifier, index) => tokenModifiers.set(tokenModifier, index));
 
-  return new vscode.SemanticTokensLegend(
-    tokenTypesLegend,
-    tokenModifiersLegend
-  );
+  return new vscode.SemanticTokensLegend(tokenTypesLegend, tokenModifiersLegend);
 })();
 
-export const diagnosticCollection: vscode.DiagnosticCollection =
-  vscode.languages.createDiagnosticCollection();
+export const diagnosticCollection: vscode.DiagnosticCollection = vscode.languages.createDiagnosticCollection();
 
 export function activate(context: vscode.ExtensionContext) {
   const command = "mal.checkIfActionsAreDeterministic";
 
-  context.subscriptions.push(
-    vscode.commands.registerCommand(command, commandHandler)
-  );
+  context.subscriptions.push(vscode.commands.registerCommand(command, commandHandler));
 
-  context.subscriptions.push(provider1, provider2, provider3);
+  context.subscriptions.push(provider1, provider2, provider3, provider4);
 
   context.subscriptions.push(diagnosticCollection);
 
@@ -78,17 +60,16 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   context.subscriptions.push(
-    vscode.languages.registerCodeActionsProvider("mal", new Emojinfo(), {
-      providedCodeActionKinds: Emojinfo.providedCodeActionKinds,
+    vscode.languages.registerCodeActionsProvider("mal", new MyCodeActionProvider(), {
+      providedCodeActionKinds: MyCodeActionProvider.providedCodeActionKinds,
     })
   );
 
   context.subscriptions.push(
-    vscode.languages.registerDefinitionProvider(
-      { language: "mal" },
-      new MyDefinitionProvider()
-    )
+    vscode.languages.registerDefinitionProvider({ language: "mal" }, new MyDefinitionProvider())
   );
+
+  context.subscriptions.push(vscode.languages.registerHoverProvider({ language: "mal" }, new MyHoverProvider()));
 
   context.subscriptions.push(
     vscode.languages.registerDocumentSemanticTokensProvider(
@@ -103,23 +84,15 @@ export function activate(context: vscode.ExtensionContext) {
   const propertiesProvider = new PropertiesProvider(context.extensionUri);
 
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      ActionsDeterminismProvider.viewType,
-      actionsProvider
-    )
+    vscode.window.registerWebviewViewProvider(ActionsDeterminismProvider.viewType, actionsProvider)
   );
 
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      PropertiesProvider.viewType,
-      propertiesProvider
-    )
+    vscode.window.registerWebviewViewProvider(PropertiesProvider.viewType, propertiesProvider)
   );
 }
 
-class DocumentSemanticTokensProvider
-  implements vscode.DocumentSemanticTokensProvider
-{
+class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensProvider {
   async provideDocumentSemanticTokens(
     document: vscode.TextDocument,
     token: vscode.CancellationToken
@@ -161,6 +134,37 @@ class DocumentSemanticTokensProvider
   }
 }
 
+class MyHoverProvider implements vscode.HoverProvider {
+  provideHover(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    token: vscode.CancellationToken
+  ): vscode.ProviderResult<vscode.Hover> {
+    const wordRange = document.getWordRangeAtPosition(position);
+    const word = document.getText(wordRange);
+    switch (word) {
+      case "per":
+        return new vscode.Hover(
+          new vscode.MarkdownString(
+            "**per** is a keyword of **MAL** that allows the user to specify in what cases an action is valid.\nThe expression `per(ac)->a=b` means that the action **ac** can only happen when the attribute **a** equals **b** "
+          ),
+          wordRange
+        );
+      case "keep":
+        return new vscode.Hover(
+          new vscode.MarkdownString(
+            "**keep** is a keyword of **MAL** that allows the user to tell the compiler that the value of the attributes defined after maintain their values in the next state, so that the changes in state can be deterministic."
+          ),
+          wordRange
+        );
+    }
+    if (word === "per") {
+    }
+
+    return undefined;
+  }
+}
+
 class MyDefinitionProvider implements vscode.DefinitionProvider {
   provideDefinition(
     document: vscode.TextDocument,
@@ -174,10 +178,7 @@ class MyDefinitionProvider implements vscode.DefinitionProvider {
         const line = interactorInAttributes[1].get(word)!.line;
         return new vscode.Location(
           document.uri,
-          new vscode.Range(
-            new vscode.Position(line, 0),
-            new vscode.Position(line, document.lineAt(line).text.length)
-          )
+          new vscode.Range(new vscode.Position(line, 0), new vscode.Position(line, document.lineAt(line).text.length))
         );
       }
     }
@@ -186,10 +187,7 @@ class MyDefinitionProvider implements vscode.DefinitionProvider {
         const line = interactorInActions[1].get(word)!.line;
         return new vscode.Location(
           document.uri,
-          new vscode.Range(
-            new vscode.Position(line, 0),
-            new vscode.Position(line, document.lineAt(line).text.length)
-          )
+          new vscode.Range(new vscode.Position(line, 0), new vscode.Position(line, document.lineAt(line).text.length))
         );
       }
     }

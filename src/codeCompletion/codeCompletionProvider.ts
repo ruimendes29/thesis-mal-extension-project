@@ -6,6 +6,8 @@ import {
   enums,
   getInteractorByLine,
   aggregates,
+  ranges,
+  arrays,
 } from "../parsers/globalParserInfo";
 import { findValueType } from "../parsers/relations/typeFindes";
 
@@ -16,9 +18,6 @@ export const provider1 = vscode.languages.registerCompletionItemProvider("mal", 
     token: vscode.CancellationToken,
     context: vscode.CompletionContext
   ) {
-    // a simple completion item which inserts `Hello World!`
-    const simpleCompletion = new vscode.CompletionItem("Hello World!");
-
     const attributesCompletion = attributes.has(getInteractorByLine(position.line))
       ? Array.from(attributes.get(getInteractorByLine(position.line)!)!).map(
           ([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Variable)
@@ -33,8 +32,8 @@ export const provider1 = vscode.languages.registerCompletionItemProvider("mal", 
       ([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Constant)
     );
     const aggregatesCompletion = Array.from(aggregates)
-            .filter(([key, value]) => value.current === getInteractorByLine(position.line))
-            .map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Interface));
+      .filter(([key, value]) => value.current === getInteractorByLine(position.line))
+      .map(([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Interface));
 
     // return all completion items as array
     return [...attributesCompletion, ...definesCompletion, ...actionsCompletion, ...aggregatesCompletion];
@@ -57,9 +56,9 @@ export const provider2 = vscode.languages.registerCompletionItemProvider(
         linePrefix.charAt(linePrefix.length - 1) === "=" &&
         (match = linePrefix.match(/(\w+)\s*\=/)) !== null
       ) {
-        if (enums.has(findValueType(match[1],getInteractorByLine(position.line))!)) {
+        if (enums.has(findValueType(match[1], getInteractorByLine(position.line))!)) {
           return enums
-            .get(findValueType(match[1],getInteractorByLine(position.line))!)!
+            .get(findValueType(match[1], getInteractorByLine(position.line))!)!
             .values.map((v) => new vscode.CompletionItem(v, vscode.CompletionItemKind.EnumMember));
         } else {
           return undefined;
@@ -127,4 +126,26 @@ export const provider3 = vscode.languages.registerCompletionItemProvider(
     },
   },
   "." // triggered whenever a '.' is being typed
+);
+
+const fromMapToType = (mapToType: Map<any, any>): vscode.CompletionItem[] => {
+  return [
+    ...Array.from(mapToType).map(([k, v]) => new vscode.CompletionItem(k, vscode.CompletionItemKind.TypeParameter)),
+  ];
+};
+
+export const provider4 = vscode.languages.registerCompletionItemProvider(
+  "mal",
+  {
+    provideCompletionItems(document: vscode.TextDocument, position: vscode.Position) {
+      return [
+        ...fromMapToType(enums),
+        ...fromMapToType(ranges),
+        ...fromMapToType(arrays),
+        new vscode.CompletionItem("number", vscode.CompletionItemKind.TypeParameter),
+        new vscode.CompletionItem("boolean", vscode.CompletionItemKind.TypeParameter)
+      ];
+    },
+  },
+  ":" // triggered whenever a '.' is being typed
 );

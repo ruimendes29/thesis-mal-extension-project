@@ -21,7 +21,7 @@ const COMMAND = "mal.command";
 /**
  * Provides code actions corresponding to diagnostic problems.
  */
-export class Emojinfo implements vscode.CodeActionProvider {
+export class MyCodeActionProvider implements vscode.CodeActionProvider {
   public static readonly providedCodeActionKinds = [vscode.CodeActionKind.QuickFix];
 
   provideCodeActions(

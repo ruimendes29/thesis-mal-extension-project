@@ -45,16 +45,17 @@ exports.diagnosticCollection = vscode.languages.createDiagnosticCollection();
 function activate(context) {
     const command = "mal.checkIfActionsAreDeterministic";
     context.subscriptions.push(vscode.commands.registerCommand(command, commands_1.commandHandler));
-    context.subscriptions.push(codeCompletionProvider_1.provider1, codeCompletionProvider_1.provider2, codeCompletionProvider_1.provider3);
+    context.subscriptions.push(codeCompletionProvider_1.provider1, codeCompletionProvider_1.provider2, codeCompletionProvider_1.provider3, codeCompletionProvider_1.provider4);
     context.subscriptions.push(exports.diagnosticCollection);
     vscode.window.onDidChangeActiveTextEditor(() => {
         (0, globalParserInfo_1.clearStoredValues)();
         (0, diagnostics_1.clearDiagnosticCollection)();
     });
-    context.subscriptions.push(vscode.languages.registerCodeActionsProvider("mal", new codeActionsProvider_1.Emojinfo(), {
-        providedCodeActionKinds: codeActionsProvider_1.Emojinfo.providedCodeActionKinds,
+    context.subscriptions.push(vscode.languages.registerCodeActionsProvider("mal", new codeActionsProvider_1.MyCodeActionProvider(), {
+        providedCodeActionKinds: codeActionsProvider_1.MyCodeActionProvider.providedCodeActionKinds,
     }));
     context.subscriptions.push(vscode.languages.registerDefinitionProvider({ language: "mal" }, new MyDefinitionProvider()));
+    context.subscriptions.push(vscode.languages.registerHoverProvider({ language: "mal" }, new MyHoverProvider()));
     context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider({ language: "mal" }, new DocumentSemanticTokensProvider(), legend));
     const actionsProvider = new actionsDeterminism_1.ActionsDeterminismProvider(context.extensionUri);
     const propertiesProvider = new propertiesCreator_1.PropertiesProvider(context.extensionUri);
@@ -92,6 +93,21 @@ class DocumentSemanticTokensProvider {
             }
         }
         return result;
+    }
+}
+class MyHoverProvider {
+    provideHover(document, position, token) {
+        const wordRange = document.getWordRangeAtPosition(position);
+        const word = document.getText(wordRange);
+        switch (word) {
+            case "per":
+                return new vscode.Hover(new vscode.MarkdownString("**per** is a keyword of **MAL** that allows the user to specify in what cases an action is valid.\nThe expression `per(ac)->a=b` means that the action **ac** can only happen when the attribute **a** equals **b** "), wordRange);
+            case "keep":
+                return new vscode.Hover(new vscode.MarkdownString("**keep** is a keyword of **MAL** that allows the user to tell the compiler that the value of the attributes defined after maintain their values in the next state, so that the changes in state can be deterministic."), wordRange);
+        }
+        if (word === "per") {
+        }
+        return undefined;
     }
 }
 class MyDefinitionProvider {
