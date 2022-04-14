@@ -18,7 +18,7 @@ export const emitNotArrayDiagnostic = (lineNumber: number, offset: number, eleme
   addDiagnostic(
     lineNumber,
     offset,
-     element,
+    element,
     element.trim() + " is not an array",
     "error",
     NOT_YET_IMPLEMENTED + ":" + element.trim()
@@ -26,13 +26,19 @@ export const emitNotArrayDiagnostic = (lineNumber: number, offset: number, eleme
 };
 
 export const emitNotANumberDiagnostic = (lineNumber: number, offset: number, element: string) => {
+  let fixString;
+  if (attributes.has(currentInteractor) && attributes.get(currentInteractor)!.has(element.trim())) {
+    fixString =
+      CHANGE_TYPE + ":number:" + attributes.get(currentInteractor)!.get(element.trim())!.line + ":" + element.trim();
+  }
+  else {fixString = DEFINE_ATTRIBUTE + ":number:" + element.trim();}
   addDiagnostic(
     lineNumber,
     offset,
     element,
     element.trim() + " is not a numeric value",
     "error",
-    NOT_YET_IMPLEMENTED + ":" + element.trim()
+    fixString
   );
 };
 

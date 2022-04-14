@@ -45,7 +45,7 @@ exports.diagnosticCollection = vscode.languages.createDiagnosticCollection();
 function activate(context) {
     const command = "mal.checkIfActionsAreDeterministic";
     context.subscriptions.push(vscode.commands.registerCommand(command, commands_1.commandHandler));
-    context.subscriptions.push(codeCompletionProvider_1.provider1, codeCompletionProvider_1.provider2, codeCompletionProvider_1.provider3, codeCompletionProvider_1.provider4);
+    context.subscriptions.push(codeCompletionProvider_1.provider1, codeCompletionProvider_1.provider2, codeCompletionProvider_1.provider3, codeCompletionProvider_1.provider4, codeCompletionProvider_1.provider5);
     context.subscriptions.push(exports.diagnosticCollection);
     vscode.window.onDidChangeActiveTextEditor(() => {
         (0, globalParserInfo_1.clearStoredValues)();

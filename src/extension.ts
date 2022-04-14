@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { MyCodeActionProvider } from "./codeActions/codeActionsProvider";
-import { provider1, provider2, provider3, provider4 } from "./codeCompletion/codeCompletionProvider";
+import { provider1, provider2, provider3, provider4, provider5 } from "./codeCompletion/codeCompletionProvider";
 import { commandHandler } from "./commands/commands";
 import { clearDiagnosticCollection } from "./diagnostics/diagnostics";
 import { actions, attributes, clearStoredValues } from "./parsers/globalParserInfo";
@@ -50,7 +50,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(vscode.commands.registerCommand(command, commandHandler));
 
-  context.subscriptions.push(provider1, provider2, provider3, provider4);
+  context.subscriptions.push(provider1, provider2, provider3, provider4,provider5);
 
   context.subscriptions.push(diagnosticCollection);
 

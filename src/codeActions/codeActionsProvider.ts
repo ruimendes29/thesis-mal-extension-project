@@ -37,6 +37,7 @@ export class MyCodeActionProvider implements vscode.CodeActionProvider {
         case DECLARE_ACTION:
           return this.declareAction(document, diagnostic.code!.toString().split(":")[1], diagnostic, range.start);
         case CHANGE_TYPE:
+          //CHANGE_TYPE:newTYpe:lineToFix:attributeName
           return this.changeToCorrectType(
             document,
             diagnosticS[1]!,

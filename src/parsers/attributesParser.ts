@@ -1,5 +1,5 @@
 import { addDiagnostic, ALREADY_DEFINED, NOT_YET_IMPLEMENTED } from "../diagnostics/diagnostics";
-import { actions, attributes, currentInteractor, enums, IParsedToken, ranges } from "./globalParserInfo";
+import { actions, arrays, attributes, currentInteractor, enums, IParsedToken, ranges } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 
 let attributesInLine: Array<string> = [];
@@ -44,7 +44,7 @@ const parseType = (line: string, lineNumber: number, currentOffset: number) => {
 
   const parseActionSection: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
     const type = el.trim();
-    if (enums.has(type) || ranges.has(type) || type==="boolean" || type==="number")
+    if (enums.has(type) || ranges.has(type) || type==="boolean" || type==="number" || arrays.has(type))
     {
       for (let att of attributesInLine) {
         if (!attributes.has(currentInteractor)) {

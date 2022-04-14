@@ -10,6 +10,7 @@ import {
   arrays,
 } from "../parsers/globalParserInfo";
 import { findValueType } from "../parsers/relations/typeFindes";
+import { countSpacesAtStart } from "../parsers/textParser";
 
 export const provider1 = vscode.languages.registerCompletionItemProvider("mal", {
   provideCompletionItems(
@@ -143,9 +144,45 @@ export const provider4 = vscode.languages.registerCompletionItemProvider(
         ...fromMapToType(ranges),
         ...fromMapToType(arrays),
         new vscode.CompletionItem("number", vscode.CompletionItemKind.TypeParameter),
-        new vscode.CompletionItem("boolean", vscode.CompletionItemKind.TypeParameter)
+        new vscode.CompletionItem("boolean", vscode.CompletionItemKind.TypeParameter),
       ];
     },
   },
-  ":" // triggered whenever a '.' is being typed
+  ":",
+  "of" // triggered whenever a '.' is being typed
 );
+
+export const provider5 = vscode.languages.registerCompletionItemProvider("mal", {
+  provideCompletionItems(document: vscode.TextDocument, position: vscode.Position) {
+    const cc = new vscode.CompletionItem("keep all", vscode.CompletionItemKind.Snippet);
+    let lineText = document.lineAt(position.line).text;
+    let i = 1;
+    while (countSpacesAtStart(document.lineAt(position.line - i).text) < countSpacesAtStart(lineText)) {
+      lineText = document.lineAt(position.line - i).text + lineText;
+      i++;
+    }
+    /* Get the variables that ARE defined in the next state */
+    const rx = /(\w+\s*\')/;
+    const variablesChanged = lineText
+      .split(rx)
+      .filter((el) => rx.test(el))
+      .map((el) => el.slice(0, el.length - 1).trim());
+
+    const variablesToKeep = Array.from(attributes.get(getInteractorByLine(position.line))!)
+      .map((el) => el[0])
+      .filter((el) => !variablesChanged.includes(el));
+    let lineToInsert = "keep(";
+    for (let i=0;i<variablesToKeep.length;i++)
+    {
+      if (i===variablesToKeep.length-1)
+      {
+        lineToInsert+=variablesToKeep[i]+")";
+      }
+      else {
+        lineToInsert+=variablesToKeep[i]+", ";
+      }
+    }
+    cc.insertText = lineToInsert;
+    return [cc];
+  },
+});
