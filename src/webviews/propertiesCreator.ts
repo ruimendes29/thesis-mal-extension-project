@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { actions, attributes, enums, interactorLimits } from "../parsers/globalParserInfo";
+import { actions, arrays, attributes, enums, interactorLimits, ranges } from "../parsers/globalParserInfo";
 import { findValueType } from "../parsers/relations/typeFindes";
 
 export class PropertiesProvider implements vscode.WebviewViewProvider {
@@ -51,7 +51,22 @@ export class PropertiesProvider implements vscode.WebviewViewProvider {
       switch (data.type) {
         case "interactor-info": {
           const possibleAtts = attributes.has(data.interactor)
-            ? Array.from(attributes.get(data.interactor)!).map(([key, v]) => key)
+            ? Array.from(attributes.get(data.interactor)!).map(([key, v]) => {
+                if (arrays.has(v.type!)) {
+                  const toRet = [];
+                  const arrayInfo = arrays.get(v.type!)!;
+                  for (let i = arrayInfo.firstIndex; i <= arrayInfo.lastIndex; i++) {
+                    toRet.push(key + "[" + i + "]");
+                  }
+                  for (let r of Array.from(ranges).filter(([rk,rv])=> rv.maximum<=arrayInfo.lastIndex && rv.minimum>=arrayInfo.firstIndex))
+                  {
+                    toRet.push(key+"["+r[0]+"]");
+                  }
+                  return toRet;
+                } else {
+                  return key;
+                }
+              }).flat()
             : [];
           const possibleActions = actions.has(data.interactor)
             ? Array.from(actions.get(data.interactor)!).map(([key, v]) => "effected(" + key + ")")

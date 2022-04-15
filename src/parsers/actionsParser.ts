@@ -73,7 +73,7 @@ const parseAction = (line: string, lineNumber: number, currentOffset: number) =>
     } else {
       indexOfElement++;
       const et = el.trim();
-      if (enums.has(et) || ranges.has(et) || arrays.has(et) || et === "boolean" || et === "number") {
+      if (enums.has(et) || ranges.has(et) || arrays.has(et) || et === "boolean") {
         actionArguments.push(et);
         return "type";
       } else {

@@ -44,7 +44,7 @@ const parseType = (line: string, lineNumber: number, currentOffset: number) => {
 
   const parseActionSection: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
     const type = el.trim();
-    if (enums.has(type) || ranges.has(type) || type==="boolean" || type==="number" || arrays.has(type))
+    if (enums.has(type) || ranges.has(type) || type==="boolean" || arrays.has(type))
     {
       for (let att of attributesInLine) {
         if (!attributes.has(currentInteractor)) {

@@ -143,7 +143,6 @@ export const provider4 = vscode.languages.registerCompletionItemProvider(
         ...fromMapToType(enums),
         ...fromMapToType(ranges),
         ...fromMapToType(arrays),
-        new vscode.CompletionItem("number", vscode.CompletionItemKind.TypeParameter),
         new vscode.CompletionItem("boolean", vscode.CompletionItemKind.TypeParameter),
       ];
     },
@@ -162,8 +161,10 @@ export const provider5 = vscode.languages.registerCompletionItemProvider("mal", 
       i++;
     }
     /* Get the variables that ARE defined in the next state */
+
+    // parse normal variables
     const rx = /(\w+\s*\')/;
-    const variablesChanged = lineText
+    let variablesChanged = lineText
       .split(rx)
       .filter((el) => rx.test(el))
       .map((el) => el.slice(0, el.length - 1).trim());

@@ -1,13 +1,10 @@
-import {
-  addDiagnostic,
-  ADD_TO_ENUM,
-  NOT_YET_IMPLEMENTED,
-} from "../../diagnostics/diagnostics";
+import { addDiagnostic, ADD_TO_ENUM, NOT_YET_IMPLEMENTED } from "../../diagnostics/diagnostics";
 import { getArrayInStore, getArrayWrittenInfo } from "../arrayRelations";
 import { temporaryAttributes } from "../axiomParser";
 import {
   actions,
   aggregates,
+  arrays,
   attributes,
   currentInteractor,
   defines,
@@ -29,9 +26,7 @@ let actionInExpression: string | undefined = undefined;
 let totalActionArguments: number = 0;
 let actionInteractor: string | undefined = undefined;
 
-export const parseRangeInput = (
-  preV: string
-): { value: number; isANumber: boolean } => {
+export const parseRangeInput = (preV: string): { value: number; isANumber: boolean } => {
   let v;
   let isANumber = false;
   v = 0;
@@ -39,10 +34,7 @@ export const parseRangeInput = (
   if (!isNaN(+trimmedv)) {
     isANumber = true;
     v = trimmedv;
-  } else if (
-    defines.has(trimmedv) &&
-    defines.get(trimmedv)!.type === "number"
-  ) {
+  } else if (defines.has(trimmedv) && defines.get(trimmedv)!.type === "number") {
     v = defines.get(trimmedv)!.value;
     isANumber = true;
     defines.set(trimmedv, { used: true, type: "number", value: v });
@@ -65,21 +57,13 @@ export const removeExclamation = (att: string) => {
 
 const updateAttributeUsage = (att: string, interactor: string) => {
   const attCleared = removeExclamation(att.trim()).value;
-  if (
-    attributes.has(interactor) &&
-    attributes.get(interactor)!.has(attCleared.trim())
-  ) {
+  if (attributes.has(interactor) && attributes.get(interactor)!.has(attCleared.trim())) {
     const attAux = attributes.get(interactor)!.get(attCleared)!;
     attributes.get(interactor)!.set(attCleared, { ...attAux, used: true });
   }
 };
 
-const splitWithOffset = (
-  rx: RegExp,
-  element: string,
-  offset: number,
-  toNotSeparateArrays?: boolean
-) => {
+const splitWithOffset = (rx: RegExp, element: string, offset: number, toNotSeparateArrays?: boolean) => {
   let offsetInsideMember = offset;
   if (toNotSeparateArrays) {
     let numberOfBrackets = 0;
@@ -87,7 +71,7 @@ const splitWithOffset = (
     const splittedMember = element.split(rx);
     const toRet = [];
     for (const el of splittedMember) {
-      offsetInsideMember+=el.length;
+      offsetInsideMember += el.length;
       valueHeld += el;
       if (el.includes("[")) {
         numberOfBrackets++;
@@ -96,7 +80,7 @@ const splitWithOffset = (
         numberOfBrackets--;
       }
       if (numberOfBrackets === 0) {
-        valueHeld="";
+        valueHeld = "";
         toRet.push({ value: valueHeld, offset: offsetInsideMember - valueHeld.length });
       }
     }
@@ -125,15 +109,10 @@ const parseArrayMember = (
     if (arrayNext.isNextState) {
       member.value = member.value.slice(0, member.value.indexOf("'"));
     }
-    const splittedMember = splitWithOffset(
-      /(\[|\])/,
-      member.value,
-      member.offset
-    );
+    const splittedMember = splitWithOffset(/(\[|\])/, member.value, member.offset);
     let index = 0;
     let arrayInfo: { type: any; dimensions: number };
     let toRet: any[] = [];
-    const cx = /(?<!\w\s*\[.*)(\+|\-|\*|\/|\&|\||\-\s*\>)/;
     for (let sm of splittedMember) {
       const { offset: o, value: v } = sm;
       const { value: tv, isNextState } = removeExclamation(v.trim());
@@ -169,23 +148,12 @@ const parseArrayMember = (
         index++;
       } else {
         if (index < arrayInfo!.dimensions + 1) {
-          const parsedComplexArgument = parseMemberOfRelation(
-            textInfo,
-            sm,
-            currentInteractor
-          );
+          const parsedComplexArgument = parseMemberOfRelation(textInfo, sm, currentInteractor);
           if (parsedComplexArgument?.type === "number") {
             toRet = [...toRet, ...parsedComplexArgument.tokens];
           } else {
-            emitNotANumberDiagnostic(
-              textInfo.lineNumber,
-              offsetForDiags + o,
-              v
-            );
-            toRet = [
-              { offset: o, value: v, tokenType: "regexp", nextState: false },
-              ...parsedComplexArgument!.tokens,
-            ];
+            emitNotANumberDiagnostic(textInfo.lineNumber, offsetForDiags + o, v);
+            toRet = [{ offset: o, value: v, tokenType: "regexp", nextState: false }, ...parsedComplexArgument!.tokens];
           }
           index++;
         } else {
@@ -259,13 +227,7 @@ const parseGroupForInMember = (
             sm.value,
             smvt + " is not defined as a member of " + correctType,
             "error",
-            ADD_TO_ENUM +
-              ":" +
-              enums.get(correctType)!.line +
-              ":" +
-              smvt +
-              ":" +
-              correctType
+            ADD_TO_ENUM + ":" + enums.get(correctType)!.line + ":" + smvt + ":" + correctType
           );
         } else {
           toRet.push({
@@ -321,18 +283,10 @@ const parseAggregatedMember = (
       } else if (actions.has(current) && actions.get(current)!.has(tv)) {
         actionInteractor = current;
         return {
-          tokens: [
-            ...toRet,
-            ...parseActionMember(textInfo, sm, current)!.tokens,
-          ],
+          tokens: [...toRet, ...parseActionMember(textInfo, sm, current)!.tokens],
           type: "action",
         };
-      } else if (
-        (arrayAttribute = getArrayInStore(
-          getArrayWrittenInfo(tv).arrayName,
-          current
-        )).type !== ""
-      ) {
+      } else if ((arrayAttribute = getArrayInStore(getArrayWrittenInfo(tv).arrayName, current)).type !== "") {
         return {
           tokens: [
             ...toRet,
@@ -345,10 +299,7 @@ const parseAggregatedMember = (
       } else {
         emitNotAggregatedDiagnostic(textInfo.lineNumber, offsetForDiags + o, v);
         return {
-          tokens: [
-            ...toRet,
-            { offset: o, value: v, tokenType: "regexp", nextState: false },
-          ],
+          tokens: [...toRet, { offset: o, value: v, tokenType: "regexp", nextState: false }],
           type: arrayAttribute.type,
         };
       }
@@ -371,9 +322,7 @@ const parseActionMember = (
     actionInExpression = tv;
     totalActionArguments = argumentsInAction.length;
     return {
-      tokens: [
-        { offset: o, value: v, tokenType: "function", nextState: isNextState },
-      ],
+      tokens: [{ offset: o, value: v, tokenType: "function", nextState: isNextState }],
       type: "action",
     };
   }
@@ -397,10 +346,7 @@ const parseArgumentOfActionMember = (
   const { value: v, offset: o } = member;
   const { value: tv, isNextState } = removeExclamation(v.trim());
   let argType = findValueType(tv, forActionInteractor);
-  if (
-    argType === argumentType ||
-    (argType === "number" && ranges.has(argumentType.trim()))
-  ) {
+  if (argType === argumentType || (argType === "number" && ranges.has(argumentType.trim()))) {
     clearValues();
     return {
       tokens: [
@@ -422,9 +368,7 @@ const parseArgumentOfActionMember = (
       });
       clearValues();
       return {
-        tokens: [
-          { offset: o, value: v, tokenType: "keyword", nextState: false },
-        ],
+        tokens: [{ offset: o, value: v, tokenType: "keyword", nextState: false }],
         type: argumentType,
       };
     }
@@ -446,8 +390,7 @@ const parseNumberMember = (
   if (
     !isNaN(+tv) ||
     ranges.has(tv) ||
-    (attributes.get(interactor)?.has(tv) &&
-      attributes.get(interactor)?.get(tv)?.type === "number") ||
+    (attributes.get(interactor)?.has(tv) && attributes.get(interactor)?.get(tv)?.type === "number") ||
     (defines.has(tv) && defines.get(tv)?.type === "number") ||
     findTemporaryType(tv, interactor) === "number"
   ) {
@@ -457,11 +400,7 @@ const parseNumberMember = (
         {
           offset: o,
           value: v,
-          tokenType: !isNaN(+tv)
-            ? "number"
-            : findTemporaryType(tv, interactor) === "number"
-            ? "keyword"
-            : "variable",
+          tokenType: !isNaN(+tv) ? "number" : findTemporaryType(tv, interactor) === "number" ? "keyword" : "variable",
           nextState: isNextState,
         },
       ],
@@ -549,16 +488,12 @@ const parseAttributeMember = (
   if ((attInfo = attributes.get(interactor)?.get(tv))) {
     updateAttributeUsage(tv, interactor);
     return {
-      tokens: [
-        { offset: o, value: v, tokenType: "variable", nextState: isNextState },
-      ],
-      type: attInfo.type,
+      tokens: [{ offset: o, value: v, tokenType: "variable", nextState: isNextState }],
+      type: ranges.has(attInfo.type!) ? "number" : attInfo.type,
     };
   } else if (actions.has(interactor) && actions.get(interactor)!.has(tv)) {
     return {
-      tokens: [
-        { offset: o, value: v, tokenType: "function", nextState: false },
-      ],
+      tokens: [{ offset: o, value: v, tokenType: "function", nextState: false }],
       type: "action",
     };
   }
@@ -570,14 +505,9 @@ const parseBooleanMember = (
   member: { offset: number; value: string },
   interactor: string
 ): { tokens: any[]; type: string | undefined } | undefined => {
-  if (
-    member.value.trim().toLowerCase() === "false" ||
-    member.value.trim().toLowerCase() === "true"
-  ) {
+  if (member.value.trim().toLowerCase() === "false" || member.value.trim().toLowerCase() === "true") {
     return {
-      tokens: [
-        { offset: member.offset, value: member.value, tokenType: "keyword" },
-      ],
+      tokens: [{ offset: member.offset, value: member.value, tokenType: "keyword" }],
       type: "boolean",
     };
   }
@@ -627,9 +557,7 @@ export const parseMemberOfRelation = (
           break;
         }
       }
-    } else if (
-      (possibleRet = parseArgumentOfActionMember(textInfo, sm, interactor))
-    ) {
+    } else if ((possibleRet = parseArgumentOfActionMember(textInfo, sm, interactor))) {
       type = possibleRet.type;
       toRetTokens = [...toRetTokens, ...possibleRet.tokens];
     }
@@ -652,8 +580,7 @@ export const compareRelationTokens = (
   | undefined => {
   let indexOfOp;
   offsetForDiags = offset;
-  const comparationSymbols =
-    /(\<\s*\=|\>\s*\=|(?<!\-)\s*\>|\<\s*(?!\-)|\=|\!\s*\=|\bin\b)/;
+  const comparationSymbols = /(\<\s*\=|\>\s*\=|(?<!\-)\s*\>|\<\s*(?!\-)|\=|\!\s*\=|\bin\b)/;
   if (textInfo.el.trim() === "keep") {
     return [{ offset: 0, value: textInfo.el, tokenType: "keyword" }];
   }
@@ -670,26 +597,15 @@ export const compareRelationTokens = (
           offset: offsetForComparation - el.length + numberOfSpaces,
         };
       })
-      .filter(
-        (el) =>
-          !comparationSymbols.test(el.value.trim()) && el.value.trim() !== ""
-      );
+      .filter((el) => !comparationSymbols.test(el.value.trim()) && el.value.trim() !== "");
     if (separated.length === 2) {
       //separate the attribute and the value
       //const preAtt = textInfo.el.slice(0, textInfo.el.indexOf(indexOfOp[0])).trim();
       const preAtt = separated[0];
-      const parsedAtt = parseMemberOfRelation(
-        textInfo,
-        preAtt,
-        currentInteractor
-      );
+      const parsedAtt = parseMemberOfRelation(textInfo, preAtt, currentInteractor);
       //get the value
       const preVal = separated[1];
-      const parsedVal = parseMemberOfRelation(
-        textInfo,
-        preVal,
-        currentInteractor
-      );
+      const parsedVal = parseMemberOfRelation(textInfo, preVal, currentInteractor);
 
       parseErrorsRelationBetween(
         textInfo.lineNumber,
@@ -701,22 +617,11 @@ export const compareRelationTokens = (
       );
 
       return [...parsedAtt!.tokens, ...parsedVal!.tokens];
+    } else {
+      return [...parseMemberOfRelation(textInfo, separated[0], currentInteractor)!.tokens];
     }
-    else {return [
-      ...parseMemberOfRelation(
-        textInfo,
-        separated[0],
-        currentInteractor
-      )!.tokens,
-    ];}
   } else {
-    return [
-      ...parseMemberOfRelation(
-        textInfo,
-        { value: textInfo.el, offset: 0 },
-        currentInteractor
-      )!.tokens,
-    ];
+    return [...parseMemberOfRelation(textInfo, { value: textInfo.el, offset: 0 }, currentInteractor)!.tokens];
   }
   return undefined;
 };

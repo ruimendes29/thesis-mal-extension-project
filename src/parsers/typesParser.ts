@@ -1,6 +1,6 @@
 import { types } from "util";
 import { addDiagnostic, ALREADY_DEFINED, NOT_YET_IMPLEMENTED } from "../diagnostics/diagnostics";
-import { arrays, defines, enums, IParsedToken, ranges } from "./globalParserInfo";
+import { arrays, changeTypesLine, defines, enums, IParsedToken, ranges, typesStartingLine } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 import { parseRangeInput } from "./relations/relationParser";
 
@@ -38,16 +38,17 @@ const parseArray = (line: string, lineNumber: number) => {
       case 3:
         arrayType = el.trim();
         indexOfElement++;
-        if (
-          arrayType === "number" ||
-          arrayType === "boolean" ||
-          ranges.has(arrayType) ||
-          enums.has(arrayType) ||
-          arrays.has(arrayType)
-        ) {
+        if (arrayType === "boolean" || ranges.has(arrayType) || enums.has(arrayType) || arrays.has(arrayType)) {
           return "type";
         } else {
-          addDiagnostic(lineNumber, sc, el, arrayType + " is not a valid type", "error", NOT_YET_IMPLEMENTED+":"+el);
+          addDiagnostic(
+            lineNumber,
+            sc,
+            el,
+            arrayType + " is not a valid type",
+            "error",
+            NOT_YET_IMPLEMENTED + ":" + el
+          );
         }
     }
     return "cantprint";
@@ -162,6 +163,9 @@ export const _parseTypes = (line: string, lineNumber: number): { tokens: IParsed
   if (size === 0) {
     return undefined;
   } else {
+    if (typesStartingLine === undefined) {
+      changeTypesLine(lineNumber);
+    }
     return { tokens: toRetTokens, size: size };
   }
 };

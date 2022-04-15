@@ -3,6 +3,7 @@ import {
   ADD_TO_ENUM,
   ALREADY_DEFINED,
   CHANGE_TYPE,
+  CREATE_CHANGE_NUMBER,
   DECLARE_ACTION,
   DEFINE_ATTRIBUTE,
 } from "../diagnostics/diagnostics";
@@ -12,6 +13,8 @@ import {
   attributesStartingLine,
   getInteractorByLine,
   interactorLimits,
+  ranges,
+  typesStartingLine,
 } from "../parsers/globalParserInfo";
 import { ParseSection } from "../parsers/ParseSection";
 import { countSpacesAtStart } from "../parsers/textParser";
@@ -34,6 +37,17 @@ export class MyCodeActionProvider implements vscode.CodeActionProvider {
     return context.diagnostics.map((diagnostic) => {
       const diagnosticS = (diagnostic.code! + "").split(":");
       switch (diagnostic.code!.toString().split(":")[0]) {
+        case CREATE_CHANGE_NUMBER:
+          //CREATE_CHANGE_NUMBER:lineToFix:attributeName:minimum:maximum
+          return this.declareNumberTypeAndChange(
+            document,
+            +diagnosticS[1]!,
+            diagnosticS[2]!,
+            +diagnosticS[3],
+            +diagnosticS[4],
+            diagnostic,
+            range.start
+          );
         case DECLARE_ACTION:
           return this.declareAction(document, diagnostic.code!.toString().split(":")[1], diagnostic, range.start);
         case CHANGE_TYPE:
@@ -51,7 +65,7 @@ export class MyCodeActionProvider implements vscode.CodeActionProvider {
           return this.alreadyDefined(document, +diagnosticS[1], diagnosticS[2], diagnostic);
         case DEFINE_ATTRIBUTE:
           //DEFINE_ATTRIBUTE +":"+findValueType(val)+":"+attribute
-          return this.addAttribute(document, diagnosticS[1], diagnosticS[2], diagnostic, range.start);
+          return this.addAttribute(document, diagnosticS[1], diagnosticS[2], diagnostic, range.start, diagnosticS[3]);
         case ADD_TO_ENUM:
           //ADD_TO_ENUM:lineNumber:newEnumMember:enumName
           return this.addToEnum(document, +diagnosticS[1], diagnosticS[2], diagnosticS[3], diagnostic);
@@ -59,6 +73,33 @@ export class MyCodeActionProvider implements vscode.CodeActionProvider {
           return new vscode.CodeAction(`No QuickFix available`, vscode.CodeActionKind.QuickFix);
       }
     });
+  }
+
+  private declareNumberTypeAndChange(
+    document: vscode.TextDocument,
+    lineToFix: number,
+    attribute: string,
+    minimum: number,
+    maximum: number,
+    diagnostic: vscode.Diagnostic,
+    position: vscode.Position,
+    preExistingFix?: vscode.CodeAction
+  ): vscode.CodeAction {
+    let fix;
+    if (preExistingFix) {
+      fix = preExistingFix;
+    } else {
+      fix = this.changeToCorrectType(document, "Number", lineToFix, attribute, diagnostic, position);
+    }
+    fix.edit!.insert(
+      document.uri,
+      new vscode.Position(
+        typesStartingLine ? typesStartingLine : 0,
+        typesStartingLine ? countSpacesAtStart(document.lineAt(typesStartingLine).text) : 0
+      ),
+      `Number= ${minimum}..${maximum}\n`
+    );
+    return fix;
   }
 
   private alreadyDefined(
@@ -106,7 +147,8 @@ export class MyCodeActionProvider implements vscode.CodeActionProvider {
     diagnostic: vscode.Diagnostic,
     position: vscode.Position
   ): vscode.CodeAction {
-    const fix = new vscode.CodeAction(`Convert to ${newType}`, vscode.CodeActionKind.QuickFix);
+    let fix;
+      fix = new vscode.CodeAction(`Convert to ${newType}`, vscode.CodeActionKind.QuickFix);
     fix.diagnostics = [diagnostic];
     fix.edit = new vscode.WorkspaceEdit();
     const line = document.lineAt(lineToFix).text;
@@ -149,18 +191,13 @@ export class MyCodeActionProvider implements vscode.CodeActionProvider {
     fix.diagnostics = [diagnostic];
     fix.edit = new vscode.WorkspaceEdit();
     const actionStart = actionsStartingLine.get(getInteractorByLine(position.line));
-    const textToAdd = newAction+"\n";
-    let linePosition = (actionStart)?actionStart:interactorLimits.get(getInteractorByLine(position.line))!.start+1;
-    let numberOfSpaces = (actionStart)?countSpacesAtStart(document.lineAt(linePosition+1).text):0;
-    if (!actionStart)
-    {
-      fix.edit.insert(document.uri, new vscode.Position(linePosition,0), "actions\n");
+    const textToAdd = newAction + "\n";
+    let linePosition = actionStart ? actionStart : interactorLimits.get(getInteractorByLine(position.line))!.start + 1;
+    let numberOfSpaces = actionStart ? countSpacesAtStart(document.lineAt(linePosition + 1).text) : 0;
+    if (!actionStart) {
+      fix.edit.insert(document.uri, new vscode.Position(linePosition, 0), "actions\n");
     }
-    fix.edit.insert(
-      document.uri,
-      new vscode.Position(linePosition+(actionStart?1:0), numberOfSpaces),
-      textToAdd
-    );
+    fix.edit.insert(document.uri, new vscode.Position(linePosition + (actionStart ? 1 : 0), numberOfSpaces), textToAdd);
     return fix;
   }
 
@@ -169,25 +206,41 @@ export class MyCodeActionProvider implements vscode.CodeActionProvider {
     newType: string,
     attribute: string,
     diagnostic: vscode.Diagnostic,
-    position: vscode.Position
+    position: vscode.Position,
+    valValue?: string
   ): vscode.CodeAction {
+    const attributesStart = attributesStartingLine.get(getInteractorByLine(position.line));
+    const linePosition = attributesStart
+      ? attributesStart
+      : interactorLimits.get(getInteractorByLine(position.line))!.start + 1;
+
     const fix = new vscode.CodeAction(`Add ${attribute} with type ${newType}`, vscode.CodeActionKind.QuickFix);
     fix.diagnostics = [diagnostic];
     fix.edit = new vscode.WorkspaceEdit();
-    const attributesStart = attributesStartingLine.get(getInteractorByLine(position.line));
-    const textToAdd =  attribute + " : " + newType + " " + "\n";
-    const linePosition = (attributesStart)?attributesStart:interactorLimits.get(getInteractorByLine(position.line))!.start+1;
-    const numberOfSpaces = (attributesStart)?countSpacesAtStart(document.lineAt(linePosition+1).text):0;
-    if (!attributesStart)
-    {
-      fix.edit.insert(document.uri, new vscode.Position(linePosition,0), "attributes\n");
+    const textToAdd = attribute + " : " + newType + " " + "\n";
+
+    const numberOfSpaces = attributesStart ? countSpacesAtStart(document.lineAt(linePosition + 1).text) : 0;
+    if (!attributesStart) {
+      fix.edit.insert(document.uri, new vscode.Position(linePosition, 0), "attributes\n");
     }
     fix.edit.insert(
       document.uri,
-      new vscode.Position(linePosition+(attributesStart?1:0), numberOfSpaces),
+      new vscode.Position(linePosition + (attributesStart ? 1 : 0), numberOfSpaces),
       textToAdd
     );
-
-    return fix;
+    let toRetFix = fix;
+    if (newType === "Number") {
+      toRetFix = this.declareNumberTypeAndChange(
+        document,
+        linePosition + (attributesStart ? 1 : 0),
+        attribute,
+        Math.max(0,eval(valValue?valValue:"0")-10),
+        Math.max(10,eval(valValue?valValue:"0")+10),
+        diagnostic,
+        position,
+        fix
+      );
+    }
+    return toRetFix;
   }
 }

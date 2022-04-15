@@ -5,6 +5,7 @@ import { getCorrectLine, lineSizes } from "../parsers/textParser";
 
 export const ADD_TO_ENUM = "addToEnum";
 export const CHANGE_TYPE = "changeType";
+export const CREATE_CHANGE_NUMBER = "createChangeNumber";
 export const DECLARE_ACTION = "declareAction";
 export const ALREADY_DEFINED = "alreadyDefined";
 export const NOT_YET_IMPLEMENTED = "notYetImplemented";
