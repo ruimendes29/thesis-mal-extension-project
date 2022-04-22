@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { getArrayInStore, getArrayWrittenInfo } from "../parsers/arrayRelations";
 import { actions, arrays, attributes, enums, interactorLimits, ranges } from "../parsers/globalParserInfo";
 import { findValueType } from "../parsers/relations/typeFindes";
 
@@ -9,23 +10,35 @@ export class PropertiesProvider implements vscode.WebviewViewProvider {
 
   constructor(private readonly _extensionUri: vscode.Uri) {}
 
-  private getValidValues = (arg: string, interactor: string) => {
-    const toRet = [];
-    if (attributes.has(interactor) && attributes.get(interactor)!.has(arg)) {
-      const foundValueTypeForArg = findValueType(arg, interactor);
-      for (let att of attributes.get(interactor)!) {
-        if (findValueType(att[0], interactor) === foundValueTypeForArg) {
-          toRet.push(att[0]);
-        }
+  private findValuesWithSameType = (argumentName: string, interactor: string, type: string, arrayToAdd: any[]) => {
+    for (let att of attributes.get(interactor)!) {
+      if (findValueType(att[0], interactor) === type) {
+        arrayToAdd.push(att[0]);
       }
-      if (foundValueTypeForArg === "boolean") {
-        toRet.push("TRUE", "FALSE");
-      }
-      if (enums.has(foundValueTypeForArg!)) {
-        toRet.push(...enums.get(foundValueTypeForArg!)!.values);
-      }
+    }
+    if (type === "boolean") {
+      arrayToAdd.push("TRUE", "FALSE");
+    }
+    if (enums.has(type!)) {
+      arrayToAdd.push(...enums.get(type!)!.values);
+    }
 
-      toRet.push("$" + attributes.get(interactor)!.get(arg)!.type);
+    arrayToAdd.push("$" + attributes.get(interactor)!.get(argumentName)!.type);
+  };
+
+  private getValidValues = (arg: string, interactor: string) => {
+    const toRet: any[] = [];
+    const possibleArrayName = getArrayWrittenInfo(arg);
+    if (attributes.has(interactor) && attributes.get(interactor)!.has(arg)) {
+      const foundValueTypeForArg = findValueType(arg, interactor)!;
+      this.findValuesWithSameType(arg,interactor,foundValueTypeForArg,toRet);
+     } else {
+      console.log(possibleArrayName.arrayName);
+      if (attributes.has(interactor) && attributes.get(interactor)!.has(possibleArrayName.arrayName)) {
+        console.log("tem o array" + possibleArrayName.arrayName);
+        const foundValueTypeForArg = getArrayInStore(possibleArrayName.arrayName, interactor).type!;
+        this.findValuesWithSameType(possibleArrayName.arrayName,interactor,foundValueTypeForArg,toRet);
+      }
     }
 
     return toRet;
@@ -51,22 +64,25 @@ export class PropertiesProvider implements vscode.WebviewViewProvider {
       switch (data.type) {
         case "interactor-info": {
           const possibleAtts = attributes.has(data.interactor)
-            ? Array.from(attributes.get(data.interactor)!).map(([key, v]) => {
-                if (arrays.has(v.type!)) {
-                  const toRet = [];
-                  const arrayInfo = arrays.get(v.type!)!;
-                  for (let i = arrayInfo.firstIndex; i <= arrayInfo.lastIndex; i++) {
-                    toRet.push(key + "[" + i + "]");
+            ? Array.from(attributes.get(data.interactor)!)
+                .map(([key, v]) => {
+                  if (arrays.has(v.type!)) {
+                    const toRet = [];
+                    const arrayInfo = arrays.get(v.type!)!;
+                    for (let i = arrayInfo.firstIndex; i <= arrayInfo.lastIndex; i++) {
+                      toRet.push(key + "[" + i + "]");
+                    }
+                    for (let r of Array.from(ranges).filter(
+                      ([rk, rv]) => rv.maximum <= arrayInfo.lastIndex && rv.minimum >= arrayInfo.firstIndex
+                    )) {
+                      toRet.push(key + "[" + r[0] + "]");
+                    }
+                    return toRet;
+                  } else {
+                    return key;
                   }
-                  for (let r of Array.from(ranges).filter(([rk,rv])=> rv.maximum<=arrayInfo.lastIndex && rv.minimum>=arrayInfo.firstIndex))
-                  {
-                    toRet.push(key+"["+r[0]+"]");
-                  }
-                  return toRet;
-                } else {
-                  return key;
-                }
-              }).flat()
+                })
+                .flat()
             : [];
           const possibleActions = actions.has(data.interactor)
             ? Array.from(actions.get(data.interactor)!).map(([key, v]) => "effected(" + key + ")")
