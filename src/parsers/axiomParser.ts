@@ -5,12 +5,14 @@ import {
   aggregates,
   attributes,
   currentInteractor,
+  enums,
   IParsedToken,
   ranges,
 } from "./globalParserInfo";
 import { isIncludedDinamically } from "./includesParser";
 import { ParseSection } from "./ParseSection";
 import { compareRelationTokens, removeExclamation } from "./relations/relationParser";
+import { findValueType } from "./relations/typeFindes";
 
 export let triggerAction: string[] = [];
 const setOfAttributesAttended: Set<string> = new Set();
@@ -54,6 +56,10 @@ const parseActionWithArguments = (
   }
 };
 
+const isAnEnumMember = (el: string): { isPart: boolean; enumName: string | undefined } => {
+  return { isPart: false, enumName: undefined };
+};
+
 const parseTemporaryArgument = (
   lineNumber: number,
   sc: number,
@@ -71,6 +77,8 @@ const parseTemporaryArgument = (
     attributes.get(interactor)!.get(el.trim())!.type === correctType
   ) {
     return "variable";
+  } else if (findValueType(el, currentInteractor) === correctType) {
+    return "macro";
   } else {
     addDiagnostic(
       lineNumber,
@@ -115,11 +123,9 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
   const toFindTokens = /(((\<?\s*\-\>\s*)|^\s*)\[[^\[]+\])|(^\s*per\s*\(.*\)\s*\<?\s*\-\s*\>)/;
   const toSeparateTokens = /(\(|\)|\-|\>|\<|\&|\||\!|\[|\]|\,|\.|\s|\bper\b)/;
   const parseTriggerActions: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-    if (el.trim()==="nil")
-    {
+    if (el.trim() === "nil") {
       return "keyword";
-    }
-    else if (isIncluded) {
+    } else if (isIncluded) {
       if (isIncludedDinamically(includedInteractor, el.trim())) {
         includedInteractor = aggregates.get(el.trim())!.included;
 
@@ -172,11 +178,12 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
       return "regexp";
     }
   });
-  return parseTriggerActions.getTokens(line, lineNumber,0);
+  return parseTriggerActions.getTokens(line, lineNumber, 0);
 };
 
 const parseNextState = (line: string, lineNumber: number) => {
-  const toFindTokens = /(?<=(((?<=(^|\<?\s*\-\s*\>))\s*\[.*\])|^\s*per\s*\(.*\)\s*\<?\s*\-\s*\>)|^(?!(\s*\[.*\])|.*\-\s*\>\s*\[.*\]|\s*per\s*\(.*\)\s*\<?\s*\-\s*\>)).*/;
+  const toFindTokens =
+    /(?<=(((?<=(^|\<?\s*\-\s*\>))\s*\[.*\])|^\s*per\s*\(.*\)\s*\<?\s*\-\s*\>)|^(?!(\s*\[.*\])|.*\-\s*\>\s*\[.*\]|\s*per\s*\(.*\)\s*\<?\s*\-\s*\>)).*/;
   const toSeparateTokens = /(\&|\||\)|\(|(?<=keep.*)\,|\<?\s*\-\s*\>)/;
   let isInKeep = false;
   let addToAttributes: string[] = [];
@@ -241,7 +248,7 @@ export const _parseAxioms = (
       }
     }
   }
-  temporaryAttributes=[];
+  temporaryAttributes = [];
   if (size === 0) {
     return undefined;
   } else {

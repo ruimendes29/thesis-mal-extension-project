@@ -35,7 +35,7 @@ export class ActionsDeterminismProvider implements vscode.WebviewViewProvider {
                 mainInteractor: mainInteractor,
                 insideInteractors: Array.from(insideInteractors).map(([interactorName, actionsInInteractor]) => {
                   return {
-                    includedInteractor: interactorName === mainInteractor ? "self" : interactorName,
+                    includedInteractor: interactorName === mainInteractor ? "actions" : interactorName,
                     actions: Array.from(actionsInInteractor).map(([actionName, attributesAttended]) => {
                       const joinedAtts = this.joinAttributesFromInteractors(mainInteractor);
                       return {

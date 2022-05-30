@@ -18,6 +18,18 @@ const App = (props) => {
     }
   });
 
+  const sendMessageWithTimer = () => {
+    vscode.postMessage({ type: "receiveActions" });
+    setTimeout(() => {
+      sendMessageWithTimer();
+    }, 2500);
+  };
+
+  React.useEffect(() => {
+    console.log("ran");
+    sendMessageWithTimer();
+  }, []);
+
   const handleOnClickRefreshActions = () => {
     vscode.postMessage({ type: "receiveActions" });
   };
@@ -36,6 +48,7 @@ const App = (props) => {
               level={1}
               key={includedInteractorId++}
               title={includedInteractor.includedInteractor}
+              initial={includedInteractor.includedInteractor === "actions"}
               items={includedInteractor.actions.map((action) => (
                 <Dropdown
                   level={2}

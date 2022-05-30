@@ -1,5 +1,7 @@
 .dropdown-outside{
     margin: 0;
+    background-color: inherit;
+    filter: brightness(150%);
     padding: 0;
 };
 
