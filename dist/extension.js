@@ -105,8 +105,6 @@ class MyHoverProvider {
             case "keep":
                 return new vscode.Hover(new vscode.MarkdownString("**keep** is a keyword of **MAL** that allows the user to tell the compiler that the value of the attributes defined after maintain their values in the next state, so that the changes in state can be deterministic."), wordRange);
         }
-        if (word === "per") {
-        }
         return undefined;
     }
 }

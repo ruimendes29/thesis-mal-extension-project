@@ -157,7 +157,7 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
       includedInteractor = aggregates.get(el.trim())!.included;
       actionsInIncluded = actions.get(includedInteractor)!;
       return "variable";
-    } else if (actions.get(currentInteractor)!.has(el.trim())) {
+    } else if (actions.has(currentInteractor) && actions.get(currentInteractor)!.has(el.trim())) {
       const {
         numberOfArgumentsInAction: naia,
         tokenType,

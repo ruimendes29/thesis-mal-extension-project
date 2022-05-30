@@ -38,7 +38,9 @@ export interface IParsedToken {
 export const updateSection = (line: string, lineNumber: number): boolean => {
   if (line.trim() === "actions") {
     actionsStartingLine.set(currentInteractor, lineNumber);
+    actions.set(currentInteractor,new Map());
   } else if (line.trim() === "attributes") {
+    attributes.set(currentInteractor,new Map());
     attributesStartingLine.set(currentInteractor, lineNumber);
   }
   let x: RegExpExecArray | null;

@@ -8,6 +8,7 @@ import {
   aggregates,
   ranges,
   arrays,
+  currentInteractor,
 } from "../parsers/globalParserInfo";
 import { findValueType } from "../parsers/relations/typeFindes";
 import { countSpacesAtStart } from "../parsers/textParser";
@@ -55,11 +56,22 @@ export const provider2 = vscode.languages.registerCompletionItemProvider(
         );
       } else if (
         linePrefix.charAt(linePrefix.length - 1) === "=" &&
-        (match = linePrefix.match(/(\w+)\s*\=/)) !== null
+        (match = linePrefix.match(/(?<=(^|\s))(([0-9A-Za-z])+\s*[\.\'\=]{1})+/)) !== null
       ) {
-        if (enums.has(findValueType(match[1], getInteractorByLine(position.line))!)) {
+        const separators = /(\.|\'|\=)/;
+        const splitted = match[0].split(separators).filter((el) => el.trim() !== "" && !separators.test(el));
+        let current = getInteractorByLine(position.line);
+        for (let aggregated of splitted) {
+          if (aggregates.has(aggregated) && aggregates.get(aggregated)!.current === current) {
+            current = aggregates.get(aggregated)!.included;
+          } else {
+            break;
+          }
+        }
+        const valueType = findValueType(splitted[splitted.length - 1], current);
+        if (enums.has(valueType!)) {
           return enums
-            .get(findValueType(match[1], getInteractorByLine(position.line))!)!
+            .get(valueType!)!
             .values.map((v) => new vscode.CompletionItem(v, vscode.CompletionItemKind.EnumMember));
         } else {
           return undefined;
@@ -173,14 +185,11 @@ export const provider5 = vscode.languages.registerCompletionItemProvider("mal", 
       .map((el) => el[0])
       .filter((el) => !variablesChanged.includes(el));
     let lineToInsert = "keep(";
-    for (let i=0;i<variablesToKeep.length;i++)
-    {
-      if (i===variablesToKeep.length-1)
-      {
-        lineToInsert+=variablesToKeep[i]+")";
-      }
-      else {
-        lineToInsert+=variablesToKeep[i]+", ";
+    for (let i = 0; i < variablesToKeep.length; i++) {
+      if (i === variablesToKeep.length - 1) {
+        lineToInsert += variablesToKeep[i] + ")";
+      } else {
+        lineToInsert += variablesToKeep[i] + ", ";
       }
     }
     cc.insertText = lineToInsert;

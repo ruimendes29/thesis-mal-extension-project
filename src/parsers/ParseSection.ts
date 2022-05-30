@@ -110,8 +110,6 @@ export class ParseSection {
               }
             }
 
-            // update the index in the mapTokens
-            mapTokens.set(tokenForMap, mapTokens.get(tokenForMap)! + 1);
           }
         });
         return { tokens: tokens, size: x[0].length };

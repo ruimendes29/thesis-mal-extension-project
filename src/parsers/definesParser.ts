@@ -1,4 +1,4 @@
-import { addDiagnosticToRelation, ALREADY_DEFINED } from "../diagnostics/diagnostics";
+import { ALREADY_DEFINED } from "../diagnostics/diagnostics";
 import { defines, IParsedToken } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
 import { compareRelationTokens } from "./relations/relationParser";

@@ -158,8 +158,6 @@ class MyHoverProvider implements vscode.HoverProvider {
           wordRange
         );
     }
-    if (word === "per") {
-    }
 
     return undefined;
   }

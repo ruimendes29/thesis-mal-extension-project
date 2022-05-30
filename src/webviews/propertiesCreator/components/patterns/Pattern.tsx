@@ -5,12 +5,13 @@ import Dropdown from "../../../common/Dropdown";
 import Argument from "./Argument";
 
 const replaceInExpression = (values: Map<string, string>, expression: string) => {
-  let toRet="";
+  let toRet = "";
   for (let i = 0; i < expression.length; i++) {
     if (values.has(expression[i])) {
-        toRet+=values.get(expression[i]);
+      toRet += values.get(expression[i]);
+    } else {
+      toRet += expression[i];
     }
-    else {toRet+=expression[i];}
   }
   return toRet;
 };
@@ -62,6 +63,7 @@ const Pattern = (props: {
         title="Interactor"
         items={[
           <select
+            title="select the argument value"
             onChange={(e) => {
               setValueOfArguments(new Map());
               setInteractor(e.target.value);
@@ -92,10 +94,18 @@ const Pattern = (props: {
           />
         ))}
       />
-      <Dropdown level={1} title="Formula Preview" items={[<div>{replaceInExpression(valueOfArguments, props.pattern.formula)}</div>]} />
+      <Dropdown
+        level={1}
+        title="Formula Preview"
+        items={[<div>{replaceInExpression(valueOfArguments, props.pattern.formula)}</div>]}
+      />
       <button
         onClick={() => {
-          props.vscode.postMessage({ type: "insert", value: replaceInExpression(valueOfArguments, props.pattern.formula), interactor: interactor });
+          props.vscode.postMessage({
+            type: "insert",
+            value: replaceInExpression(valueOfArguments, props.pattern.formula),
+            interactor: interactor,
+          });
         }}
       >
         Add to interactor
