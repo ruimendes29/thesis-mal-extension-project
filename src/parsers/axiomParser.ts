@@ -172,7 +172,7 @@ const parseTriggerAction = (line: string, lineNumber: number) => {
       return "regexp";
     }
   });
-  return parseTriggerActions.getTokens(line, lineNumber, line.search(toFindTokens));
+  return parseTriggerActions.getTokens(line, lineNumber,0);
 };
 
 const parseNextState = (line: string, lineNumber: number) => {

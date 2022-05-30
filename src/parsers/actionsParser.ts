@@ -9,7 +9,7 @@ import {
   ranges,
 } from "./globalParserInfo";
 import { ParseSection } from "./ParseSection";
-
+import { splitWithOffset } from "./relations/relationParser";
 
 /* Method responsible for parsing the vis tag that some action might have and assign the 
 semantic token "keyword" to it*/
@@ -82,7 +82,7 @@ const parseAction = (line: string, lineNumber: number, currentOffset: number) =>
       }
     }
   });
-  const toReturnParseAction = parseActionSection.getTokens(line, lineNumber, 0);
+  const toReturnParseAction = parseActionSection.getTokens(line, lineNumber, currentOffset);
   if (!actions.has(currentInteractor)) {
     actions.set(currentInteractor, new Map());
   }
@@ -104,13 +104,24 @@ export const _parseActions = (
   ) => { tokens: IParsedToken[]; size: number } | undefined)[] = [parseVis, parseAction];
 
   const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
-
-  for (const parser of sectionsToParseParsers) {
-    const matchedPiece = parser(lineWithoutComments, lineNumber, currentOffset);
-    if (matchedPiece && matchedPiece.size > 0) {
-      toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
-      size += matchedPiece.size;
-      currentOffset += matchedPiece.size;
+  const separators = /(?<!\,)(\s)+/;
+  const splittedWithOffset = splitWithOffset(separators,lineWithoutComments,0);
+  const splitted = lineWithoutComments.split(separators);
+  for (const action of splitted) {
+    if (action.trim() === "" || separators.test(action))
+    {
+      currentOffset+=action.length;
+      continue;
+    }
+    console.log(action +" "+currentOffset);
+    for (const parser of sectionsToParseParsers) {
+      const matchedPiece = parser(action, lineNumber, currentOffset);
+      if (matchedPiece && matchedPiece.size > 0) {
+        toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
+        size += matchedPiece.size;
+        currentOffset += matchedPiece.size;
+        break;
+      }
     }
   }
 

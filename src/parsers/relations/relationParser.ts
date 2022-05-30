@@ -63,7 +63,7 @@ const updateAttributeUsage = (att: string, interactor: string) => {
   }
 };
 
-const splitWithOffset = (rx: RegExp, element: string, offset: number, toNotSeparateArrays?: boolean) => {
+export const splitWithOffset = (rx: RegExp, element: string, offset: number, toNotSeparateArrays?: boolean) => {
   let offsetInsideMember = offset;
   if (toNotSeparateArrays) {
     let numberOfBrackets = 0;

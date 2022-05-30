@@ -88,7 +88,7 @@ export class ParseSection {
             if (!aggregatedTokens) {
               tokens.push({
                 line: lineNumber,
-                startCharacter: el.offset,
+                startCharacter: el.offset+offset,
                 length: el.value.length,
                 // to had the token type we check if the element is in the attributes and is a boolean
                 tokenType: this.tokenTypeCondition(el.value, el.offset),
@@ -101,7 +101,7 @@ export class ParseSection {
                   this.tokenTypeCondition(t.value + ":" + t.nextState + ":" + t.interactor+":"+t.lastValue, el.offset);
                   tokens.push({
                     line: lineNumber,
-                    startCharacter: el.offset + t.offset,
+                    startCharacter: el.offset + t.offset+offset,
                     length: t.value.length,
                     tokenType: t.tokenType,
                     tokenModifiers: [""],
