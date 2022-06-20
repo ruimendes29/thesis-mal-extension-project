@@ -117,14 +117,13 @@ const isValidLine = (line: string) => {
 };
 
 export function _parseText(text: string): IParsedToken[] {
-  getActiveSection();
   // Array of the parsed tokens
   /* These tokens are objects such as:
   {line: lineNumber, startCharacter: index,length: number,tokenType: string,tokenModifiers: [""]} */
   const r: IParsedToken[] = [];
 
   // structure to save some lines for post process, in case the information written ahead is relevant
-  // the key, is a string that represents the section in from where the lines come
+  // the key, is a string that represents the section from which the lines comes
   // the value, is an object composed by the line text itself as well as the line number.
   const lineHolder = new Map<string, { line: string; lineNumber: number; lineSizes: number[] }[]>();
 
@@ -248,3 +247,4 @@ export function _parseText(text: string): IParsedToken[] {
   checkIfUsed(lines);
   return r;
 }
+ 

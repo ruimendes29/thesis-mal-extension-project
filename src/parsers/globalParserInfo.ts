@@ -35,6 +35,14 @@ export interface IParsedToken {
   tokenModifiers: string[];
 }
 
+/**
+ * It takes a line of text and a line number and returns a boolean. 
+ * If the line is the start of a new section, it updates the current section and returns true. 
+ * If the line is not the start of a new section, it returns false.
+ * @param {string} line - string - the line of code that is being parsed
+ * @param {number} lineNumber - number
+ * @returns A boolean.
+ */
 export const updateSection = (line: string, lineNumber: number): boolean => {
   if (line.trim() === "actions") {
     actionsStartingLine.set(currentInteractor, lineNumber);
@@ -73,6 +81,11 @@ export const updateSection = (line: string, lineNumber: number): boolean => {
   }
 };
 
+/**
+ * It checks if a line is a subsection of a section
+ * @param {string} line - string - the line of text that we're checking
+ * @returns A function that takes a string and returns a boolean.
+ */
 export const isSubSection = (line: string): boolean => {
   if (
     line.trim() === "attributes" ||
@@ -104,6 +117,9 @@ export const changeTypesLine = (x: number): void => {
   typesStartingLine=x;
 };
 
+/**
+ * It clears all the data structures that are used to store the data that is parsed from the input file
+ */
 export const clearStoredValues = () => {
   actionsStartingLine.clear();
   attributesStartingLine.clear();
@@ -124,6 +140,11 @@ export const clearStoredValues = () => {
   });
 };
 
+/**
+ * It takes a line number and returns the name of the interactor that contains that line number.
+ * @param {number} lineNumber - The line number of the code that you want to get the interactor for.
+ * @returns The name of the interactor.
+ */
 export const getInteractorByLine = (lineNumber: number): string => {
   for (let x of interactorLimits) {
     if (x[1].start <= lineNumber && (x[1].end === undefined || x[1].end! >= lineNumber)) {

@@ -566,6 +566,7 @@ export const parseMemberOfRelation = (
   return { tokens: toRetTokens, type: type };
 };
 
+
 export const compareRelationTokens = (
   textInfo: { line: string; lineNumber: number; el: string },
   offset: number
@@ -598,6 +599,7 @@ export const compareRelationTokens = (
         };
       })
       .filter((el) => !comparationSymbols.test(el.value.trim()) && el.value.trim() !== "");
+
     if (separated.length === 2) {
       //separate the attribute and the value
       //const preAtt = textInfo.el.slice(0, textInfo.el.indexOf(indexOfOp[0])).trim();

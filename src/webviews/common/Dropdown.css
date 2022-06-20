@@ -1,3 +1,7 @@
+*{
+    box-sizing: border-box;
+}
+
 .dropdown-outside{
     margin: 0;
     background-color: inherit;
@@ -24,11 +28,13 @@
 }
 
 .dropdown-icon {
-    transition: all 0.5s ease-in-out;
+    cursor: pointer;
+    margin-right: 0.3rem;
+    transition: all 0.3s ease-in-out;
 }
 
 .dropdown-icon.opened{
-    transform: rotate(-180deg);
+    transform: rotate(90deg);
 }
 
 .total-number{

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faMinus, faPlus } from "@fortawesome/free-solid-svg-icons";
+import { faAngleRight } from "@fortawesome/free-solid-svg-icons";
 import * as React from "react";
 import "./Dropdown.css";
 
@@ -16,7 +16,7 @@ const Dropdown = (props: {
   return (
     <div
       className="dropdown-outside"
-      style={{ marginLeft: `${props.level * 0.5}rem`, width: 100 - 10 * props.level + "%" }}
+      style={{ paddingLeft: `${props.level * 0.5}rem` }}
     >
       <div
         onClick={() => {
@@ -24,15 +24,16 @@ const Dropdown = (props: {
         }}
         className="dropdown-header"
       >
-        <h3 className="dropdown-name">{props.title}</h3>
         <div className="dropdown-icon-holder">
+          
+        <FontAwesomeIcon className={`dropdown-icon ${isOpen ? "opened" : ""}`} icon={faAngleRight} />
           {props.totalNumberOfItems && (
             <h3 className="total-number">
-              {props.totalNumberOfItems - props.items.length + "/" + props.totalNumberOfItems}
+              {props.items.length === 0 ? "All attributes defined" : "Missing " + props.items.length + " attributes"}
             </h3>
           )}
-          <FontAwesomeIcon className={`dropdown-icon ${isOpen ? "opened" : ""}`} icon={isOpen ? faMinus : faPlus} />
         </div>
+        <h3 className="dropdown-name">{props.title}</h3>
       </div>
 
       <div className={`dropdown-items`}>
