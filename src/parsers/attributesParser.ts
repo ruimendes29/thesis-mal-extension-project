@@ -63,7 +63,7 @@ const parseType = (line: string, lineNumber: number, currentOffset: number) => {
     }
 
   });
-  return parseActionSection.getTokens(line, lineNumber, currentOffset);
+  return parseActionSection.getTokens(line, lineNumber, 0);
 };
 
 export const _parseAttributes = (
