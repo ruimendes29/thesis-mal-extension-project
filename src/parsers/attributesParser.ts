@@ -25,7 +25,7 @@ const parseAttribute = (line: string, lineNumber: number, currentOffset: number)
       return "variable";
     }
   });
-  return parseActionSection.getTokens(line, lineNumber, currentOffset);
+  return parseActionSection.getTokens(line, lineNumber, 0);
 };
 
 const parseVis = (line: string, lineNumber: number, currentOffset: number) => {
@@ -35,7 +35,7 @@ const parseVis = (line: string, lineNumber: number, currentOffset: number) => {
   const parseActionSection: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
     return "keyword";
   });
-  return parseActionSection.getTokens(line, lineNumber, currentOffset);
+  return parseActionSection.getTokens(line, lineNumber,0);
 };
 
 const parseType = (line: string, lineNumber: number, currentOffset: number) => {

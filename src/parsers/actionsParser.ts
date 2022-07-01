@@ -34,59 +34,83 @@ const parseVis = (line: string, lineNumber: number, currentOffset: number) => {
   return parseActionSection.getTokens(line, lineNumber, currentOffset);
 };
 
+const isAType = (line: string, position: number, element: string) => {
+  let goBack = -1;
+  let goForward = 1;
+  while (line[position + goBack] === " ") {
+    goBack--;
+  }
+  while (line[position + element.length + goForward] === " ") {
+    goForward++;
+  }
+  if (line[position + goBack] === "(" || line[position + goBack] === ",") {
+    return true;
+  }
+  if (line[position + element.length + goForward] === ")" || line[position + element.length + goForward] === ",") {
+    return true;
+  }
+  return false;
+};
+
 /* Very similar to the method above, where only the findTokens expression is changed as well as the 
 tokens to separate the main match. */
 const parseAction = (line: string, lineNumber: number, currentOffset: number) => {
   let indexOfElement = 0;
-  const toFindTokens = /(?<=(\]\s*|^\s*))(?<!\[)\s*[A-Za-z]+\w*\s*(\(((\s*\w+\s*),?)+\))?(?!\])/;
+  const toFindTokens = /(?<=(\]\s*|^\s*))(?<!\[)(\s*[A-Za-z]+\w*\s*(\(((\s*\w+\s*),?)+\))?)+(?!\])/;
   const toSeparateTokens = /(\)|\(|\,|\s)/;
+  let hasTypes = false;
+  let foundAction = false;
   let actionName: string = "";
-  const actionArguments: string[] = [];
+  let actionArguments: string[] = [];
 
   const parseActionSection: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-    if (indexOfElement === 0) {
-      // if an element is found, add it to the actions map and return function as the token type
-      if (actions.has(currentInteractor) && actions.get(currentInteractor)!.has(el.trim())) {
-        addDiagnostic(
-          lineNumber,
-          sc,
-          el,
-          el.trim() + " is already defined",
-          "error",
-          ALREADY_DEFINED + ":" + lineNumber + ":" + el.trim()
-        );
-        indexOfElement++;
-        return "regexp";
-      } else {
-        if (!actionsToAttributes.has(currentInteractor)) {
-          actionsToAttributes.set(currentInteractor, new Map());
-        }
-        if (!actionsToAttributes.get(currentInteractor)!.has(currentInteractor)) {
-          actionsToAttributes.get(currentInteractor)!.set(currentInteractor, new Map());
-        }
-        actionsToAttributes.get(currentInteractor)!.get(currentInteractor)!.set(el.trim(), new Set());
-
-        actionName = el.trim();
-        indexOfElement++;
-        return "function";
-      }
-    } else {
+    const et = el.trim();
+    // if an element is found, add it to the actions map and return function as the token type
+    if (actions.has(currentInteractor) && actions.get(currentInteractor)!.has(et)) {
+      addDiagnostic(
+        lineNumber,
+        sc,
+        el,
+        et + " is already defined",
+        "error",
+        ALREADY_DEFINED + ":" + lineNumber + ":" + et
+      );
       indexOfElement++;
-      const et = el.trim();
-      if (enums.has(et) || ranges.has(et) || arrays.has(et) || et === "boolean") {
-        actionArguments.push(et);
-        return "type";
-      } else {
-        addDiagnostic(lineNumber, sc, el, et + " is not a valid type", "error", NOT_YET_IMPLEMENTED);
-        return "regexp";
+      return "regexp";
+    } else if (foundAction && (enums.has(et) || ranges.has(et) || arrays.has(et) || et === "boolean")) {
+      actionArguments.push(et);
+      return "type";
+    } else if (isAType(line, sc, et)) {
+      addDiagnostic(lineNumber, sc, el, et + " is not a valid type", "error", NOT_YET_IMPLEMENTED + ":" + et);
+      return "regexp";
+    } else {
+      if (!actionsToAttributes.has(currentInteractor)) {
+        actionsToAttributes.set(currentInteractor, new Map());
       }
+      if (!actionsToAttributes.get(currentInteractor)!.has(currentInteractor)) {
+        actionsToAttributes.get(currentInteractor)!.set(currentInteractor, new Map());
+      }
+      actionsToAttributes.get(currentInteractor)!.get(currentInteractor)!.set(et, new Set());
+      if (!actions.has(currentInteractor)) {
+        actions.set(currentInteractor, new Map());
+      }
+      if (foundAction) {
+        actions.get(currentInteractor)!.set(actionName, { used: false, line: lineNumber, arguments: actionArguments });
+      }
+      console.log(isAType(line, sc, et) + " " + et);
+      actionArguments = [];
+      actionName = et;
+      foundAction = true;
+      return "function";
     }
   });
   const toReturnParseAction = parseActionSection.getTokens(line, lineNumber, currentOffset);
   if (!actions.has(currentInteractor)) {
     actions.set(currentInteractor, new Map());
   }
-  actions.get(currentInteractor)!.set(actionName, { used: false, line: lineNumber, arguments: actionArguments });
+  if (foundAction) {
+    actions.get(currentInteractor)!.set(actionName, { used: false, line: lineNumber, arguments: actionArguments });
+  }
   return toReturnParseAction;
 };
 
@@ -104,24 +128,14 @@ export const _parseActions = (
   ) => { tokens: IParsedToken[]; size: number } | undefined)[] = [parseVis, parseAction];
 
   const lineWithoutComments = line.indexOf("#") >= 0 ? line.slice(0, line.indexOf("#")) : line;
-  const separators = /(?<!\,)(\s)+/;
-  const splittedWithOffset = splitWithOffset(separators,lineWithoutComments,0);
-  const splitted = lineWithoutComments.split(separators);
-  for (const action of splitted) {
-    if (action.trim() === "" || separators.test(action))
-    {
-      currentOffset+=action.length;
-      continue;
-    }
-    console.log(action +" "+currentOffset);
-    for (const parser of sectionsToParseParsers) {
-      const matchedPiece = parser(action, lineNumber, currentOffset);
-      if (matchedPiece && matchedPiece.size > 0) {
-        toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
-        size += matchedPiece.size;
-        currentOffset += matchedPiece.size;
-        break;
-      }
+  const separators = /(?<!\,)(\s)/;
+
+  for (const parser of sectionsToParseParsers) {
+    const matchedPiece = parser(lineWithoutComments, lineNumber, 0);
+    if (matchedPiece && matchedPiece.size > 0) {
+      toRetTokens = [...toRetTokens, ...matchedPiece.tokens];
+      size += matchedPiece.size;
+      currentOffset += matchedPiece.size;
     }
   }
 
