@@ -148,7 +148,7 @@ export class MyCodeActionProvider implements vscode.CodeActionProvider {
     position: vscode.Position
   ): vscode.CodeAction {
     let fix;
-      fix = new vscode.CodeAction(`Convert to ${newType}`, vscode.CodeActionKind.QuickFix);
+    fix = new vscode.CodeAction(`Convert to ${newType}`, vscode.CodeActionKind.QuickFix);
     fix.diagnostics = [diagnostic];
     fix.edit = new vscode.WorkspaceEdit();
     const line = document.lineAt(lineToFix).text;
@@ -217,9 +217,9 @@ export class MyCodeActionProvider implements vscode.CodeActionProvider {
     const fix = new vscode.CodeAction(`Add ${attribute} with type ${newType}`, vscode.CodeActionKind.QuickFix);
     fix.diagnostics = [diagnostic];
     fix.edit = new vscode.WorkspaceEdit();
-    const textToAdd = attribute + " : " + newType + " " + "\n";
 
     const numberOfSpaces = attributesStart ? countSpacesAtStart(document.lineAt(linePosition + 1).text) : 0;
+    const textToAdd = attribute + " : " + newType + " " + "\n" + " ".repeat(numberOfSpaces);
     if (!attributesStart) {
       fix.edit.insert(document.uri, new vscode.Position(linePosition, 0), "attributes\n");
     }
@@ -234,8 +234,8 @@ export class MyCodeActionProvider implements vscode.CodeActionProvider {
         document,
         linePosition + (attributesStart ? 1 : 0),
         attribute,
-        Math.max(0,eval(valValue?valValue:"0")-10),
-        Math.max(10,eval(valValue?valValue:"0")+10),
+        Math.max(0, eval(valValue ? valValue : "0") - 10),
+        Math.max(10, eval(valValue ? valValue : "0") + 10),
         diagnostic,
         position,
         fix

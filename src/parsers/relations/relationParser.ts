@@ -17,6 +17,7 @@ import {
   emitNotANumberDiagnostic,
   emitNotArrayDiagnostic,
   parseErrorsRelationBetween,
+  parseSingleError,
 } from "./relationErrors";
 import { findValueType, findTemporaryType } from "./typeFindes";
 
@@ -557,6 +558,9 @@ export const parseMemberOfRelation = (
           break;
         }
       }
+      if (!type) {
+        console.log(sm);
+      }
     } else if ((possibleRet = parseArgumentOfActionMember(textInfo, sm, interactor))) {
       type = possibleRet.type;
       toRetTokens = [...toRetTokens, ...possibleRet.tokens];
@@ -565,7 +569,6 @@ export const parseMemberOfRelation = (
 
   return { tokens: toRetTokens, type: type };
 };
-
 
 export const compareRelationTokens = (
   textInfo: { line: string; lineNumber: number; el: string },
@@ -620,10 +623,14 @@ export const compareRelationTokens = (
 
       return [...parsedAtt!.tokens, ...parsedVal!.tokens];
     } else {
-      return [...parseMemberOfRelation(textInfo, separated[0], currentInteractor)!.tokens];
+      const parsedMember = parseMemberOfRelation(textInfo, separated[0], currentInteractor);
+      parseSingleError(textInfo.lineNumber, separated[0], parsedMember!.type!, offsetForDiags);
+      return [...parsedMember!.tokens];
     }
   } else {
-    return [...parseMemberOfRelation(textInfo, { value: textInfo.el, offset: 0 }, currentInteractor)!.tokens];
+    const parsedMember = parseMemberOfRelation(textInfo, {value:textInfo.el,offset:0}, currentInteractor);
+    parseSingleError(textInfo.lineNumber,  {value:textInfo.el,offset:0}, parsedMember!.type!, offsetForDiags);
+    return [...parsedMember!.tokens];
   }
   return undefined;
 };

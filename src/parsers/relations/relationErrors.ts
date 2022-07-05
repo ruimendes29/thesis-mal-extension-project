@@ -139,6 +139,25 @@ export const parseErrorsRelationBetween = (
   }
 };
 
+export const parseSingleError = (
+  lineNumber: number,
+  att: { value: string; offset: number },
+  attType: string | undefined,
+  offset: number
+) => {
+  if ((attType === "" || attType === undefined) && att.value!==",") {
+    const correctAttValue =  removeExclamation(att.value.trim()).value;
+    addDiagnostic(
+      lineNumber,
+      offset,
+      correctAttValue,
+      correctAttValue + " is not defined!",
+      "error",
+      DEFINE_ATTRIBUTE + ":boolean:" + removeExclamation(att.value.trim()).value + ":" + correctAttValue
+    );
+  }
+};
+
 const getLineWhereAttIsDefined = (att: string) => {
   if (attributes.has(currentInteractor) && attributes.get(currentInteractor)!.has(att)) {
     return { value: att, line: attributes.get(currentInteractor)!.get(att)!.line };

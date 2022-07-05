@@ -50,7 +50,7 @@ export const provider2 = vscode.languages.registerCompletionItemProvider(
       // and if so then complete if `log`, `warn`, and `error`
       let match;
       const linePrefix = document.lineAt(position).text.slice(0, position.character);
-      if (linePrefix.charAt(linePrefix.length - 1) === "[") {
+      if (linePrefix.charAt(linePrefix.length - 1) === "[" || linePrefix.includes("per(")) {
         return Array.from(actions.get(getInteractorByLine(position.line)!)!).map(
           ([key, value]) => new vscode.CompletionItem(key, vscode.CompletionItemKind.Function)
         );
@@ -81,8 +81,9 @@ export const provider2 = vscode.languages.registerCompletionItemProvider(
       }
     },
   },
+  "(",
   "[",
-  "=" // triggered whenever a '.' is being typed
+  "="
 );
 
 export const provider3 = vscode.languages.registerCompletionItemProvider(
@@ -165,7 +166,7 @@ export const provider4 = vscode.languages.registerCompletionItemProvider(
 
 export const provider5 = vscode.languages.registerCompletionItemProvider("mal", {
   provideCompletionItems(document: vscode.TextDocument, position: vscode.Position) {
-    const cc = new vscode.CompletionItem("keep all", vscode.CompletionItemKind.Snippet);
+    const cc = new vscode.CompletionItem("keep remaining", vscode.CompletionItemKind.Snippet);
     let lineText = document.lineAt(position.line).text;
     let i = 1;
     while (countSpacesAtStart(document.lineAt(position.line - i).text) < countSpacesAtStart(lineText)) {
