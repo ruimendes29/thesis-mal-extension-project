@@ -96,6 +96,16 @@ const parseRangeTypes = (line: string, lineNumber: number) => {
         }
 
         return !isNaN(+el.trim()) ? "number" : "variable";
+      } else {
+        addDiagnostic(
+          lineNumber,
+          sc,
+          el,
+          el.trim() + " is not a number or is not defined.",
+          "error",
+          NOT_YET_IMPLEMENTED + ":" + el.trim()
+        );
+        return "regexp";
       }
     }
 
