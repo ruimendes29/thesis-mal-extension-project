@@ -10,6 +10,8 @@ const Dropdown = (props: {
   items: any[];
   totalNumberOfItems?: number;
   initial?: boolean;
+  isAction?: boolean;
+  everythingOk?: { value: boolean };
 }) => {
   const [isOpen, setIsOpen] = React.useState(props.initial ? props.initial : false);
   let elementId = 0;
@@ -21,16 +23,29 @@ const Dropdown = (props: {
         }}
         className="dropdown-header"
       >
-        <h3 className="dropdown-name">{props.title}</h3>
+        <h3
+          style={{
+            color: props.isAction
+              ? "var(--vscode-textPreformat-foreground)"
+              : "var(--vscode-inputOption-activeForeground,white)",
+          }}
+          className={`dropdown-name ${props.everythingOk ? (props.everythingOk.value ? "ok" : "not-ok") : ""}`}
+        >
+          {props.title}
+        </h3>
         <div className="dropdown-icon-holder">
           {props.totalNumberOfItems && (
             <h3 className="total-number">
-              {props.items.length === 0
-                ? <span style={{color:"green"}}> Ok</span>
-                : <span style={{color:"orange"}}>Missing  {props.items.length}/{props.totalNumberOfItems} attributes</span>}
+              {props.items.length === 0 ? (
+                <span style={{ color: "green" }}> Ok</span>
+              ) : (
+                <span style={{ color: "orange" }}>
+                  Missing {props.items.length}/{props.totalNumberOfItems} attributes
+                </span>
+              )}
             </h3>
           )}
-          
+
           <FontAwesomeIcon className={`dropdown-icon ${isOpen ? "opened" : ""}`} icon={faAngleRight} />
         </div>
       </div>
@@ -39,7 +54,12 @@ const Dropdown = (props: {
         {props.items.map((el) => (
           <div
             key={elementId++}
-            style={{ transition: `all ${1 * elementId}s ease-in-out` }}
+            style={{
+              transition: `all ${1 * elementId}s ease-in-out`,
+              width: "100%",
+              textAlign: "right",
+              marginBottom: "3px",
+            }}
             className={`dropdown-item ${isOpen ? "" : "closed"}`}
           >
             {el}

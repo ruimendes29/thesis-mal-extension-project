@@ -36,11 +36,26 @@ const App = (props) => {
   let mainInteractorId = 0;
   let includedInteractorId = 0;
   let actionId = 0;
+
+  const checkIfAllActionsAreDefined = (includedInteractor: any) => {
+    for (let action of includedInteractor.actions) {
+      if (action.attributes.length > 0) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   return (
     <div>
       {listOfInteractors.map((mainInteractor) => (
         <Dropdown
           level={0}
+          everythingOk={{
+            value: checkIfAllActionsAreDefined(
+              mainInteractor.insideInteractors.filter((ii) => ii.includedInteractor === "actions")[0]
+            ),
+          }}
           key={mainInteractorId++}
           title={mainInteractor.mainInteractor}
           items={mainInteractor.insideInteractors.map((includedInteractor) => (
@@ -48,6 +63,7 @@ const App = (props) => {
               {includedInteractor.includedInteractor === "actions" &&
                 includedInteractor.actions.map((action) => (
                   <Dropdown
+                    isAction
                     level={1}
                     key={actionId++}
                     title={action.actionName}
@@ -61,8 +77,10 @@ const App = (props) => {
                   key={includedInteractorId++}
                   title={includedInteractor.includedInteractor}
                   initial={includedInteractor.includedInteractor === "actions"}
+                  everythingOk={{ value: checkIfAllActionsAreDefined(includedInteractor) }}
                   items={includedInteractor.actions.map((action) => (
                     <Dropdown
+                      isAction
                       level={2}
                       key={actionId++}
                       title={action.actionName}
