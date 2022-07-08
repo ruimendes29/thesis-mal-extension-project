@@ -44,21 +44,35 @@ const App = (props) => {
           key={mainInteractorId++}
           title={mainInteractor.mainInteractor}
           items={mainInteractor.insideInteractors.map((includedInteractor) => (
-            <Dropdown
-              level={1}
-              key={includedInteractorId++}
-              title={includedInteractor.includedInteractor}
-              initial={includedInteractor.includedInteractor === "actions"}
-              items={includedInteractor.actions.map((action) => (
+            <React.Fragment>
+              {includedInteractor.includedInteractor === "actions" &&
+                includedInteractor.actions.map((action) => (
+                  <Dropdown
+                    level={1}
+                    key={actionId++}
+                    title={action.actionName}
+                    items={action.attributes}
+                    totalNumberOfItems={action.totalAttributes}
+                  />
+                ))}
+              {includedInteractor.includedInteractor !== "actions" && (
                 <Dropdown
-                  level={2}
-                  key={actionId++}
-                  title={action.actionName}
-                  items={action.attributes}
-                  totalNumberOfItems={action.totalAttributes}
+                  level={1}
+                  key={includedInteractorId++}
+                  title={includedInteractor.includedInteractor}
+                  initial={includedInteractor.includedInteractor === "actions"}
+                  items={includedInteractor.actions.map((action) => (
+                    <Dropdown
+                      level={2}
+                      key={actionId++}
+                      title={action.actionName}
+                      items={action.attributes}
+                      totalNumberOfItems={action.totalAttributes}
+                    />
+                  ))}
                 />
-              ))}
-            />
+              )}
+            </React.Fragment>
           ))}
         />
       ))}

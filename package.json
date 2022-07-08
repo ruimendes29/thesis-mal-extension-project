@@ -34,7 +34,7 @@
         {
           "type": "webview",
           "id": "mal-deterministic",
-          "name": "Determinism of Actions"
+          "name": "Axioms analysis"
         },
         {
           "type": "webview",

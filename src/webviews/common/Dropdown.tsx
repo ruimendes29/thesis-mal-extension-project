@@ -14,26 +14,25 @@ const Dropdown = (props: {
   const [isOpen, setIsOpen] = React.useState(props.initial ? props.initial : false);
   let elementId = 0;
   return (
-    <div
-      className="dropdown-outside"
-      style={{ paddingLeft: `${props.level * 0.5}rem` }}
-    >
+    <div className="dropdown-outside" style={{ paddingLeft: `${props.level * 0.5}rem` }}>
       <div
         onClick={() => {
           setIsOpen((prev) => !prev);
         }}
         className="dropdown-header"
       >
+        <h3 className="dropdown-name">{props.title}</h3>
         <div className="dropdown-icon-holder">
-          
-        <FontAwesomeIcon className={`dropdown-icon ${isOpen ? "opened" : ""}`} icon={faAngleRight} />
           {props.totalNumberOfItems && (
             <h3 className="total-number">
-              {props.items.length === 0 ? "All attributes defined" : "Missing " + props.items.length + " attributes"}
+              {props.items.length === 0
+                ? <span style={{color:"green"}}> Ok</span>
+                : <span style={{color:"orange"}}>Missing  {props.items.length}/{props.totalNumberOfItems} attributes</span>}
             </h3>
           )}
+          
+          <FontAwesomeIcon className={`dropdown-icon ${isOpen ? "opened" : ""}`} icon={faAngleRight} />
         </div>
-        <h3 className="dropdown-name">{props.title}</h3>
       </div>
 
       <div className={`dropdown-items`}>
