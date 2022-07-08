@@ -29,7 +29,7 @@ const Dropdown = (props: {
               ? "var(--vscode-textPreformat-foreground)"
               : "var(--vscode-inputOption-activeForeground,white)",
           }}
-          className={`dropdown-name ${props.everythingOk ? (props.everythingOk.value ? "ok" : "not-ok") : ""}`}
+          className={`dropdown-name ${props.everythingOk ? (props.everythingOk.value ? "ok" : "not-ok") : " "}`}
         >
           {props.title}
         </h3>
