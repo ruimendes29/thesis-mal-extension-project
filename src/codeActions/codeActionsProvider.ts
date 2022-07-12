@@ -191,9 +191,9 @@ export class MyCodeActionProvider implements vscode.CodeActionProvider {
     fix.diagnostics = [diagnostic];
     fix.edit = new vscode.WorkspaceEdit();
     const actionStart = actionsStartingLine.get(getInteractorByLine(position.line));
-    const textToAdd = newAction + "\n";
     let linePosition = actionStart ? actionStart : interactorLimits.get(getInteractorByLine(position.line))!.start + 1;
     let numberOfSpaces = actionStart ? countSpacesAtStart(document.lineAt(linePosition + 1).text) : 0;
+    const textToAdd = newAction + "\n" + " ".repeat(numberOfSpaces);
     if (!actionStart) {
       fix.edit.insert(document.uri, new vscode.Position(linePosition, 0), "actions\n");
     }
