@@ -192,7 +192,7 @@ const parseGroupForInMember = (
     const splittedMember = splitWithOffset(rx, member.value, member.offset);
     for (let sm of splittedMember) {
       const smvt = sm.value.trim();
-      if (index++ === 0) {
+      if (index === 0) {
         correctType = findValueType(smvt, interactor);
         if (correctType === undefined) {
           addDiagnostic(
@@ -238,6 +238,7 @@ const parseGroupForInMember = (
           });
         }
       }
+      index++;
     }
     return { tokens: toRet, type: correctType };
   }
@@ -558,9 +559,6 @@ export const parseMemberOfRelation = (
           break;
         }
       }
-      if (!type) {
-        console.log(sm);
-      }
     } else if ((possibleRet = parseArgumentOfActionMember(textInfo, sm, interactor))) {
       type = possibleRet.type;
       toRetTokens = [...toRetTokens, ...possibleRet.tokens];
@@ -628,8 +626,8 @@ export const compareRelationTokens = (
       return [...parsedMember!.tokens];
     }
   } else {
-    const parsedMember = parseMemberOfRelation(textInfo, {value:textInfo.el,offset:0}, currentInteractor);
-    parseSingleError(textInfo.lineNumber,  {value:textInfo.el,offset:0}, parsedMember!.type!, offsetForDiags);
+    const parsedMember = parseMemberOfRelation(textInfo, { value: textInfo.el, offset: 0 }, currentInteractor);
+    parseSingleError(textInfo.lineNumber, { value: textInfo.el, offset: 0 }, parsedMember!.type!, offsetForDiags);
     return [...parsedMember!.tokens];
   }
   return undefined;

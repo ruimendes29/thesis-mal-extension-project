@@ -26,7 +26,6 @@ const App = (props) => {
   };
 
   React.useEffect(() => {
-    console.log("ran");
     sendMessageWithTimer();
   }, []);
 

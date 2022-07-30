@@ -19,5 +19,4 @@ export const commandHandler = () => {
     informationMessage.push(" )\\n");
   }
   vscode.window.showInformationMessage(informationMessage.join(""));
-  console.log(`Hello World!!!`);
 };

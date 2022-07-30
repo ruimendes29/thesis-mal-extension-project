@@ -97,7 +97,6 @@ const parseAction = (line: string, lineNumber: number, currentOffset: number) =>
       if (foundAction) {
         actions.get(currentInteractor)!.set(actionName, { used: false, line: lineNumber, arguments: actionArguments });
       }
-      console.log(isAType(line, sc, et) + " " + et);
       actionArguments = [];
       actionName = et;
       foundAction = true;

@@ -33,7 +33,6 @@ export class PropertiesProvider implements vscode.WebviewViewProvider {
       const foundValueTypeForArg = findValueType(arg, interactor)!;
       this.findValuesWithSameType(arg,interactor,foundValueTypeForArg,toRet);
      } else {
-      console.log(possibleArrayName.arrayName);
       if (attributes.has(interactor) && attributes.get(interactor)!.has(possibleArrayName.arrayName)) {
         const foundValueTypeForArg = getArrayInStore(possibleArrayName.arrayName, interactor).type!;
         this.findValuesWithSameType(possibleArrayName.arrayName,interactor,foundValueTypeForArg,toRet);
