@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { MyCodeActionProvider } from "./codeActions/codeActionsProvider";
+import { IvyCodeActionProvider } from "./codeActions/codeActionsProvider";
 import { provider1, provider2, provider3, provider4, provider5 } from "./codeCompletion/codeCompletionProvider";
 import { commandHandler } from "./commands/commands";
 import { clearDiagnosticCollection } from "./diagnostics/diagnostics";
@@ -60,8 +60,8 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   context.subscriptions.push(
-    vscode.languages.registerCodeActionsProvider("mal", new MyCodeActionProvider(), {
-      providedCodeActionKinds: MyCodeActionProvider.providedCodeActionKinds,
+    vscode.languages.registerCodeActionsProvider("mal", new IvyCodeActionProvider(), {
+      providedCodeActionKinds: IvyCodeActionProvider.providedCodeActionKinds,
     })
   );
 
@@ -69,7 +69,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.languages.registerDefinitionProvider({ language: "mal" }, new MyDefinitionProvider())
   );
 
-  context.subscriptions.push(vscode.languages.registerHoverProvider({ language: "mal" }, new MyHoverProvider()));
+  context.subscriptions.push(vscode.languages.registerHoverProvider({ language: "mal" }, new IvyHoverProvider()));
 
   context.subscriptions.push(
     vscode.languages.registerDocumentSemanticTokensProvider(
@@ -134,7 +134,7 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
   }
 }
 
-class MyHoverProvider implements vscode.HoverProvider {
+class IvyHoverProvider implements vscode.HoverProvider {
   provideHover(
     document: vscode.TextDocument,
     position: vscode.Position,

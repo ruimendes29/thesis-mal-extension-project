@@ -24,7 +24,7 @@ const COMMAND = "mal.command";
 /**
  * Provides code actions corresponding to diagnostic problems.
  */
-export class MyCodeActionProvider implements vscode.CodeActionProvider {
+export class IvyCodeActionProvider implements vscode.CodeActionProvider {
   public static readonly providedCodeActionKinds = [vscode.CodeActionKind.QuickFix];
 
   provideCodeActions(
