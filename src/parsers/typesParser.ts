@@ -70,18 +70,21 @@ const parseRangeTypes = (line: string, lineNumber: number) => {
   let minValue: number | undefined = undefined;
   let maxValue: number | undefined = undefined;
   const parseRanges: ParseSection = new ParseSection(toFindTokens, toSeparateTokens, (el, sc) => {
-    if (elementIndex++ === 0) {
+    elementIndex++;
+    if (elementIndex === 1) {
       rangeName = el.trim();
       return "type";
     } else {
       const inputRangeInfo = parseRangeInput(el.trim());
       if (inputRangeInfo.isANumber) {
-        if (elementIndex === 1) {
+        if (elementIndex === 2) {
           minValue = inputRangeInfo.value;
         } else {
           maxValue = inputRangeInfo.value;
+          console.log('min '+minValue);
+          console.log('max '+maxValue);
           //todo ranges are not numbers
-          if (minValue! >= maxValue) {
+          if (minValue! >= maxValue!) {
             addDiagnostic(
               lineNumber,
               sc,

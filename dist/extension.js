@@ -51,11 +51,11 @@ function activate(context) {
         (0, globalParserInfo_1.clearStoredValues)();
         (0, diagnostics_1.clearDiagnosticCollection)();
     });
-    context.subscriptions.push(vscode.languages.registerCodeActionsProvider("mal", new codeActionsProvider_1.MyCodeActionProvider(), {
-        providedCodeActionKinds: codeActionsProvider_1.MyCodeActionProvider.providedCodeActionKinds,
+    context.subscriptions.push(vscode.languages.registerCodeActionsProvider("mal", new codeActionsProvider_1.IvyCodeActionProvider(), {
+        providedCodeActionKinds: codeActionsProvider_1.IvyCodeActionProvider.providedCodeActionKinds,
     }));
     context.subscriptions.push(vscode.languages.registerDefinitionProvider({ language: "mal" }, new MyDefinitionProvider()));
-    context.subscriptions.push(vscode.languages.registerHoverProvider({ language: "mal" }, new MyHoverProvider()));
+    context.subscriptions.push(vscode.languages.registerHoverProvider({ language: "mal" }, new IvyHoverProvider()));
     context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider({ language: "mal" }, new DocumentSemanticTokensProvider(), legend));
     const actionsProvider = new actionsDeterminism_1.ActionsDeterminismProvider(context.extensionUri);
     const propertiesProvider = new propertiesCreator_1.PropertiesProvider(context.extensionUri);
@@ -95,7 +95,7 @@ class DocumentSemanticTokensProvider {
         return result;
     }
 }
-class MyHoverProvider {
+class IvyHoverProvider {
     provideHover(document, position, token) {
         const wordRange = document.getWordRangeAtPosition(position);
         const word = document.getText(wordRange);
