@@ -56,10 +56,11 @@ export const provider2 = vscode.languages.registerCompletionItemProvider(
         );
       } else if (
         linePrefix.charAt(linePrefix.length - 1) === "=" &&
-        (match = linePrefix.match(/(?<=(^|\s))(([0-9A-Za-z])+\s*[\.\'\=]{1})+/)) !== null
+        (match = linePrefix.match(/(?<=(^|\s))(([0-9A-Za-z])+\s*[\.\'\=]{1})+/g)) !== null
       ) {
         const separators = /(\.|\'|\=)/;
-        const splitted = match[0].split(separators).filter((el) => el.trim() !== "" && !separators.test(el));
+        console.log(match);
+        const splitted = match[match.length-1].split(separators).filter((el) => el.trim() !== "" && !separators.test(el));
         let current = getInteractorByLine(position.line);
         for (let aggregated of splitted) {
           if (aggregates.has(aggregated) && aggregates.get(aggregated)!.current === current) {
@@ -73,9 +74,12 @@ export const provider2 = vscode.languages.registerCompletionItemProvider(
           return enums
             .get(valueType!)!
             .values.map((v) => new vscode.CompletionItem(v, vscode.CompletionItemKind.EnumMember));
-        } else {
-          return undefined;
+        } else if (valueType === 'boolean') {
+          return [
+            new vscode.CompletionItem("true", vscode.CompletionItemKind.Constant),
+            new vscode.CompletionItem("false", vscode.CompletionItemKind.Constant)];
         }
+        return undefined;
       } else {
         return undefined;
       }

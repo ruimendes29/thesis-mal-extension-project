@@ -41,12 +41,12 @@ const parseActionWithArguments = (
   const slicedLine = line.slice(startingChar + action.length);
   const args = slicedLine.slice(0, slicedLine.indexOf(")") + 1);
   const splitedArgs = args.split(rx).filter((el) => !rx.test(el) && el.trim() !== "");
-  if (rx2.test(line) && splitedArgs.length !== numberOfArgs) {
+  if ((rx2.test(line) && splitedArgs.length !== numberOfArgs) || (!rx2.test(line) && numberOfArgs>0)) {
     addDiagnostic(
       lineNumber,
       startingChar,
       action,
-      action + " doest not have the right amount of arguments",
+      action + " does not have the right amount of arguments",
       "error",
       NOT_YET_IMPLEMENTED + ":" + action
     );
