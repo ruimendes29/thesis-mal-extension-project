@@ -16,6 +16,7 @@ import {
   emitNotAggregatedDiagnostic,
   emitNotANumberDiagnostic,
   emitNotArrayDiagnostic,
+  emitNotInArrayRangeDiagnostic,
   parseErrorsRelationBetween,
   parseSingleError,
 } from "./relationErrors";
@@ -112,7 +113,7 @@ const parseArrayMember = (
     }
     const splittedMember = splitWithOffset(/(\[|\])/, member.value, member.offset);
     let index = 0;
-    let arrayInfo: { type: any; dimensions: number };
+    let arrayInfo: { type: any; dimensions: number; indexes:{firstIndex: number, lastIndex: number}[] };
     let toRet: any[] = [];
     for (let sm of splittedMember) {
       const { offset: o, value: v } = sm;
@@ -161,7 +162,22 @@ const parseArrayMember = (
         if (index < arrayInfo!.dimensions + 1) {
           const parsedComplexArgument = parseMemberOfRelation(textInfo, sm, currentInteractor);
           if (parsedComplexArgument?.type === "number") {
-            toRet = [...toRet, ...parsedComplexArgument.tokens];
+            let evalValue: number | null = null;
+            try {
+              evalValue = eval(v);
+            } catch (error) {
+              evalValue = null;
+            }
+            if (evalValue && (evalValue > arrayInfo!.indexes[index-1].lastIndex ||
+                evalValue < arrayInfo!.indexes[index-1].firstIndex)) {
+                  emitNotInArrayRangeDiagnostic(textInfo.lineNumber, offsetForDiags + o, v,
+                    {
+                      min: arrayInfo!.indexes[index-1].firstIndex,
+                      max: arrayInfo!.indexes[index-1].lastIndex
+                    });
+                  toRet = [{ offset: o, value: v, tokenType: "regexp", nextState: false }, ...parsedComplexArgument!.tokens];
+            }
+            else { toRet = [...toRet, ...parsedComplexArgument.tokens]; };
           } else {
             emitNotANumberDiagnostic(textInfo.lineNumber, offsetForDiags + o, v);
             toRet = [{ offset: o, value: v, tokenType: "regexp", nextState: false }, ...parsedComplexArgument!.tokens];

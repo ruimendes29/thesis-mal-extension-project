@@ -31,6 +31,17 @@ export const emitNotArrayDiagnostic = (lineNumber: number, offset: number, eleme
   );
 };
 
+export const emitNotInArrayRangeDiagnostic = (lineNumber: number, offset: number, element: string, range: {min:number, max:number}) => {
+  addDiagnostic(
+    lineNumber,
+    offset,
+    element,
+    `${element.trim()} is outside the array range, please insert a value between ${range.min} and ${range.max}`,
+    "error",
+    NOT_YET_IMPLEMENTED + ":" + element.trim()
+  );
+};
+
 export const emitNotANumberDiagnostic = (lineNumber: number, offset: number, element: string) => {
   addDiagnostic(
     lineNumber,
