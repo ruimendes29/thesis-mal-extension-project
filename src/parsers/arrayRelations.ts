@@ -61,8 +61,8 @@ export const getArrayTypeInfo = (arrayType: string): {
     indexes.push({firstIndex: arrayInfo.firstIndex, lastIndex: arrayInfo.lastIndex});
     while (arrays.has(arrayMembersType)) {
       const innerArrayInfo = arrays.get(arrayType)!;
-      arrayMembersType = innerArrayInfo.type;
       indexes.push({firstIndex: innerArrayInfo.firstIndex, lastIndex: innerArrayInfo.lastIndex});
+      arrayMembersType = innerArrayInfo.type;
       numberOfDimensions++;
     }
     type = arrayMembersType;
