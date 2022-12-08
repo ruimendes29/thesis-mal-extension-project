@@ -1,5 +1,5 @@
 import { addDiagnostic, ADD_TO_ENUM, NOT_YET_IMPLEMENTED } from "../../diagnostics/diagnostics";
-import { getArrayInStore, getArrayWrittenInfo } from "../arrayRelations";
+import { getArrayInStore, getArrayTypeInfo, getArrayWrittenInfo } from "../arrayRelations";
 import { temporaryAttributes } from "../axiomParser";
 import {
   actions,
@@ -118,7 +118,17 @@ const parseArrayMember = (
       const { offset: o, value: v } = sm;
       const { value: tv, isNextState } = removeExclamation(v.trim());
       if (index === 0) {
-        if (attributes.has(interactor) && attributes.get(interactor)!.has(tv)) {
+        const temporaryType = findTemporaryType(tv, interactor);
+        if (temporaryType && getArrayTypeInfo(temporaryType).type !== "") {
+          arrayInfo = getArrayTypeInfo(temporaryType);
+          toRet.push({
+            offset: o,
+            value: v,
+            tokenType: "variable",
+            nextState: arrayNext.isNextState,
+          });
+        }
+        else if (attributes.has(interactor) && attributes.get(interactor)!.has(tv)) {
           updateAttributeUsage(tv, interactor);
           arrayInfo = getArrayInStore(tv, interactor);
           if (arrayInfo.type !== "") {

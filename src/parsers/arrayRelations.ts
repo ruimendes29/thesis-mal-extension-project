@@ -41,3 +41,19 @@ export const getArrayInStore = (arrayName: string,interactor :string) => {
   return { dimensions: numberOfDimensions, type: type };
 };
 
+export const getArrayTypeInfo = (arrayType: string): {dimensions: number, type: string} => {
+  let numberOfDimensions = 1;
+  let type = "";
+  if (
+    arrays.has(arrayType)
+  ) {
+    let arrayMembersType = arrays.get(arrayType)!.type;
+    while (arrays.has(arrayMembersType)) {
+      arrayMembersType = arrays.get(arrayMembersType)!.type;
+      numberOfDimensions++;
+    }
+    type = arrayMembersType;
+  }
+  return { dimensions: numberOfDimensions, type: type };
+};
+
