@@ -38,17 +38,15 @@ h3 {
 }
 
 .dropdown-name {
-  position: relative;
+  display: flex;
+  align-items: center;
 }
 
 .dropdown-name::after {
-  position: absolute;
-  content: "";
   display: block;
+  content: "";
   width: 10px;
-  top:50%;
-  transform: translate(0%,-50%);
-  right: -50%;
+  margin-left: 5px;
   aspect-ratio: 1/1;
   border-radius: 50%;
   transition: all 0.3s ease-in-out;
