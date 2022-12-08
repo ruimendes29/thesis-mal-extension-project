@@ -9,6 +9,7 @@ const ArgumentInput = (props: {
   onSelection: Function;
 }) => {
   const operators: string[] = ["!=", "=", "<", ">", "in"];
+  const [selectableOperators, setSelectableOperators] = React.useState([...operators])
   const [listOfPossibilities, setListOfPossibilities] = React.useState({ arguments: [], values: [] });
   const [, setExpressionValue] = React.useState({ first: "", operator: operators[0], second: "" });
   React.useEffect(() => {
@@ -25,8 +26,18 @@ const ArgumentInput = (props: {
       interactor: props.interactor,
     });
     setExpressionValue((oldExpVal) => {
-      const newExpVal = { ...oldExpVal, first: e.target.value };
-      props.onValueChange(newExpVal.first + " " + newExpVal.operator + " " + newExpVal.second, props.identifier);
+      const newExpVal: { first: string; second: string; operator: string } = { ...oldExpVal, first: e.target.value };
+      if (newExpVal.first.includes("effected")) {
+        setSelectableOperators([]);
+        props.onValueChange(newExpVal.first, props.identifier);
+        newExpVal.second = "";
+        newExpVal.operator = "";
+      } else {
+        if (selectableOperators.length === 0) {
+          setSelectableOperators([...operators]);
+        }
+        props.onValueChange(newExpVal.first + " " + newExpVal.operator + " " + newExpVal.second, props.identifier);
+      }
       return newExpVal;
     });
   };
@@ -75,7 +86,7 @@ const ArgumentInput = (props: {
           });
         }}
       >
-        {operators.map((el) => (
+        {selectableOperators.map((el) => (
           <option key={el} value={el}>
             {el}
           </option>
