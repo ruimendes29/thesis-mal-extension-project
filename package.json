@@ -1,13 +1,17 @@
 {
   "name": "mal",
-  "displayName": "mal",
+  "displayName": "MAL support",
   "description": "",
+  "publisher": "UniversidadeDoMinho83712",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.63.0"
   },
+  "repository": {
+    "url": "https://github.com/ruimendes29/thesis-mal-extension-project"
+  },
   "categories": [
-    "Other"
+    "Programming Languages"
   ],
   "activationEvents": [
     "onLanguage:mal"
